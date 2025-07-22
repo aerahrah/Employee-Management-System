@@ -31,9 +31,10 @@ const Login = () => {
 
   return (
     <div style={{ maxWidth: '400px', margin: 'auto', padding: '2rem' }}>
-      <h2>Admin Login</h2>
+      <h2 className='text-red-500'>Admin Login</h2>
       <form onSubmit={handleSubmit}>
         <input
+          className='text-red-500'
           name="username"
           placeholder="Username"
           value={form.username}
