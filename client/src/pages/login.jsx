@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { loginAdmin } from '../api/admin';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../store/authStore';
 
 const Login = () => {
   const { login } = useAuth();
