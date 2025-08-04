@@ -1,8 +1,14 @@
-import { create } from 'zustand'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-export const useAuth = create((set) => ({
+export const useAuth = create(persist((set) => ({
   admin: null,
-  login: (data) => set({ admin: data }),
-  logout: () => set({ admin: null }),
-}))
+  token: null,
+  login: (data) => set({ admin: data, token: data.token }),
+  logout: () => set({ admin: null, token: null}),
+}),
+  {
+    name: 'auth', 
+    getStorage: () => localStorage,
+  }));
 

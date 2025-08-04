@@ -1,6 +1,7 @@
 const Admin = require('../models/adminModel');
 const jwt = require('jsonwebtoken');
-
+const dotenv = require('dotenv');
+dotenv.config();
 // Register new admin
 exports.registerAdmin = async (req, res) => {
   try {
@@ -24,24 +25,16 @@ exports.loginAdmin = async (req, res) => {
     const isMatch = await admin.comparePassword(req.body.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid username or password' });
 
-    const payload = {
-      id: admin._id,
-      username: admin.username
-    };
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+    const payload = { id: admin._id, username: admin.username };
+    
+    // ✅ Use secret key from environment
+    const token = jwt.sign(payload, process.env.JWT_SECRET || 'supersecretkey123', {
       expiresIn: process.env.JWT_EXPIRES_IN || '1d'
     });
 
-    res.json({
-      message: 'Login successful',
-      token,
-      admin: {
-        id: admin._id,
-        username: admin.username
-      }
-    });
+    return res.json({ message: 'Login successful', token, admin: payload, });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return res.status(500).json({ message: err.message });
   }
+
 };

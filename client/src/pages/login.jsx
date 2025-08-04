@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { loginAdmin } from '../api/admin';
 import { useAuth } from '../store/authStore';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const { login } = useAuth();
-
+  const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
 
   const {
@@ -18,6 +19,7 @@ const Login = () => {
     mutationFn: loginAdmin,
     onSuccess: (data) => {
       login(data); // store admin data in context
+      navigate('/dashboard');
     }
   });
 
