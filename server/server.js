@@ -2,7 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const connectDB = require('./db/connect');
-const adminRoutes = require('./routers/adminRoutes'); // ✅ New
+const adminRoutes = require('./routers/adminRoutes');
+const employeeRoutes = require("./routers/employeeRoutes");
 const cors = require('cors');
 
 dotenv.config();
@@ -18,7 +19,8 @@ app.use(cors({
 
 app.use(bodyParser.json());
 
-app.use('/admin', adminRoutes); // ✅ Mount admin routes
+app.use('/admin', adminRoutes); 
+app.use('/employee', employeeRoutes)
 
 connectDB().then(() => {
   app.listen(PORT, () => {
