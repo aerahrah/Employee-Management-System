@@ -1,4 +1,4 @@
-const Employee = require('../models/employeeModel');
+const Employee = require("../models/employeeModel");
 
 const addEmployee = async (req, res) => {
   try {
@@ -13,7 +13,7 @@ const addEmployee = async (req, res) => {
       status,
       address,
       emergencyContact,
-      employeeId 
+      employeeId,
     } = req.body;
 
     const newEmployee = new Employee({
@@ -27,22 +27,22 @@ const addEmployee = async (req, res) => {
       status,
       address,
       emergencyContact,
-      employeeId 
+      employeeId,
     });
 
     await newEmployee.save();
 
     res.status(201).json({
       success: true,
-      message: 'Employee added successfully',
-      data: newEmployee
+      message: "Employee added successfully",
+      data: newEmployee,
     });
   } catch (error) {
-    console.error('Error adding employee:', error);
+    console.error("Error adding employee:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error while adding employee',
-      error: error.message
+      message: "Server error while adding employee",
+      error: error.message,
     });
   }
 };
@@ -53,20 +53,47 @@ const getEmployees = async (req, res) => {
     res.status(200).json({
       success: true,
       count: employees.length,
-      data: employees
+      data: employees,
     });
   } catch (error) {
-    console.error('Error fetching employees:', error);
+    console.error("Error fetching employees:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching employees',
-      error: error.message
+      message: "Server error while fetching employees",
+      error: error.message,
     });
   }
 };
 
+const getEmployeeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const employee = await Employee.findById(id);
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: `Employee with ID ${id} not found`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: employee,
+    });
+  } catch (error) {
+    console.error("Error fetching employee:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching employee",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   addEmployee,
-  getEmployees
+  getEmployees,
+  getEmployeeById,
 };
