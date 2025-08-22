@@ -40,6 +40,11 @@ const EmployeeList = ({ setSelectedId }) => {
       if (!cached) mutateAsync(firstId);
     }
   }, [employees, mutateAsync, queryClient]);
+
+  if (!employees?.data) {
+    return <div>Loading employees...</div>;
+  }
+
   return (
     <div className=" bg-white p-4">
       <div>
@@ -55,7 +60,7 @@ const EmployeeList = ({ setSelectedId }) => {
       <div>
         <h1>Basic Information</h1>
         <ul>
-          {employees.data.map((item) => (
+          {employees?.data?.map((item) => (
             <li onClick={() => handleClick(item._id)} key={item._id}>
               {item.firstName}
               {item.lastName}

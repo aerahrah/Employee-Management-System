@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../store/authStore";
 import Sidebar from "../components/sidebar";
-import EmployeeDashboard from "../components/employeeDashboard/employeeDashboard";
+import { Outlet } from "react-router-dom";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -21,7 +21,9 @@ const Dashboard = () => {
         <p className="text-xl">Hi {admin.username} </p>
       </nav>
 
-      <div className="ml-72">{showList && <EmployeeDashboard />}</div>
+      <div className="ml-72">
+        <Outlet />
+      </div>
     </div>
   );
 };

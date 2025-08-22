@@ -1,8 +1,8 @@
 import { useState } from "react";
-import EmployeeList from "./employeeList";
-import EmployeeInformation from "./employeeInformation";
+import EmployeeList from "../components/employeeDashboard/employeeList";
+import EmployeeInformation from "../components/employeeDashboard/employeeInformation";
 
-const EmployeeDashboard = () => {
+const EmployeePage = () => {
   const [selectedId, setSelectedId] = useState();
   return (
     <div className="absolute top-[20%] bg-neutral-200 flex gap-4 p-8">
@@ -12,4 +12,4 @@ const EmployeeDashboard = () => {
   );
 };
 
-export default EmployeeDashboard;
+export default EmployeePage;
