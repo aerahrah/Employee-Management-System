@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { loginAdmin } from "../api/admin";
+import { loginEmployee } from "../api/employee";
 import { useAuth } from "../store/authStore";
 import { useNavigate } from "react-router-dom";
 
@@ -10,7 +10,7 @@ const Login = () => {
   const [form, setForm] = useState({ username: "", password: "" });
 
   const { mutate, isPending, isSuccess, isError, error } = useMutation({
-    mutationFn: loginAdmin,
+    mutationFn: loginEmployee,
     onSuccess: (data) => {
       login(data); // store admin data in context
       navigate("/dashboard");

@@ -15,3 +15,8 @@ export const getEmployeeById = async (id) => {
   const res = await API.get(`/employee/${id}`);
   return res.data;
 };
+
+export const loginEmployee = async (credentials) => {
+  const res = await API.post("/employee/login", credentials);
+  return res.data;
+};

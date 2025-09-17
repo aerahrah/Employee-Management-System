@@ -1,10 +1,9 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const dotenv = require('dotenv');
-const connectDB = require('./db/connect');
-const adminRoutes = require('./routers/adminRoutes');
+const express = require("express");
+const bodyParser = require("body-parser");
+const dotenv = require("dotenv");
+const connectDB = require("./db/connect");
 const employeeRoutes = require("./routers/employeeRoutes");
-const cors = require('cors');
+const cors = require("cors");
 
 dotenv.config();
 const app = express();
@@ -12,15 +11,16 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 
-app.use(cors({
-  origin: 'http://localhost:5173', 
-  credentials: true 
-}));
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 
 app.use(bodyParser.json());
 
-app.use('/admin', adminRoutes); 
-app.use('/employee', employeeRoutes)
+app.use("/employee", employeeRoutes);
 
 connectDB().then(() => {
   app.listen(PORT, () => {
