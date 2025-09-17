@@ -1,14 +1,31 @@
 const express = require("express");
 const router = express.Router();
-const authenticateToken = require("../middlewares/authMiddleware");
 const {
-  addEmployee,
+  createEmployee,
   getEmployees,
   getEmployeeById,
+  signInEmployee,
 } = require("../controllers/employeeController");
 
-router.post("/", authenticateToken, addEmployee);
-router.get("/", authenticateToken, getEmployees);
-router.get("/:id", authenticateToken, getEmployeeById);
+const {
+  authenticateToken,
+  authorizeRoles,
+} = require("../middlewares/authMiddleware");
+
+router.post(
+  "/",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  createEmployee
+);
+router.get("/", authenticateToken, authorizeRoles("admin", "hr"), getEmployees);
+router.get(
+  "/:id",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  getEmployeeById
+);
+
+router.post("/login", signInEmployee);
 
 module.exports = router;
