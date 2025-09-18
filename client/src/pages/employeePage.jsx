@@ -5,7 +5,7 @@ import EmployeeInformation from "../components/employeeDashboard/employeeInforma
 const EmployeePage = () => {
   const [selectedId, setSelectedId] = useState();
   return (
-    <div className="absolute top-[20%] bg-neutral-200 flex gap-4 p-8">
+    <div className="pt-26 w-[100%] bg-neutral-200 flex gap-4 p-6">
       <EmployeeList setSelectedId={setSelectedId} />
       <EmployeeInformation selectedId={selectedId} />
     </div>

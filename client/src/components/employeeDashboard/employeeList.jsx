@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { getEmployees, getEmployeeById } from "../../api/employee";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import Modal from "../modal";
+import AddEmployeeForm from "../forms/addEmployeeForm";
 
 const EmployeeList = ({ setSelectedId }) => {
   const { data: employees } = useQuery({
@@ -11,7 +13,7 @@ const EmployeeList = ({ setSelectedId }) => {
 
   const queryClient = useQueryClient();
   console.log(employees);
-
+  const [isOpen, setIsOpen] = useState(false);
   const { mutateAsync, isPending, isSuccess, isError } = useMutation({
     mutationFn: getEmployeeById, // expects id as param
     onSuccess: (data, id) => {
@@ -46,10 +48,23 @@ const EmployeeList = ({ setSelectedId }) => {
   }
 
   return (
-    <div className=" bg-white p-4">
+    <div className=" bg-white min-w-104 p-4">
       <div>
-        <h1>Employees List</h1>
-        <button>Download Employees List</button>
+        <h1 className="text-xl font-semibold">Employees List</h1>
+        <div className="flex gap-4">
+          <button className="rounded-sm mb-3 p-2.5  bg-neutral-800 text-neutral-100">
+            Download Employees List
+          </button>
+          <button
+            onClick={() => {
+              setIsOpen(true);
+            }}
+            className="rounded-sm mb-3 p-2.5  bg-neutral-800 text-neutral-100"
+          >
+            Add Employee
+          </button>
+        </div>
+
         <input
           className="w-full border-1 rounded-sm p-2.5 border-neutral-300 focus:outline-none focus:border-neutral-500"
           name="Search Employee"
@@ -59,15 +74,31 @@ const EmployeeList = ({ setSelectedId }) => {
 
       <div>
         <h1>Basic Information</h1>
-        <ul>
+        <ul className="flex flex-col gap-2 max-h-92 overflow-y-auto p-2">
           {employees?.data?.map((item) => (
-            <li onClick={() => handleClick(item._id)} key={item._id}>
-              {item.firstName}
-              {item.lastName}
+            <li
+              className="bg-white shadow-md p-3.5 rounded-sm"
+              onClick={() => handleClick(item._id)}
+              key={item._id}
+            >
+              {item.firstName} {item.lastName}
             </li>
           ))}
         </ul>
       </div>
+      <Modal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Add Employee"
+      >
+        <AddEmployeeForm
+          onCancel={() => setIsOpen(false)}
+          onSubmit={() => {
+            console.log("Employee Saved!");
+            setIsOpen(false);
+          }}
+        />
+      </Modal>
     </div>
   );
 };

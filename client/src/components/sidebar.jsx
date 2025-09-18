@@ -7,7 +7,7 @@ const Sidebar = ({ admin, setShowList }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const menuItems = [
-    { name: "Employees", path: "employees" },
+    { name: "Employee Management", path: "employees" },
     { name: "General Settings", path: "settings" },
     { name: "Admin Management", path: "admin" },
   ];
@@ -26,7 +26,7 @@ const Sidebar = ({ admin, setShowList }) => {
   const handleClick = async (item) => {
     setActiveItem(item.name);
 
-    if (item.name === "Employees") {
+    if (item.name === "Employee Management") {
       try {
         await mutateAsync();
 
@@ -36,9 +36,11 @@ const Sidebar = ({ admin, setShowList }) => {
         console.error("Failed to fetch employees:", error);
       }
     }
+
+    navigate(item.path);
   };
   return (
-    <div className="fixed h-screen bg-white w-72 l-0">
+    <div className="fixed h-screen bg-white  w-72  border-r-2 border-neutral-200 z-50">
       <ul className="mt-20 flex flex-col gap-2 ">
         {menuItems.map((item) => (
           <li

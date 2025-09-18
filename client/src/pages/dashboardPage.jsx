@@ -15,13 +15,15 @@ const Dashboard = () => {
   }, [token, navigate]);
 
   return (
-    <div className="relative h-screen bg-neutral-200 w-screen">
-      <Sidebar admin={admin} setShowList={setShowList} />
-      <nav className="fixed ml-72 flex md:pl-[60%] sm:pl-[40%] pl-[20%] items-center border-l-2 border-neutral-200 bg-white w-[100%] h-20">
-        <p className="text-xl">Hi {admin.username} </p>
-      </nav>
+    <div className="flex relative min-h-screen h-[100%] bg-neutral-200  w-full">
+      <div className="w-72 ">
+        <Sidebar admin={admin} setShowList={setShowList} />
+      </div>
 
-      <div className="ml-72">
+      <div className="flex-1">
+        <nav className="fixed flex pl-[70%]  items-center  bg-white w-full h-20">
+          <p className="text-xl">Hi {admin.username} </p>
+        </nav>
         <Outlet />
       </div>
     </div>

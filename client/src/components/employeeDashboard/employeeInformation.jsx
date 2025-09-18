@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { getEmployeeById } from "../../api/employee";
+import { useState } from "react";
+import Modal from "../modal";
+import AddEmployeeForm from "../forms/addEmployeeForm";
 
 const EmployeeInformation = ({ selectedId }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const {
     data: employee,
     isLoading,
@@ -18,7 +22,7 @@ const EmployeeInformation = ({ selectedId }) => {
     return <div className="p-4">Loading employee...</div>;
   }
   return (
-    <div className="bg-white p-4">
+    <div className="bg-white w-full p-4">
       <menu>
         <ul className="flex gap-2">
           <li>Edit Profile</li>
@@ -35,51 +39,51 @@ const EmployeeInformation = ({ selectedId }) => {
           <div className="flex gap-4">
             <div>
               <div className="flex gap-4">
-                <div className="flex justify-between min-w-28">
+                <p className="flex justify-between min-w-28">
                   First Name <span>:</span>
-                </div>
-                <div>{employee?.data?.firstName}</div>
+                </p>
+                <p>{employee?.data?.firstName}</p>
               </div>
               <div className="flex gap-4">
-                <div className="flex justify-between min-w-28">
+                <p className="flex justify-between min-w-28">
                   Middle Name <span>:</span>
-                </div>
-                <div>{employee?.data?.lastName}</div>
+                </p>
+                <p>{employee?.data?.lastName}</p>
               </div>
               <div className="flex gap-4">
-                <div className="flex justify-between min-w-28">
+                <p className="flex justify-between min-w-28">
                   Last Name <span>:</span>
-                </div>
-                <div>{employee?.data?.lastName}</div>
+                </p>
+                <p>{employee?.data?.lastName}</p>
               </div>
             </div>
             <div>
               <div className="flex gap-4">
-                <div className="flex justify-between min-w-28">
+                <p className="flex justify-between min-w-28">
                   Employee Id <span>:</span>
-                </div>
-                <div>{employee?.data?.employeeId}</div>
+                </p>
+                <p>{employee?.data?.employeeId}</p>
               </div>
             </div>
           </div>
           <div>
             <div className="flex gap-4">
-              <div className="flex justify-between min-w-28">
+              <p className="flex justify-between min-w-28">
                 Email <span>:</span>
-              </div>
-              <div>{employee?.data?.email}</div>
+              </p>
+              <p>{employee?.data?.email}</p>
             </div>
             <div className="flex gap-4">
-              <div className="flex justify-between min-w-28">
+              <p className="flex justify-between min-w-28">
                 Mobile Number <span>:</span>
-              </div>
-              <div>{employee?.data?.phone}</div>
+              </p>
+              <p>{employee?.data?.phone}</p>
             </div>
             <div className="flex gap-4">
-              <div className="flex justify-between min-w-28">
+              <p className="flex justify-between min-w-28">
                 Status <span>:</span>
-              </div>
-              <div>{employee?.data?.status}</div>
+              </p>
+              <p>{employee?.data?.status}</p>
             </div>
           </div>
         </div>
