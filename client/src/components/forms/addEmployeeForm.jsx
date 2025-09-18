@@ -1,265 +1,204 @@
-import React, { useState } from "react";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
 
-const AddEmployeeForm = ({ onCancel, onSubmit }) => {
-  const [formData, setFormData] = useState({
-    employeeId: "",
-    username: "",
-    role: "employee",
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    position: "",
-    department: "",
-    status: "Active",
-    address: {
-      street: "",
-      city: "",
-      province: "",
-    },
-    emergencyContact: {
-      name: "",
+// ✅ Validation Schema
+const schema = yup.object().shape({
+  username: yup
+    .string()
+    .required("Username is required")
+    .min(4, "Username must be at least 4 characters"),
+  firstName: yup.string().required("First name is required"),
+  lastName: yup.string().required("Last name is required"),
+  email: yup
+    .string()
+    .email("Invalid email format")
+    .required("Email is required"),
+  phone: yup
+    .string()
+    .matches(/^[0-9]{10,15}$/, "Phone must be 10–15 digits")
+    .nullable(),
+  position: yup.string().required("Position is required"),
+  department: yup.string().nullable(),
+  status: yup.string().oneOf(["Active", "Inactive", "Resigned", "Terminated"]),
+  address: yup.object().shape({
+    street: yup.string().required("Street is required"),
+    city: yup.string().required("City is required"),
+    province: yup.string().required("Province is required"),
+  }),
+  emergencyContact: yup.object().shape({
+    name: yup.string().required("Contact name is required"),
+    phone: yup
+      .string()
+      .matches(/^[0-9]{10,15}$/, "Phone must be 10–15 digits")
+      .required("Contact phone is required"),
+    relation: yup.string().required("Relation is required"),
+  }),
+});
+
+const AddEmployeeForm = ({ onCancel, onSubmit, isSaving = false }) => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: yupResolver(schema),
+    defaultValues: {
+      username: "",
+      employeeId: "",
+      role: "employee",
+      firstName: "",
+      lastName: "",
+      email: "",
       phone: "",
-      relation: "",
+      position: "",
+      department: "",
+      status: "Active",
+      address: { street: "", city: "", province: "" },
+      emergencyContact: { name: "", phone: "", relation: "" },
     },
   });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name.includes(".")) {
-      const [parent, child] = name.split(".");
-      setFormData((prev) => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value,
-        },
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
   return (
     <form
-      onSubmit={handleSubmit}
-      className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6 border rounded bg-white max-h-128 overflow-y-auto"
+      onSubmit={handleSubmit(onSubmit)}
+      className="grid p-6 grid-cols-1 lg:grid-cols-2 gap-8 h-120 overflow-y-auto"
     >
       {/* Personal Details */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Personal Details</h3>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Username</label>
-            <input
-              type="text"
-              name="username"
-              placeholder="Enter username"
-              value={formData.username}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">First Name</label>
-            <input
-              type="text"
-              name="firstName"
-              placeholder="Enter first name"
-              value={formData.firstName}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Last Name</label>
-            <input
-              type="text"
-              name="lastName"
-              placeholder="Enter last name"
-              value={formData.lastName}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
-            <input
-              type="email"
-              name="email"
-              placeholder="Enter email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Phone</label>
-            <input
-              type="text"
-              name="phone"
-              placeholder="Enter phone number"
-              value={formData.phone}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
+          <InputField
+            label="Username"
+            placeholder="Enter username"
+            required
+            {...register("username")}
+            error={errors.username}
+          />
+          <InputField
+            label="First Name"
+            placeholder="Enter first name"
+            required
+            {...register("firstName")}
+            error={errors.firstName}
+          />
+          <InputField
+            label="Last Name"
+            placeholder="Enter last name"
+            required
+            {...register("lastName")}
+            error={errors.lastName}
+          />
+          <InputField
+            label="Email"
+            type="email"
+            placeholder="Enter email"
+            required
+            {...register("email")}
+            error={errors.email}
+          />
+          <InputField
+            label="Phone"
+            placeholder="Enter phone number"
+            required
+            {...register("phone")}
+            error={errors.phone}
+          />
         </div>
       </div>
 
       {/* Job Details */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Job Details</h3>
-
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Employee ID
-            </label>
-            <input
-              type="text"
-              name="employeeId"
-              placeholder="Enter Employee Id"
-              value={formData.employeeId}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Role</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            >
-              <option value="employee">Employee</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="hr">HR</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Position</label>
-            <input
-              type="text"
-              name="position"
-              placeholder="Enter position"
-              value={formData.position}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Department</label>
-            <input
-              type="text"
-              name="department"
-              placeholder="Enter department"
-              value={formData.department}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Resigned">Resigned</option>
-              <option value="Terminated">Terminated</option>
-            </select>
-          </div>
+          <SelectField
+            label="Role"
+            {...register("role")}
+            required
+            options={["employee", "supervisor", "hr", "admin"]}
+            placeholder="Select role"
+          />
+          <InputField
+            label="Position"
+            placeholder="Enter position"
+            {...register("position")}
+            required
+            error={errors.position}
+          />
+          <InputField
+            label="Department"
+            placeholder="Enter department"
+            {...register("department")}
+            required
+            error={errors.department}
+          />
+          <SelectField
+            label="Status"
+            {...register("status")}
+            options={["Active", "Inactive", "Resigned", "Terminated"]}
+            placeholder="Select status"
+            required
+            error={errors.status}
+          />
         </div>
       </div>
 
-      {/* Full Width - Address */}
+      {/* Address */}
       <div className="lg:col-span-2">
         <h3 className="text-lg font-semibold mb-4">Address</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-3">
-            <label className="block text-sm font-medium mb-1">Street</label>
-            <input
-              type="text"
-              name="address.street"
+            <InputField
+              label="Street"
               placeholder="Enter street"
-              value={formData.address.street}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
+              {...register("address.street")}
+              required
+              error={errors?.address?.street}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">City</label>
-            <input
-              type="text"
-              name="address.city"
-              placeholder="Enter city"
-              value={formData.address.city}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Province</label>
-            <input
-              type="text"
-              name="address.province"
-              placeholder="Enter province"
-              value={formData.address.province}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
+          <InputField
+            label="City"
+            placeholder="Enter city"
+            {...register("address.city")}
+            required
+            error={errors?.address?.city}
+          />
+          <InputField
+            label="Province"
+            placeholder="Enter province"
+            {...register("address.province")}
+            required
+            error={errors?.address?.province}
+          />
         </div>
       </div>
 
-      {/* Full Width - Emergency Contact */}
+      {/* Emergency Contact */}
       <div className="lg:col-span-2">
         <h3 className="text-lg font-semibold mb-4">Emergency Contact</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input
-              type="text"
-              name="emergencyContact.name"
-              placeholder="Contact name"
-              value={formData.emergencyContact.name}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Phone</label>
-            <input
-              type="text"
-              name="emergencyContact.phone"
-              placeholder="Contact phone"
-              value={formData.emergencyContact.phone}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Relation</label>
-            <input
-              type="text"
-              name="emergencyContact.relation"
-              placeholder="Relation"
-              value={formData.emergencyContact.relation}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
+          <InputField
+            label="Name"
+            placeholder="Enter contact name"
+            {...register("emergencyContact.name")}
+            required
+            error={errors?.emergencyContact?.name}
+          />
+          <InputField
+            label="Phone"
+            placeholder="Enter contact phone"
+            {...register("emergencyContact.phone")}
+            required
+            error={errors?.emergencyContact?.phone}
+          />
+          <InputField
+            label="Relation"
+            placeholder="Enter relation"
+            {...register("emergencyContact.relation")}
+            required
+            error={errors?.emergencyContact?.relation}
+          />
         </div>
       </div>
 
@@ -274,13 +213,52 @@ const AddEmployeeForm = ({ onCancel, onSubmit }) => {
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          disabled={isSaving}
+          className={`px-4 py-2 rounded text-white ${
+            isSaving
+              ? "bg-blue-400 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
-          Save
+          {isSaving ? "Saving..." : "Save"}
         </button>
       </div>
     </form>
   );
 };
+
+const InputField = ({ label, error, required, ...props }) => (
+  <div>
+    <label className="block text-sm font-medium mb-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <input
+      {...props}
+      className="w-full border p-2 rounded"
+      placeholder={props.placeholder || `Enter ${label}`}
+    />
+    {error && <p className="text-red-500 text-sm mt-1">{error.message}</p>}
+  </div>
+);
+
+const SelectField = ({ label, options, error, required, ...props }) => (
+  <div>
+    <label className="block text-sm font-medium mb-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <select
+      {...props}
+      className="w-full border p-2 rounded"
+      placeholder={props.placeholder || `Select ${label}`}
+    >
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+    {error && <p className="text-red-500 text-sm mt-1">{error.message}</p>}
+  </div>
+);
 
 export default AddEmployeeForm;

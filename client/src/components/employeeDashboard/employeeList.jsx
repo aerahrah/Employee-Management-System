@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { getEmployees, getEmployeeById } from "../../api/employee";
+import { getEmployees, getEmployeeById, addEmployee } from "../../api/employee";
 import { useEffect, useState } from "react";
 import Modal from "../modal";
 import AddEmployeeForm from "../forms/addEmployeeForm";
@@ -12,22 +12,34 @@ const EmployeeList = ({ setSelectedId }) => {
   });
 
   const queryClient = useQueryClient();
-  console.log(employees);
   const [isOpen, setIsOpen] = useState(false);
-  const { mutateAsync, isPending, isSuccess, isError } = useMutation({
-    mutationFn: getEmployeeById, // expects id as param
+
+  // ✅ mutation for fetching a single employee
+  const { mutateAsync: fetchEmployee } = useMutation({
+    mutationFn: getEmployeeById,
     onSuccess: (data, id) => {
       queryClient.setQueryData(["employee", id], data);
-      console.log("Fetched employee:", data);
+    },
+  });
+
+  // ✅ mutation for adding employee
+  const { mutateAsync: createEmployee, isPending: isSaving } = useMutation({
+    mutationFn: addEmployee,
+    onSuccess: () => {
+      queryClient.invalidateQueries(["employees"]); // refresh list
+      setIsOpen(false);
+    },
+    onError: (err) => {
+      console.error("Failed to add employee:", err);
+      alert("Failed to save employee. Please try again.");
     },
   });
 
   const handleClick = async (id) => {
-    console.log(id);
     const cached = queryClient.getQueryData(["employee", id]);
     try {
       setSelectedId(id);
-      if (!cached) await mutateAsync(id);
+      if (!cached) await fetchEmployee(id);
     } catch (error) {
       console.error("Failed to fetch employee data:", error);
     }
@@ -36,30 +48,28 @@ const EmployeeList = ({ setSelectedId }) => {
   useEffect(() => {
     if (employees?.data?.length > 0) {
       const firstId = employees.data[0]._id;
+      setSelectedId(firstId);
 
-      setSelectedId(employees.data[0]._id);
       const cached = queryClient.getQueryData(["employee", firstId]);
-      if (!cached) mutateAsync(firstId);
+      if (!cached) fetchEmployee(firstId);
     }
-  }, [employees, mutateAsync, queryClient]);
+  }, [employees, fetchEmployee, queryClient, setSelectedId]);
 
   if (!employees?.data) {
     return <div>Loading employees...</div>;
   }
 
   return (
-    <div className=" bg-white min-w-104 p-4">
+    <div className="bg-white min-w-104 p-4">
       <div>
         <h1 className="text-xl font-semibold">Employees List</h1>
         <div className="flex gap-4">
-          <button className="rounded-sm mb-3 p-2.5  bg-neutral-800 text-neutral-100">
+          <button className="rounded-sm mb-3 p-2.5 bg-neutral-800 text-neutral-100">
             Download Employees List
           </button>
           <button
-            onClick={() => {
-              setIsOpen(true);
-            }}
-            className="rounded-sm mb-3 p-2.5  bg-neutral-800 text-neutral-100"
+            onClick={() => setIsOpen(true)}
+            className="rounded-sm mb-3 p-2.5 bg-neutral-800 text-neutral-100"
           >
             Add Employee
           </button>
@@ -77,7 +87,7 @@ const EmployeeList = ({ setSelectedId }) => {
         <ul className="flex flex-col gap-2 max-h-92 overflow-y-auto p-2">
           {employees?.data?.map((item) => (
             <li
-              className="bg-white shadow-md p-3.5 rounded-sm"
+              className="bg-white shadow-md p-3.5 rounded-sm cursor-pointer"
               onClick={() => handleClick(item._id)}
               key={item._id}
             >
@@ -86,6 +96,8 @@ const EmployeeList = ({ setSelectedId }) => {
           ))}
         </ul>
       </div>
+
+      {/* Modal with Form */}
       <Modal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
@@ -93,11 +105,11 @@ const EmployeeList = ({ setSelectedId }) => {
       >
         <AddEmployeeForm
           onCancel={() => setIsOpen(false)}
-          onSubmit={() => {
-            console.log("Employee Saved!");
-            setIsOpen(false);
+          onSubmit={async (data) => {
+            await createEmployee(data); // ✅ call mutation
           }}
         />
+        {isSaving && <p className="text-sm text-gray-500 mt-2">Saving...</p>}
       </Modal>
     </div>
   );
