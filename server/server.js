@@ -3,6 +3,7 @@ const bodyParser = require("body-parser");
 const dotenv = require("dotenv");
 const connectDB = require("./db/connect");
 const employeeRoutes = require("./routers/employeeRoutes");
+const ctoRoutes = require("./routers/ctoRoutes");
 const cors = require("cors");
 
 dotenv.config();
@@ -21,6 +22,7 @@ app.use(
 app.use(bodyParser.json());
 
 app.use("/employee", employeeRoutes);
+app.use("/cto", ctoRoutes);
 
 connectDB().then(() => {
   app.listen(PORT, () => {
