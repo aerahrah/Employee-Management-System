@@ -10,6 +10,7 @@ const Sidebar = ({ admin, setShowList }) => {
     { name: "Employee Management", path: "employees" },
     { name: "General Settings", path: "settings" },
     { name: "Admin Management", path: "admin" },
+    { name: "CTO Service", path: "cto" },
   ];
   const [activeItem, setActiveItem] = useState();
 
