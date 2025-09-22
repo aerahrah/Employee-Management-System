@@ -1,36 +1,8 @@
-import { useState } from "react";
+import AddCtoCreditForm from "../forms/addCtoCreditForm";
 
 const CtoCredits = () => {
-  const [formData, setFormData] = useState({
-    employees: [],
-    hours: "",
-    memoNo: "",
-    memoFile: null,
-    approver: "",
-  });
-
-  const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: files ? files[0] : value,
-    }));
-  };
-
-  const handleEmployeeSelect = (e) => {
-    const options = Array.from(
-      e.target.selectedOptions,
-      (option) => option.value
-    );
-    setFormData((prev) => ({
-      ...prev,
-      employees: options,
-    }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Submitted CTO Credit Request:", formData);
+  const handleFormSubmit = (data) => {
+    console.log("Credit CTO submitted:", data);
     // TODO: send to backend API
   };
 
@@ -41,88 +13,7 @@ const CtoCredits = () => {
         <h2 className="text-xl font-semibold mb-6 border-b pb-2">
           ➕ Credit CTO
         </h2>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          {/* Multi-select employees */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Employees</label>
-            <select
-              multiple
-              name="employees"
-              value={formData.employees}
-              onChange={handleEmployeeSelect}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-400"
-            >
-              <option value="juan">Juan Dela Cruz</option>
-              <option value="maria">Maria Santos</option>
-              <option value="pedro">Pedro Reyes</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Hold CTRL (or CMD) to select multiple
-            </p>
-          </div>
-
-          {/* Hours */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Hours</label>
-            <input
-              type="number"
-              name="hours"
-              value={formData.hours}
-              onChange={handleChange}
-              placeholder="Enter number of hours"
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-400"
-            />
-          </div>
-
-          {/* Memo No. */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Memo No.</label>
-            <input
-              type="text"
-              name="memoNo"
-              value={formData.memoNo}
-              onChange={handleChange}
-              placeholder="Enter memo number"
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-400"
-            />
-          </div>
-
-          {/* Upload Memo File */}
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Upload Memo (PDF)
-            </label>
-            <input
-              type="file"
-              name="memoFile"
-              accept="application/pdf"
-              onChange={handleChange}
-              className="w-full text-sm"
-            />
-          </div>
-
-          {/* Approver dropdown */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Approver</label>
-            <select
-              name="approver"
-              value={formData.approver}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-400"
-            >
-              <option value="">-- Select Approver --</option>
-              <option value="supervisor">Mr. Supervisor</option>
-              <option value="manager">Ms. Manager</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition"
-          >
-            Submit Credit Request
-          </button>
-        </form>
+        <AddCtoCreditForm onSubmit={handleFormSubmit} />
       </div>
 
       {/* Right Column - Recent Credit History */}
