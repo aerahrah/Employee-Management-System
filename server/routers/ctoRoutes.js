@@ -36,13 +36,13 @@ router.patch(
 );
 
 router.get(
-  "/all",
+  "/credits/all",
   authenticateToken,
   authorizeRoles("admin", "hr"),
   getAllCreditRequests
 );
 router.get(
-  "/recent",
+  "/credits/recent",
   authenticateToken,
   authorizeRoles("admin", "hr"),
   getRecentCreditRequests

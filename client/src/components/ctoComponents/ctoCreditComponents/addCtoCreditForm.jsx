@@ -3,8 +3,8 @@ import { Upload } from "lucide-react";
 import Select from "react-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { getEmployees } from "../../api/employee";
-import { addCreditRequest } from "../../api/cto";
+import { getEmployees } from "../../../api/employee";
+import { addCreditRequest } from "../../../api/cto";
 
 const AddCtoCreditForm = ({ onSubmit }) => {
   const queryClient = useQueryClient();

@@ -126,8 +126,8 @@ const cancelCreditRequest = async (req, res) => {
 const getRecentCreditRequests = async (req, res) => {
   try {
     const credits = await CtoCredit.find()
-      .populate("employees", "name position")
-      .populate("approver", "name position")
+      .populate("employees", "firstName lastName position")
+      .populate("approver", "firstName lastName position")
       .sort({ createdAt: -1 })
       .limit(10);
 
@@ -144,8 +144,9 @@ const getRecentCreditRequests = async (req, res) => {
 const getAllCreditRequests = async (req, res) => {
   try {
     const credits = await CtoCredit.find()
-      .populate("employees", "name position")
-      .populate("approver", "name position")
+      .populate("employees", "firstName lastName position")
+      .populate("approver", "firstName lastName position")
+      .populate("canceledBy", "firstName lastName position role")
       .sort({ createdAt: -1 });
 
     res.json({

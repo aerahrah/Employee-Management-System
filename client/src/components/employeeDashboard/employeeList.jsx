@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { getEmployees, getEmployeeById, addEmployee } from "../../api/employee";
 import { useEffect, useState } from "react";
 import Modal from "../modal";
-import AddEmployeeForm from "../forms/addEmployeeForm";
+import AddEmployeeForm from "./forms/addEmployeeForm";
 
 const EmployeeList = ({ setSelectedId }) => {
   const { data: employees } = useQuery({
@@ -14,7 +14,7 @@ const EmployeeList = ({ setSelectedId }) => {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
 
-  // ✅ mutation for fetching a single employee
+  // mutation for fetching a single employee
   const { mutateAsync: fetchEmployee } = useMutation({
     mutationFn: getEmployeeById,
     onSuccess: (data, id) => {
@@ -22,7 +22,7 @@ const EmployeeList = ({ setSelectedId }) => {
     },
   });
 
-  // ✅ mutation for adding employee
+  // mutation for adding employee
   const { mutateAsync: createEmployee, isPending: isSaving } = useMutation({
     mutationFn: addEmployee,
     onSuccess: () => {
@@ -106,7 +106,7 @@ const EmployeeList = ({ setSelectedId }) => {
         <AddEmployeeForm
           onCancel={() => setIsOpen(false)}
           onSubmit={async (data) => {
-            await createEmployee(data); // ✅ call mutation
+            await createEmployee(data);
           }}
         />
         {isSaving && <p className="text-sm text-gray-500 mt-2">Saving...</p>}

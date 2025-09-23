@@ -29,7 +29,7 @@ const Modal = ({ isOpen, onClose, children, title }) => {
             leaveFrom="opacity-100 scale-100"
             leaveTo="opacity-0 scale-95"
           >
-            <Dialog.Panel className="bg-white rounded-lg shadow-lg  p-6 relative">
+            <Dialog.Panel className="bg-white rounded-lg shadow-lg  p-6 w-[80%] relative">
               {title && (
                 <Dialog.Title className="text-xl font-semibold mb-4">
                   {title}

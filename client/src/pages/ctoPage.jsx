@@ -33,7 +33,7 @@ const CtoPage = () => {
         </div>
 
         {/* Content Section */}
-        <div className=" rounded-lg shadow-md">
+        <div className=" rounded-lg">
           {activeTab === "dashboard" && <p>📊 Dashboard content here</p>}
           {activeTab === "credit" && <CtoCredits />}
           {activeTab === "apply" && <p>📝 Apply CTO Leave form here</p>}
