@@ -7,9 +7,9 @@ const CtoCredits = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Left Column - Credit CTO Form */}
-      <div className="bg-white p-6 rounded-xl shadow-lg">
+      <div className="bg-white p-6 rounded-md shadow-lg">
         <h2 className="text-xl font-semibold mb-6 border-b pb-2">
           ➕ Credit CTO
         </h2>
@@ -17,7 +17,7 @@ const CtoCredits = () => {
       </div>
 
       {/* Right Column - Recent Credit History */}
-      <div className="bg-white p-6 rounded-xl shadow-lg">
+      <div className="bg-white p-6 rounded-md shadow-lg">
         <h2 className="text-xl font-semibold mb-6 border-b pb-2">
           📜 Recent Credit History
         </h2>

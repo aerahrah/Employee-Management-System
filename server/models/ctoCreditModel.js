@@ -14,11 +14,15 @@ const ctoCreditSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED"],
+      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELED"],
       default: "PENDING",
     },
     dateApproved: { type: Date },
     uploadedMemo: { type: String },
+
+    canceledAt: { type: Date },
+    canceledBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
+    remarks: { type: String },
   },
   { timestamps: true }
 );

@@ -3,6 +3,9 @@ const router = express.Router();
 const {
   addCreditRequest,
   approveOrRejectCredit,
+  cancelCreditRequest,
+  getRecentCreditRequests,
+  getAllCreditRequests,
   getEmployeeById,
 } = require("../controllers/ctoController.js");
 
@@ -23,6 +26,26 @@ router.patch(
   authenticateToken,
   authorizeRoles("admin", "hr"),
   approveOrRejectCredit
+);
+
+router.patch(
+  "/credits/:creditId/cancel",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  cancelCreditRequest
+);
+
+router.get(
+  "/all",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  getAllCreditRequests
+);
+router.get(
+  "/recent",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  getRecentCreditRequests
 );
 
 // router.get(
