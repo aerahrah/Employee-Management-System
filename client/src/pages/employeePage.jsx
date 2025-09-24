@@ -1,5 +1,5 @@
 import { useState } from "react";
-import EmployeeList from "../components/employeeDashboard/employeeList";
+import EmployeeListView from "../components/employeeDashboard/EmployeeListView.jsx";
 import EmployeeInformation from "../components/employeeDashboard/employeeInformation";
 import { CardFull, CardMd } from "../components/cardComponent";
 const EmployeePage = () => {
@@ -7,7 +7,7 @@ const EmployeePage = () => {
   return (
     <div className="pt-26 w-[100%] bg-neutral-200 flex gap-4 p-6">
       <CardMd>
-        <EmployeeList setSelectedId={setSelectedId} />
+        <EmployeeListView setSelectedId={setSelectedId} />
       </CardMd>
       <CardFull>
         <EmployeeInformation selectedId={selectedId} />
