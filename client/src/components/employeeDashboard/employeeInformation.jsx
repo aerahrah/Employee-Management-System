@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getEmployeeById } from "../../api/employee";
 import { useState } from "react";
+import { CardFull } from "../cardComponent";
 import Modal from "../modal";
 import AddEmployeeForm from "./forms/addEmployeeForm";
 
@@ -22,7 +23,7 @@ const EmployeeInformation = ({ selectedId }) => {
     return <div className="p-4">Loading employee...</div>;
   }
   return (
-    <div className="bg-white w-full p-4">
+    <>
       <menu>
         <ul className="flex gap-2">
           <li>Edit Profile</li>
@@ -100,7 +101,7 @@ const EmployeeInformation = ({ selectedId }) => {
         <h1>Basic Information</h1>
         <ul></ul>
       </div>
-    </div>
+    </>
   );
 };
 

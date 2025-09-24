@@ -60,7 +60,7 @@ const EmployeeList = ({ setSelectedId }) => {
   }
 
   return (
-    <div className="bg-white min-w-104 p-4">
+    <>
       <div>
         <h1 className="text-xl font-semibold">Employees List</h1>
         <div className="flex gap-4">
@@ -111,7 +111,7 @@ const EmployeeList = ({ setSelectedId }) => {
         />
         {isSaving && <p className="text-sm text-gray-500 mt-2">Saving...</p>}
       </Modal>
-    </div>
+    </>
   );
 };
 

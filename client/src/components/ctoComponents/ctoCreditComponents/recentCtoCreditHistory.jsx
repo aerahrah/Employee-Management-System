@@ -64,8 +64,8 @@ const CtoCreditHistory = () => {
   }
 
   return (
-    <div className="bg-white p-6 rounded-md shadow-md">
-      <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+    <>
+      <h2 className="text-xl font-bold mb-6 flex items-center gap-2 border-b pb-2">
         📜 Recent Credit History
       </h2>
       <div className="overflow-x-auto">
@@ -211,7 +211,7 @@ const CtoCreditHistory = () => {
           Close
         </button>
       </Modal>
-    </div>
+    </>
   );
 };
 

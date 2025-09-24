@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import Select from "react-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
 import { getEmployees } from "../../../api/employee";
 import { addCreditRequest } from "../../../api/cto";
 
@@ -84,7 +83,10 @@ const AddCtoCreditForm = ({ onSubmit }) => {
   }));
 
   return (
-    <div className="bg-white rounded-xl">
+    <>
+      <h2 className="text-xl font-bold mb-6 flex items-center gap-2 border-b pb-2">
+        ➕ Credit CTO
+      </h2>
       <form className="space-y-5" onSubmit={handleSubmit}>
         {/* Employees */}
         <div>
@@ -153,27 +155,43 @@ const AddCtoCreditForm = ({ onSubmit }) => {
         </div>
 
         {/* Upload Memo */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Upload Memo (PDF)
-          </label>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center px-4 py-2 border rounded-md cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-              <Upload className="w-4 h-4 mr-2 text-gray-600" />
-              <span className="text-sm text-gray-700">Choose File</span>
-              <input
-                type="file"
-                name="memoFile"
-                accept="application/pdf"
-                onChange={handleChange}
-                className="hidden"
-              />
+        <div className="flex gap-6 w-full">
+          <div className="w-64">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload Memo (PDF)
             </label>
-            {formData.memoFile && (
-              <span className="text-sm text-gray-600">
-                {formData.memoFile.name}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              <label className="w-full flex items-center px-4 py-2 border rounded-md cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                <Upload className=" h-4 mr-2 text-gray-600" />
+                <span className="text-sm text-gray-700">Choose File</span>
+                <input
+                  type="file"
+                  name="memoFile"
+                  accept="application/pdf"
+                  onChange={handleChange}
+                  className="hidden"
+                />
+              </label>
+              {formData.memoFile && (
+                <span className="text-sm text-gray-600">
+                  {formData.memoFile.name}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="w-full flex gap-1 flex-col">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date Approved
+            </label>
+            <div>
+              <input
+                type="date"
+                name="dateApproved"
+                value={formData.dateApproved}
+                onChange={handleChange}
+                className="w-34 px-3 py-2 border rounded-md focus:ring-2 text-sm focus:ring-blue-500 focus:border-blue-500 "
+              />
+            </div>
           </div>
         </div>
 
@@ -219,7 +237,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
           Submit Credit Request
         </button>
       </form>
-    </div>
+    </>
   );
 };
 
