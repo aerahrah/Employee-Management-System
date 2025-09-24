@@ -2,11 +2,12 @@ const express = require("express");
 const router = express.Router();
 const {
   addCreditRequest,
-  approveOrRejectCredit,
-  cancelCreditRequest,
+  rollbackCreditedRequest,
   getRecentCreditRequests,
   getAllCreditRequests,
-  getEmployeeById,
+  // approveOrRejectCredit,
+  // cancelCreditRequest,
+  // getEmployeeById,
 } = require("../controllers/ctoController.js");
 
 const {
@@ -21,20 +22,26 @@ router.post(
   addCreditRequest
 );
 
-router.patch(
-  "/credits/:creditId/decision",
-  authenticateToken,
-  authorizeRoles("admin", "hr"),
-  approveOrRejectCredit
-);
+// router.patch(
+//   "/credits/:creditId/decision",
+//   authenticateToken,
+//   authorizeRoles("admin", "hr"),
+//   approveOrRejectCredit
+// );
+
+// router.patch(
+//   "/credits/:creditId/cancel",
+//   authenticateToken,
+//   authorizeRoles("admin", "hr"),
+//   cancelCreditRequest
+// );
 
 router.patch(
-  "/credits/:creditId/cancel",
+  "/credits/:creditId/rollback",
   authenticateToken,
   authorizeRoles("admin", "hr"),
-  cancelCreditRequest
+  rollbackCreditedRequest
 );
-
 router.get(
   "/credits/all",
   authenticateToken,

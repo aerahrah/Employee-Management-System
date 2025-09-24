@@ -29,3 +29,14 @@ export const cancelCreditRequest = async (creditId) => {
   );
   return res.data.credit;
 };
+
+export const rollbackCreditCto = async (creditId) => {
+  const res = await API.patch(
+    `/cto/credits/${creditId}/rollback`,
+    {},
+    {
+      withCredentials: true,
+    }
+  );
+  return res.data.credit;
+};

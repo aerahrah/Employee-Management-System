@@ -7,22 +7,30 @@ const ctoCreditSchema = new mongoose.Schema(
     ],
     hours: { type: Number, required: true },
     memoNo: { type: String, required: true },
-    approver: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee",
-      required: true,
-    },
+
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELED"],
-      default: "PENDING",
+      enum: ["CREDITED", "ROLLEDBACK"],
+      default: "CREDITED",
     },
+    dateCredited: Date,
+    dateRolledBack: Date,
+    creditedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
     dateApproved: { type: Date },
     uploadedMemo: { type: String },
-
-    canceledAt: { type: Date },
-    canceledBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
-    remarks: { type: String },
+    rolledBackBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
+    // approver: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Employee",
+    // },
+    // status: {
+    //   type: String,
+    //   enum: ["PENDING", "APPROVED", "REJECTED", "CANCELED"],
+    //   default: "PENDING",
+    // },
+    // canceledAt: { type: Date },
+    // canceledBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
+    // remarks: { type: String },
   },
   { timestamps: true }
 );

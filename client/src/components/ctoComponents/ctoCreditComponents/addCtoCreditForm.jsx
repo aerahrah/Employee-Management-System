@@ -20,7 +20,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
     hours: "",
     memoNo: "",
     memoFile: null,
-    approver: null,
+    // approver: null,
   });
 
   const addCreditMutation = useMutation({
@@ -32,7 +32,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
         hours: "",
         memoNo: "",
         memoFile: null,
-        approver: null,
+        // approver: null,
       });
       queryClient.invalidateQueries(["ctoCredits"]);
     },
@@ -54,12 +54,12 @@ const AddCtoCreditForm = ({ onSubmit }) => {
     }));
   };
 
-  const handleApproverChange = (selected) => {
-    setFormData((prev) => ({
-      ...prev,
-      approver: selected?.value || null,
-    }));
-  };
+  // const handleApproverChange = (selected) => {
+  //   setFormData((prev) => ({
+  //     ...prev,
+  //     approver: selected?.value || null,
+  //   }));
+  // };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -68,7 +68,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
       employees: formData.employees,
       hours: Number(formData.hours),
       memoNo: formData.memoNo,
-      approver: formData.approver,
+      // approver: formData.approver,
       // can't send file in JSON
     };
 
@@ -178,7 +178,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
         </div>
 
         {/* Approver */}
-        <div>
+        {/* <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Select Approver
           </label>
@@ -209,7 +209,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
               singleValue: () => "text-gray-900",
             }}
           />
-        </div>
+        </div> */}
 
         {/* Submit */}
         <button
