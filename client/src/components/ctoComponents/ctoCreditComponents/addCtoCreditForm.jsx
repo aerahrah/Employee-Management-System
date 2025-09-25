@@ -154,16 +154,20 @@ const AddCtoCreditForm = ({ onSubmit }) => {
           />
         </div>
 
-        {/* Upload Memo */}
-        <div className="flex gap-6 w-full">
-          <div className="w-64">
+        <div className="flex flex-col gap-6 w-full">
+          {/* Upload Memo Section */}
+          <div className="w-full">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Upload Memo (PDF)
             </label>
-            <div className="flex items-center gap-3">
-              <label className="w-full flex items-center px-4 py-2 border rounded-md cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                <Upload className=" h-4 mr-2 text-gray-600" />
-                <span className="text-sm text-gray-700">Choose File</span>
+
+            <div className="flex items-center justify-between border rounded-lg bg-gray-50 px-4 py-2 hover:bg-gray-100 transition">
+              {/* Upload area */}
+              <label className="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden">
+                <Upload className="h-5 w-5 text-gray-600" />
+                <span className="text-sm text-gray-700 truncate overflow-hidden whitespace-nowrap">
+                  {formData.memoFile ? formData.memoFile.name : "Choose a file"}
+                </span>
                 <input
                   type="file"
                   name="memoFile"
@@ -172,13 +176,23 @@ const AddCtoCreditForm = ({ onSubmit }) => {
                   className="hidden"
                 />
               </label>
+
+              {/* Remove button — separate from file input */}
               {formData.memoFile && (
-                <span className="text-sm text-gray-600">
-                  {formData.memoFile.name}
-                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, memoFile: null }))
+                  }
+                  className="ml-3 text-xs text-red-600 hover:underline"
+                >
+                  Remove
+                </button>
               )}
             </div>
           </div>
+
+          {/* Date Approved Section */}
           <div className="w-full flex gap-1 flex-col">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date Approved
@@ -189,7 +203,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
                 name="dateApproved"
                 value={formData.dateApproved}
                 onChange={handleChange}
-                className="w-34 px-3 py-2 border rounded-md focus:ring-2 text-sm focus:ring-blue-500 focus:border-blue-500 "
+                className="w-34 px-3 py-2 border rounded-md focus:ring-2 text-sm focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>

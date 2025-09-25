@@ -13,7 +13,7 @@ export const CardFull = ({ children, className = "" }) => {
 export const CardMd = ({ children, className = "" }) => {
   return (
     <div
-      className={`bg-white h-142 p-4 rounded-md shadow-md w-120 ${className}`}
+      className={`bg-white h-142 p-4 rounded-md shadow-md w-136 ${className}`}
     >
       {children || <p className="text-gray-400 text-center">Card Medium</p>}
     </div>

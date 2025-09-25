@@ -37,12 +37,6 @@ const EmployeeListView = ({ setSelectedId }) => {
             Add Employee
           </button>
         </div>
-
-        <input
-          className="w-full border-1 rounded-sm p-2.5 border-neutral-300 focus:outline-none focus:border-neutral-500"
-          name="Search Employee"
-          placeholder="Username"
-        />
       </div>
       <EmployeeList setSelectedId={setSelectedId} />
 
