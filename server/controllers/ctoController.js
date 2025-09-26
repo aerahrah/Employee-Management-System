@@ -1,6 +1,6 @@
 const CtoCredit = require("../models/ctoCreditModel");
 const Employee = require("../models/employeeModel");
-
+const mongoose = require("mongoose");
 const addCreditRequest = async (req, res) => {
   try {
     const { employees, duration, memoNo } = req.body;
@@ -137,6 +137,52 @@ const getAllCreditRequests = async (req, res) => {
   }
 };
 
+const getEmployeeDetails = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+
+    const employee = await Employee.findById(employeeId)
+      .select("firstName lastName position department email")
+      .lean();
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    res.json({ message: "Employee fetched", employee });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const getEmployeeCredits = async (req, res) => {
+  const { employeeId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+    return res.status(400).json({ message: "Invalid employee ID" });
+  }
+
+  try {
+    const creditRequests = await CtoCredit.find({
+      employees: employeeId,
+    })
+      .populate("creditedBy", "firstName lastName position")
+      .populate("rolledBackBy", "firstName lastName position")
+      .lean();
+
+    // Always return an array, even if empty
+    return res.json({
+      message: "Employee credits fetched successfully",
+      employeeId,
+      creditRequests,
+      totalCredits: creditRequests.length,
+    });
+  } catch (error) {
+    console.error("Error fetching employee credits:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
 // Add credit request cto with approver
 // const addCreditRequest = async (req, res) => {
 //   try {
@@ -265,6 +311,8 @@ module.exports = {
   rollbackCreditedRequest,
   getRecentCreditRequests,
   getAllCreditRequests,
+  getEmployeeCredits,
+  getEmployeeDetails,
   // approveOrRejectCredit,
   // cancelCreditRequest,
 };

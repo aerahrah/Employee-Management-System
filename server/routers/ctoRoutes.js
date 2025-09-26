@@ -5,6 +5,8 @@ const {
   rollbackCreditedRequest,
   getRecentCreditRequests,
   getAllCreditRequests,
+  getEmployeeDetails,
+  getEmployeeCredits,
   // approveOrRejectCredit,
   // cancelCreditRequest,
   // getEmployeeById,
@@ -48,6 +50,7 @@ router.get(
   authorizeRoles("admin", "hr"),
   getAllCreditRequests
 );
+
 router.get(
   "/credits/recent",
   authenticateToken,
@@ -55,6 +58,19 @@ router.get(
   getRecentCreditRequests
 );
 
+router.get(
+  "/credits/:employeeId/history",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  getEmployeeCredits
+);
+
+router.get(
+  "/employee/:employeeId/details",
+  authenticateToken,
+  authorizeRoles("admin", "hr"),
+  getEmployeeDetails
+);
 // router.get(
 //   "/employees/:id",
 //   authenticateToken,

@@ -2,7 +2,7 @@ import { useState } from "react";
 import CtoCredits from "../components/ctoComponents/ctoCredits";
 import { CardFull, CardMd } from "../components/cardComponent";
 import CtoEmployeeListView from "../components/ctoComponents/ctoCreditHistory/ctoEmployeeListView";
-
+import CtoEmployeeInformation from "../components/ctoComponents/ctoCreditHistory/ctoEmployeeInformation";
 const CtoPage = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [selectedId, setSelectedId] = useState();
@@ -45,7 +45,9 @@ const CtoPage = () => {
               <CardMd>
                 <CtoEmployeeListView setSelectedId={setSelectedId} />
               </CardMd>
-              <CardFull>hello</CardFull>
+              <CardFull>
+                <CtoEmployeeInformation selectedId={selectedId} />
+              </CardFull>
             </div>
           )}
         </div>
