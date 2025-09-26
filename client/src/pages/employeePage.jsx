@@ -7,7 +7,10 @@ const EmployeePage = () => {
   return (
     <div className="pt-26 w-[100%] bg-neutral-200 flex gap-4 p-6">
       <CardMd>
-        <EmployeeListView setSelectedId={setSelectedId} />
+        <EmployeeListView
+          setSelectedId={setSelectedId}
+          maxHeightClass="max-h-96"
+        />
       </CardMd>
       <CardFull>
         <EmployeeInformation selectedId={selectedId} />

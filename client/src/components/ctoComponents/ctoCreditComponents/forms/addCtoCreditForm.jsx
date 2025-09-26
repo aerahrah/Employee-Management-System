@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import Select from "react-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getEmployees } from "../../../api/employee";
-import { addCreditRequest } from "../../../api/cto";
+import { getEmployees } from "../../../../api/employee";
+import { addCreditRequest } from "../../../../api/cto";
 
 const AddCtoCreditForm = ({ onSubmit }) => {
   const queryClient = useQueryClient();
@@ -16,9 +16,10 @@ const AddCtoCreditForm = ({ onSubmit }) => {
 
   const [formData, setFormData] = useState({
     employees: [],
-    hours: "",
+    duration: { hours: "", minutes: "" },
     memoNo: "",
     memoFile: null,
+    dateApproved: "",
     // approver: null,
   });
 
@@ -28,10 +29,10 @@ const AddCtoCreditForm = ({ onSubmit }) => {
       alert("Credit request submitted!");
       setFormData({
         employees: [],
-        hours: "",
+        duration: { hours: "", minutes: "" },
         memoNo: "",
         memoFile: null,
-        // approver: null,
+        dateApproved: "",
       });
       queryClient.invalidateQueries(["ctoCredits"]);
     },
@@ -43,7 +44,18 @@ const AddCtoCreditForm = ({ onSubmit }) => {
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: files ? files[0] : value }));
+
+    if (name === "hours" || name === "minutes") {
+      setFormData((prev) => ({
+        ...prev,
+        duration: { ...prev.duration, [name]: value },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: files ? files[0] : value,
+      }));
+    }
   };
 
   const handleEmployeeChange = (selected) => {
@@ -53,25 +65,21 @@ const AddCtoCreditForm = ({ onSubmit }) => {
     }));
   };
 
-  // const handleApproverChange = (selected) => {
-  //   setFormData((prev) => ({
-  //     ...prev,
-  //     approver: selected?.value || null,
-  //   }));
-  // };
-
   const handleSubmit = (e) => {
     e.preventDefault();
 
     const payload = {
       employees: formData.employees,
-      hours: Number(formData.hours),
+      duration: {
+        hours: Number(formData.duration.hours) || 0,
+        minutes: Number(formData.duration.minutes) || 0,
+      },
       memoNo: formData.memoNo,
+      dateApproved: formData.dateApproved,
       // approver: formData.approver,
-      // can't send file in JSON
     };
 
-    console.log("Submitting:", payload); // log payload for testing
+    console.log("Submitting:", payload);
     addCreditMutation.mutate(payload);
   };
 
@@ -124,19 +132,32 @@ const AddCtoCreditForm = ({ onSubmit }) => {
           />
         </div>
 
-        {/* Hours */}
+        {/* Duration (Hours & Minutes) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Credit Hours
+            Credit Duration
           </label>
-          <input
-            type="number"
-            name="hours"
-            value={formData.hours}
-            onChange={handleChange}
-            placeholder="e.g. 8"
-            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
+          <div className="flex gap-3">
+            <input
+              type="number"
+              name="hours"
+              value={formData.duration.hours}
+              onChange={handleChange}
+              placeholder="Hours"
+              min="0"
+              className="w-1/2 px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="number"
+              name="minutes"
+              value={formData.duration.minutes}
+              onChange={handleChange}
+              placeholder="Minutes"
+              min="0"
+              max="59"
+              className="w-1/2 px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
         </div>
 
         {/* Memo No. */}
@@ -154,15 +175,14 @@ const AddCtoCreditForm = ({ onSubmit }) => {
           />
         </div>
 
+        {/* Upload Memo */}
         <div className="flex flex-col gap-6 w-full">
-          {/* Upload Memo Section */}
           <div className="w-full">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Upload Memo (PDF)
             </label>
 
             <div className="flex items-center justify-between border rounded-lg bg-gray-50 px-4 py-2 hover:bg-gray-100 transition">
-              {/* Upload area */}
               <label className="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden">
                 <Upload className="h-5 w-5 text-gray-600" />
                 <span className="text-sm text-gray-700 truncate overflow-hidden whitespace-nowrap">
@@ -177,7 +197,6 @@ const AddCtoCreditForm = ({ onSubmit }) => {
                 />
               </label>
 
-              {/* Remove button — separate from file input */}
               {formData.memoFile && (
                 <button
                   type="button"
@@ -192,7 +211,7 @@ const AddCtoCreditForm = ({ onSubmit }) => {
             </div>
           </div>
 
-          {/* Date Approved Section */}
+          {/* Date Approved */}
           <div className="w-full flex gap-1 flex-col">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date Approved
@@ -208,40 +227,6 @@ const AddCtoCreditForm = ({ onSubmit }) => {
             </div>
           </div>
         </div>
-
-        {/* Approver */}
-        {/* <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Select Approver
-          </label>
-          <Select
-            options={employeeOptions}
-            value={
-              employeeOptions.find((e) => e.value === formData.approver) || null
-            }
-            onChange={handleApproverChange}
-            placeholder="Search approver..."
-            classNamePrefix="react-select"
-            menuPlacement="auto"
-            classNames={{
-              control: ({ isFocused }) =>
-                `border rounded-md px-1 ${
-                  isFocused
-                    ? "border-blue-500 ring-2 ring-blue-300"
-                    : "border-gray-300"
-                }`,
-              option: ({ isSelected, isFocused }) =>
-                `${
-                  isSelected
-                    ? "bg-blue-600 text-white"
-                    : isFocused
-                    ? "bg-gray-100"
-                    : "bg-white"
-                } cursor-pointer px-3 py-2`,
-              singleValue: () => "text-gray-900",
-            }}
-          />
-        </div> */}
 
         {/* Submit */}
         <button

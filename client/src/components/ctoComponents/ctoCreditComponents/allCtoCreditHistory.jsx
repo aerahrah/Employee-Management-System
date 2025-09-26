@@ -1,15 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  fetchAllCreditRequests,
-  cancelCreditRequest,
-  rollbackCreditCto,
-} from "../../../api/cto";
+import { fetchAllCreditRequests, rollbackCreditCto } from "../../../api/cto";
 import { useState } from "react";
 import Modal from "../../modal";
 
 const AllCtoCreditHistory = () => {
   const queryClient = useQueryClient();
   const [isConfirmRollback, setIsConfirmRollback] = useState(false);
+  const [selectedCreditId, setSelectedCreditId] = useState(null);
 
   const {
     data: credits = [],
@@ -19,30 +16,37 @@ const AllCtoCreditHistory = () => {
     queryKey: ["allCredits"],
     queryFn: fetchAllCreditRequests,
   });
-  console.log(credits);
-
-  // const { mutate: cancelRequest } = useMutation({
-  //   mutationFn: cancelCreditRequest,
-  //   onSuccess: () => {
-  //     queryClient.invalidateQueries(["allCredits"]);
-  //     queryClient.invalidateQueries(["recentCredits"]);
-  //   },
-  // });
-
-  // const handleCancel = (id) => {
-  //   cancelRequest(id);
-  // };
 
   const { mutate: rollbackRequest, isLoading: isProcessing } = useMutation({
     mutationFn: rollbackCreditCto,
     onSuccess: () => {
+      queryClient.invalidateQueries(["allCredits"]);
       queryClient.invalidateQueries(["recentCredits"]);
     },
   });
 
   const handleRollback = (id) => {
-    rollbackRequest(id);
+    setSelectedCreditId(id);
+    setIsConfirmRollback(true);
   };
+
+  const confirmRollback = () => {
+    if (selectedCreditId) {
+      rollbackRequest(selectedCreditId);
+    }
+    setIsConfirmRollback(false);
+  };
+
+  const formatDate = (date) =>
+    date ? new Date(date).toLocaleDateString("en-PH") : "-";
+
+  const formatDuration = (duration) => {
+    if (!duration) return "-";
+    const h = duration.hours || 0;
+    const m = duration.minutes || 0;
+    return `${h}h ${m}m`;
+  };
+
   if (isLoading) {
     return (
       <div className="bg-white p-6">
@@ -59,11 +63,8 @@ const AllCtoCreditHistory = () => {
     );
   }
 
-  const formatDate = (date) =>
-    date ? new Date(date).toLocaleDateString("en-PH") : "-";
-
   return (
-    <div className="bg-white h-128  overflow-y-auto">
+    <div className="bg-white h-128 overflow-y-auto">
       <div className="overflow-x-auto">
         <table className="w-full text-sm rounded-lg shadow-sm">
           <thead className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 text-left sticky top-0 z-10">
@@ -75,14 +76,11 @@ const AllCtoCreditHistory = () => {
                 Credited By
               </th>
               <th className="p-3 text-center border-b border-r border-gray-200">
-                Hours
+                Duration
               </th>
               <th className="p-3 border-b border-r border-gray-200">
                 Memo No.
               </th>
-              {/* <th className="p-3 border-b border-r border-gray-200">
-                Approver
-              </th> */}
               <th className="p-3 text-center border-b border-r border-gray-200">
                 Status
               </th>
@@ -101,7 +99,6 @@ const AllCtoCreditHistory = () => {
               <th className="p-3 text-center border-b border-r border-gray-200">
                 Rolledback By
               </th>
-              {/* <th className="p-3 border-b border-r border-gray-200">Remarks</th> */}
               <th className="p-3 text-center border-b border-gray-200">
                 Actions
               </th>
@@ -128,27 +125,11 @@ const AllCtoCreditHistory = () => {
                       : "-"}
                   </td>
                   <td className="p-3 text-center border-b border-gray-200 border-r">
-                    {credit.hours}
+                    {formatDuration(credit.duration)}
                   </td>
                   <td className="p-3 border-b border-gray-200 border-r">
                     {credit.memoNo}
                   </td>
-                  {/* <td className="p-3 border-b border-gray-200 border-r">
-                    {credit.approver?.firstName} {credit.approver?.lastName}
-                  </td> */}
-                  {/* <td
-                    className={`p-3 font-semibold text-center border-b border-gray-200 border-r ${
-                      credit.status === "PENDING"
-                        ? "text-yellow-600"
-                        : credit.status === "APPROVED"
-                        ? "text-green-600"
-                        : credit.status === "REJECTED"
-                        ? "text-red-600"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {credit.status}
-                  </td> */}
                   <td
                     className={`p-3 font-semibold text-center border-b border-gray-200 border-r ${
                       credit.status === "CREDITED"
@@ -177,20 +158,17 @@ const AllCtoCreditHistory = () => {
                       ? `${credit.rolledBackBy.firstName} ${credit.rolledBackBy.lastName}`
                       : "-"}
                   </td>
-                  {/* <td className="p-3 border-b border-gray-200 border-r">
-                    {credit.remarks || "-"}
-                  </td> */}
                   <td className="p-3 text-center border-b border-gray-200">
                     <button
-                      onClick={() => setIsConfirmRollback(true)}
-                      disabled={credit.status !== "CREDITED"}
+                      onClick={() => handleRollback(credit._id)}
+                      disabled={credit.status !== "CREDITED" || isProcessing}
                       className={`px-3 py-1 text-sm rounded transition ${
                         credit.status === "CREDITED"
                           ? "bg-neutral-700 text-white hover:bg-neutral-900"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       }`}
                     >
-                      Rollback
+                      {isProcessing ? "Processing..." : "Rollback"}
                     </button>
                   </td>
                 </tr>
@@ -205,12 +183,13 @@ const AllCtoCreditHistory = () => {
           </tbody>
         </table>
       </div>
+
       <Modal
         isOpen={isConfirmRollback}
         onClose={() => setIsConfirmRollback(false)}
         title="Confirm Rollback"
       >
-        <div className="w-100 ">
+        <div className="w-100">
           <p className="text-l py-2">
             Are you sure you want to rollback this credited CTO? This will
             remove the credits from the employee balances.
@@ -224,7 +203,7 @@ const AllCtoCreditHistory = () => {
               Cancel
             </button>
             <button
-              onClick={() => setIsConfirmRollback(false)}
+              onClick={confirmRollback}
               className="px-4 py-2 mt-4 w-full bg-red-600 text-red-50 rounded hover:bg-red-700"
             >
               Confirm Rollback

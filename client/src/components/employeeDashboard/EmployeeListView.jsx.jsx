@@ -5,7 +5,7 @@ import EmployeeList from "../employeeList/employeeList";
 import Modal from "../modal";
 import AddEmployeeForm from "./forms/addEmployeeForm";
 
-const EmployeeListView = ({ setSelectedId }) => {
+const EmployeeListView = ({ setSelectedId, maxHeightClass }) => {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -24,21 +24,21 @@ const EmployeeListView = ({ setSelectedId }) => {
 
   return (
     <>
-      <div>
-        <h1 className="text-xl font-semibold">Employees List</h1>
-        <div className="flex gap-4">
-          <button className="rounded-sm mb-3 p-2.5 bg-neutral-800 text-neutral-100">
+      <div className="px-2">
+        <h1 className="text-xl mb-2 font-semibold">Employees List</h1>
+        <div className="text-sm w-full flex gap-2">
+          <button className="w-full rounded-sm mb-3 p-2.5 bg-neutral-800 text-neutral-100">
             Download Employees List
           </button>
           <button
             onClick={() => setIsOpen(true)}
-            className="rounded-sm mb-3 p-2.5 bg-neutral-800 text-neutral-100"
+            className="w-48 rounded-sm mb-3 p-2.5 bg-neutral-800 text-neutral-100"
           >
             Add Employee
           </button>
         </div>
       </div>
-      <EmployeeList setSelectedId={setSelectedId} />
+      <EmployeeList setSelectedId={setSelectedId} maxHeightClass="max-h-96" />
 
       {/* Modal with Form */}
       <Modal

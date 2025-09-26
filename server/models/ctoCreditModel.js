@@ -5,7 +5,10 @@ const ctoCreditSchema = new mongoose.Schema(
     employees: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Employee", required: true },
     ],
-    hours: { type: Number, required: true },
+    duration: {
+      hours: { type: Number, required: true },
+      minutes: { type: Number, required: true },
+    },
     memoNo: { type: String, required: true },
 
     status: {

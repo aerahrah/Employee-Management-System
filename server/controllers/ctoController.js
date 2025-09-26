@@ -3,8 +3,22 @@ const Employee = require("../models/employeeModel");
 
 const addCreditRequest = async (req, res) => {
   try {
-    const { employees, hours, memoNo } = req.body;
+    const { employees, duration, memoNo } = req.body;
     const userId = req.user.id;
+
+    // ✅ Validate duration
+    if (
+      !duration ||
+      typeof duration.hours !== "number" ||
+      typeof duration.minutes !== "number"
+    ) {
+      return res.status(400).json({ message: "Invalid duration format" });
+    }
+    if (duration.minutes < 0 || duration.minutes >= 60) {
+      return res
+        .status(400)
+        .json({ message: "Minutes must be between 0 and 59" });
+    }
 
     const existingEmployees = await Employee.find({
       _id: { $in: employees },
@@ -16,9 +30,12 @@ const addCreditRequest = async (req, res) => {
       });
     }
 
+    // ✅ Convert duration → total hours (float)
+    const totalHours = duration.hours + duration.minutes / 60;
+
     const creditRequest = await CtoCredit.create({
       employees,
-      hours,
+      duration,
       memoNo,
       status: "CREDITED",
       dateCredited: new Date(),
@@ -28,7 +45,7 @@ const addCreditRequest = async (req, res) => {
 
     await Employee.updateMany(
       { _id: { $in: employees } },
-      { $inc: { "balances.ctoHours": hours } }
+      { $inc: { "balances.ctoHours": totalHours } }
     );
 
     res.status(201).json({
@@ -57,10 +74,13 @@ const rollbackCreditedRequest = async (req, res) => {
         .json({ message: "This credit is not active or already rolled back" });
     }
 
+    // ✅ Convert stored duration → total hours
+    const totalHours = credit.duration.hours + credit.duration.minutes / 60;
+
     // Reverse the CTO hours
     await Employee.updateMany(
       { _id: { $in: credit.employees } },
-      { $inc: { "balances.ctoHours": -credit.hours } }
+      { $inc: { "balances.ctoHours": -totalHours } }
     );
 
     // Mark as rolled back

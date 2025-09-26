@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getEmployees } from "../../api/employee";
 import { useEffect, useState, useMemo } from "react";
 
-const EmployeeList = ({ selectedId, setSelectedId }) => {
+const EmployeeList = ({ selectedId, setSelectedId, maxHeightClass }) => {
   const {
     data: employees,
     isLoading,
@@ -58,7 +58,7 @@ const EmployeeList = ({ selectedId, setSelectedId }) => {
   return (
     <div>
       {/* Controls */}
-      <div className="flex items-center gap-2 mb-3 px-2">
+      <div className="flex items-center gap-2 mb-4 px-2">
         <input
           type="text"
           placeholder="Search employee..."
@@ -88,7 +88,9 @@ const EmployeeList = ({ selectedId, setSelectedId }) => {
       </div>
 
       {/* Employee List */}
-      <ul className="flex flex-col gap-2 max-h-96 overflow-y-auto p-2">
+      <ul
+        className={`flex flex-col gap-2 overflow-y-auto p-2 ${maxHeightClass}`}
+      >
         {filteredEmployees.map((item) => (
           <li
             className={`bg-white shadow-md p-3.5 rounded-sm cursor-pointer hover:bg-gray-100 ${

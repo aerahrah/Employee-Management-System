@@ -1,10 +1,12 @@
 import { useState } from "react";
 import CtoCredits from "../components/ctoComponents/ctoCredits";
+import { CardFull, CardMd } from "../components/cardComponent";
+import CtoEmployeeListView from "../components/ctoComponents/ctoCreditHistory/ctoEmployeeListView";
 
 const CtoPage = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [selectedId, setSelectedId] = useState();
 
-  // Define all tabs in one place
   const tabs = [
     { key: "dashboard", label: "Dashboard" },
     { key: "credit", label: "Credit CTO" },
@@ -38,7 +40,14 @@ const CtoPage = () => {
           {activeTab === "credit" && <CtoCredits />}
           {activeTab === "apply" && <p>📝 Apply CTO Leave form here</p>}
           {activeTab === "approvals" && <p>✅ Pending Approvals list here</p>}
-          {activeTab === "records" && <p>✅ Pending Approvals list here</p>}
+          {activeTab === "records" && (
+            <div className=" w-[100%] bg-neutral-200 flex gap-4 ">
+              <CardMd>
+                <CtoEmployeeListView setSelectedId={setSelectedId} />
+              </CardMd>
+              <CardFull>hello</CardFull>
+            </div>
+          )}
         </div>
       </div>
     </div>

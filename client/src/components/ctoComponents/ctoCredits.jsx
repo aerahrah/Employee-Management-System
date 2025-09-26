@@ -1,4 +1,4 @@
-import AddCtoCreditForm from "./ctoCreditComponents/addCtoCreditForm";
+import AddCtoCreditForm from "./ctoCreditComponents/forms/addCtoCreditForm";
 import CtoCreditHistory from "./ctoCreditComponents/recentCtoCreditHistory";
 import { CardFull } from "../cardComponent";
 const CtoCredits = () => {
