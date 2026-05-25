@@ -39,6 +39,7 @@ import EmployeeRecordsPlaceholder from "./components/ctoComponents/ctoCreditHist
 import AddCtoApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addCtoApplicationForm";
 
 /* Wellness Components */
+import WellnessDashboard from "./components/wellnessComponents/wellnessDashboard";
 import MyWellnessApplications from "./components/wellnessComponents/wellnessApplicationComponents/myWellnessApplicationHistory";
 import WellnessApplicationApprovals from "./components/wellnessComponents/wellnessApplicationApprovals";
 import WellnessApplicationDetails from "./components/wellnessComponents/wellnessApplicationApprovalComponents/wellnessApplicationDetails";
@@ -234,9 +235,11 @@ function App() {
             <Route path="cto-apply/add" element={<AddCtoApplicationForm />} />
           </Route>
 
+          {/* Wellness Self Service */}
           <Route
             element={<ProtectedRoute requiredPermission="wellness.view_self" />}
           >
+            <Route path="wellness-dashboard" element={<WellnessDashboard />} />
             <Route path="wellness-apply" element={<MyWellnessApplications />} />
           </Route>
 

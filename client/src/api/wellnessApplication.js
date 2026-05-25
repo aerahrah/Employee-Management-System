@@ -35,7 +35,6 @@ export const addWellnessApplicationRequest = async (payload) => {
 export const fetchAllWellnessApplications = async (params = {}) => {
   try {
     const res = await API.get("/wellness/applications/all", withCreds(params));
-    console.log(res.data);
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave applications");
@@ -48,7 +47,6 @@ export const fetchMyWellnessApplications = async (params = {}) => {
       "/wellness/applications/my-application",
       withCreds(params),
     );
-    console.log(res);
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch your Wellness Leave applications");
@@ -117,7 +115,6 @@ export const getWellnessApplicationById = async (id) => {
       `/wellness/applications/approvers/my-approvals/${id}`,
       withCreds(),
     );
-    console.log(res.data);
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave application details");
@@ -150,5 +147,20 @@ export const rejectWellnessApplicationRequest = async (
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to reject Wellness Leave application");
+  }
+};
+
+/* =========================
+   DASHBOARD
+========================= */
+
+export const fetchWellnessDashboard = async () => {
+  try {
+    const res = await API.get("/wellness/dashboard", withCreds());
+    // Fallback to unwrap(res)?.data in case your controller nests it
+    console.log(res.data);
+    return unwrap(res)?.data ?? unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch Wellness Leave dashboard summary");
   }
 };

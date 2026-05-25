@@ -185,6 +185,12 @@ const Sidebar = ({
         icon: <Activity size={18} />,
         subItems: [
           {
+            name: "Dashboard",
+            path: "/app/wellness-dashboard", // Make sure this matches your Route in App.jsx
+            icon: <LayoutDashboard size={14} />,
+            requiredPermission: "wellness.view_self",
+          },
+          {
             name: "Apply Wellness Leave",
             path: "/app/wellness-apply",
             icon: <PenLine size={14} />,
