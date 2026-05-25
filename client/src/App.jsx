@@ -44,6 +44,7 @@ import MyWellnessApplications from "./components/wellnessComponents/wellnessAppl
 import WellnessApplicationApprovals from "./components/wellnessComponents/wellnessApplicationApprovals";
 import WellnessApplicationDetails from "./components/wellnessComponents/wellnessApplicationApprovalComponents/wellnessApplicationDetails";
 import AllWellnessApplicationsHistory from "./components/wellnessComponents/wellnessApplicationComponents/allWellnessApplicationHistory";
+import WellnessCreditHistory from "./components/wellnessComponents/wellnessCreditComponents/recentWellnessCreditHistory";
 import AddEmployeeForm from "./components/employeeDashboard/forms/addEmployeeForm";
 import EmployeeInformation from "./components/employeeDashboard/employeeInformation";
 
@@ -330,7 +331,14 @@ function App() {
           {/* WELLNESS GLOBAL VIEWS */}
           {/* ===================== */}
 
-          {/* ✅ View All Wellness Applications */}
+          {/* Manage Wellness Credits */}
+          <Route
+            element={<ProtectedRoute requiredPermission="wellness.manage" />}
+          >
+            <Route path="wellness-credit" element={<WellnessCreditHistory />} />
+          </Route>
+
+          {/* View All Wellness Applications */}
           <Route
             element={<ProtectedRoute requiredPermission="wellness.view_all" />}
           >

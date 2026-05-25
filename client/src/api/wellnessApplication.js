@@ -151,13 +151,84 @@ export const rejectWellnessApplicationRequest = async (
 };
 
 /* =========================
+   WELLNESS CREDITS (HR / Admin)
+========================= */
+
+export const fetchWellnessEmployeeDetails = async (employeeId) => {
+  try {
+    const res = await API.get(
+      `/wellness/credits/employee-details/${employeeId}`,
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch employee details for Wellness crediting");
+  }
+};
+
+export const addWellnessCreditRequest = async (payload) => {
+  try {
+    // Uses standard JSON payload since file uploads were removed
+    const res = await API.post("/wellness/credits/add", payload, withCreds());
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to add Wellness Credits");
+  }
+};
+
+export const rollbackWellnessCreditRequest = async (creditId) => {
+  try {
+    const res = await API.put(
+      `/wellness/credits/${creditId}/rollback`,
+      {},
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to rollback Wellness Credit");
+  }
+};
+
+export const fetchAllWellnessCredits = async (params = {}) => {
+  try {
+    const res = await API.get("/wellness/credits/all", withCreds(params));
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch all Wellness Credits");
+  }
+};
+
+export const fetchEmployeeWellnessCredits = async (employeeId, params = {}) => {
+  try {
+    const res = await API.get(
+      `/wellness/credits/employee/${employeeId}`,
+      withCreds(params),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch employee's Wellness Credits");
+  }
+};
+
+export const fetchMyWellnessCredits = async (params = {}) => {
+  try {
+    const res = await API.get(
+      "/wellness/credits/my-credits",
+      withCreds(params),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch your Wellness Credits");
+  }
+};
+
+/* =========================
    DASHBOARD
 ========================= */
 
 export const fetchWellnessDashboard = async () => {
   try {
     const res = await API.get("/wellness/dashboard", withCreds());
-    // Fallback to unwrap(res)?.data in case your controller nests it
     console.log(res.data);
     return unwrap(res)?.data ?? unwrap(res);
   } catch (err) {

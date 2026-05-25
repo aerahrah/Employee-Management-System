@@ -49,7 +49,7 @@ const approvalRouteSchema = new mongoose.Schema(
         isEnabled: {
           type: Boolean,
           default: true,
-        }
+        },
       },
     ],
   },

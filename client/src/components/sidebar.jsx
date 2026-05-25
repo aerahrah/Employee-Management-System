@@ -104,7 +104,7 @@ const Sidebar = ({
     staleTime: 1000 * 60,
   });
 
-  // ✅ New Wellness Pending Count query
+  // Wellness Pending Count query
   const { data: wellnessPendingData } = useQuery({
     queryKey: ["wellnessPendingCount", adminId],
     queryFn: fetchPendingWellnessCount,
@@ -186,9 +186,15 @@ const Sidebar = ({
         subItems: [
           {
             name: "Dashboard",
-            path: "/app/wellness-dashboard", // Make sure this matches your Route in App.jsx
+            path: "/app/wellness-dashboard",
             icon: <LayoutDashboard size={14} />,
             requiredPermission: "wellness.view_self",
+          },
+          {
+            name: "Credit Wellness",
+            path: "/app/wellness-credit",
+            icon: <CirclePlus size={14} />,
+            requiredPermission: "wellness.manage",
           },
           {
             name: "Apply Wellness Leave",

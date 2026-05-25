@@ -112,6 +112,13 @@ const employeeSchema = new mongoose.Schema(
       default: "Active",
     },
 
+    // ✅ Added employeeType here
+    employeeType: {
+      type: String,
+      enum: ["Job Order", "Organic"],
+      required: true,
+    },
+
     balances: {
       vlHours: {
         type: Number,
@@ -167,6 +174,7 @@ const employeeSchema = new mongoose.Schema(
         trim: true,
       },
     },
+
     loginAttempts: {
       type: Number,
       default: 0,
@@ -176,6 +184,7 @@ const employeeSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
     preferences: {
       theme: {
         type: String,

@@ -1,6 +1,10 @@
 // routes/wellnessRoutes.js
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+
+// Set up temporary storage for uploaded memos before the controller moves them
+const upload = multer({ dest: "uploads/temp/" });
 
 const {
   authenticateToken,
@@ -24,6 +28,15 @@ const {
   getWellnessApplicationsByEmployeeRequest,
   cancelWellnessApplicationRequest,
 } = require("../controllers/wellnessApplicationController.js");
+
+const {
+  // Wellness Credits (HR/Admin management)
+  addWellnessCreditRequest,
+  rollbackWellnessCreditRequest,
+  getAllWellnessCreditRequests,
+  getEmployeeDetails,
+  getEmployeeWellnessCredits,
+} = require("../controllers/wellnessCreditController.js");
 
 // --- AUTH HELPERS ---
 const requirePerm = (perm) => [authenticateToken, authorize(perm)];
@@ -101,6 +114,53 @@ router.put(
   "/applications/approver/:applicationId/reject",
   ...requirePerm("wellness.manage_application"),
   rejectWellnessApplication,
+);
+
+/* =========================================
+   WELLNESS CREDITS (HR / ADMIN FLOW)
+========================================= */
+
+// Get basic details of an employee for the crediting form
+router.get(
+  "/credits/employee-details/:employeeId",
+  ...requirePerm("wellness.view_all"),
+  getEmployeeDetails,
+);
+
+// Add Wellness Credits to employees
+router.post(
+  "/credits/add",
+  ...requirePerm("wellness.manage"),
+  upload.single("file"), // Matches the frontend FormData field name for the memo upload
+  addWellnessCreditRequest,
+);
+
+// Rollback a credited memo
+router.put(
+  "/credits/:creditId/rollback",
+  ...requirePerm("wellness.manage"),
+  rollbackWellnessCreditRequest,
+);
+
+// Get a list of all credited memos (Admin/HR view)
+router.get(
+  "/credits/all",
+  ...requirePerm("wellness.view_all"),
+  getAllWellnessCreditRequests,
+);
+
+// Get credit history for a specific employee (Admin/HR view)
+router.get(
+  "/credits/employee/:employeeId",
+  ...requirePerm("wellness.view_all"),
+  getEmployeeWellnessCredits,
+);
+
+// Get personal credit history (Self-service view)
+router.get(
+  "/credits/my-credits",
+  ...requirePerm("wellness.view_self"),
+  getEmployeeWellnessCredits,
 );
 
 module.exports = router;
