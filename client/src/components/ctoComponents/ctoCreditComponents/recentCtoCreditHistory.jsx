@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom"; // ✅ Imported useNavigate
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
@@ -10,11 +11,10 @@ import { toast } from "react-toastify";
 import Breadcrumbs from "../../breadCrumbs";
 
 import FilterSelect from "../../filterSelect";
-import AddCtoCreditForm from "./forms/addCtoCreditForm";
 import CtoCreditDetails from "./ctoCreditFullDetails";
 import { buildApiUrl } from "../../../config/env";
 import { useAuth } from "../../../store/authStore";
-import { usePermissions } from "../../../hooks/usePermissions"; // ✅ Imported permissions hook
+import { usePermissions } from "../../../hooks/usePermissions";
 
 import {
   Clipboard,
@@ -37,7 +37,7 @@ import {
 
 const pageSizeOptions = [20, 50, 100];
 
-/* ------------------ Resolve theme (no tailwind dark class dependency) ------------------ */
+/* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -83,7 +83,7 @@ const getStatusTabs = (counts = {}) => [
   },
 ];
 
-/* ------------------ Action menu (themed) ------------------ */
+/* ------------------ Action menu ------------------ */
 const ActionMenu = ({
   credit,
   onViewMemo,
@@ -91,7 +91,7 @@ const ActionMenu = ({
   onRollback,
   isRollbackPending,
   borderColor,
-  canManageCredits, // ✅ Added permission prop
+  canManageCredits,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -187,7 +187,6 @@ const ActionMenu = ({
             <Clipboard size={14} /> View Details
           </button>
 
-          {/* ✅ Hide Rollback option if user doesn't have permission */}
           {canManageCredits && (
             <>
               <div
@@ -231,7 +230,7 @@ const CreditCard = ({
   formatDate,
   leftStripClassName,
   borderColor,
-  canManageCredits, // ✅ Added permission prop
+  canManageCredits,
 }) => {
   const employeesLabel = useMemo(() => {
     const names =
@@ -394,7 +393,6 @@ const CreditCard = ({
             Details
           </button>
 
-          {/* ✅ Hide Rollback button if user lacks permission */}
           {canManageCredits && (
             <button
               type="button"
@@ -565,23 +563,20 @@ const CompactPagination = ({
 
 const CtoCreditHistory = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate(); // ✅ Initialize useNavigate hook
 
-  // ✅ Permissions integration
   const { can } = usePermissions();
   const canManageCredits = can("cto.credits_manage");
 
-  // resolve theme just like your reference page
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
 
-  // borders less “white” on dark
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
       ? "rgba(255,255,255,0.07)"
       : "rgba(15,23,42,0.10)";
   }, [resolvedTheme]);
 
-  // skeleton theme (fix white loading on dark)
   const skeletonColors = useMemo(() => {
     if (resolvedTheme === "dark") {
       return {
@@ -602,8 +597,6 @@ const CtoCreditHistory = () => {
   const [limit, setLimit] = useState(20);
 
   const [memoModal, setMemoModal] = useState({ isOpen: false, memo: null });
-  const [isAddCtoOpen, setIsAddCtoOpen] = useState(false);
-  const [isAddBusy, setIsAddBusy] = useState(false);
 
   const [isConfirmRollback, setIsConfirmRollback] = useState(false);
   const [selectedCreditId, setSelectedCreditId] = useState(null);
@@ -815,7 +808,6 @@ const CtoCreditHistory = () => {
                 </p>
               </div>
 
-              {/* ✅ Wrap Credit CTO Button with Authorization Check */}
               {canManageCredits && (
                 <button
                   type="button"
@@ -823,7 +815,7 @@ const CtoCreditHistory = () => {
                     queryClient.invalidateQueries({
                       queryKey: ["ctoCreditEmployees"],
                     });
-                    setIsAddCtoOpen(true);
+                    navigate("/app/cto-credit/add");
                   }}
                   className="group relative inline-flex items-center gap-2 justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 ease-out hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 w-full md:w-auto"
                   style={{ backgroundColor: "var(--accent, #2563EB)" }}
@@ -1429,20 +1421,6 @@ const CtoCreditHistory = () => {
               </p>
             </div>
           </div>
-        </Modal>
-
-        <Modal
-          isOpen={isAddCtoOpen}
-          onClose={() => setIsAddCtoOpen(false)}
-          showFooter={false}
-          isBusy={isAddBusy}
-          preventCloseWhenBusy={true}
-          maxWidth="max-w-lg"
-        >
-          <AddCtoCreditForm
-            onClose={() => setIsAddCtoOpen(false)}
-            onPendingChange={(v) => setIsAddBusy(!!v)}
-          />
         </Modal>
 
         <Modal

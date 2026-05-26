@@ -26,6 +26,8 @@ import AuditLogTable from "./pages/auditPage";
 /* CTO Components */
 import CtoDashboard from "./components/ctoComponents/ctoDashboard";
 import CtoCredits from "./components/ctoComponents/ctoCredits";
+// ✅ IMPORT THE NEW CTO CREDIT FORM
+import AddCtoCreditForm from "./components/ctoComponents/ctoCreditComponents/forms/addCtoCreditForm";
 import CtoApplication from "./components/ctoComponents/ctoApplication";
 import MyCtoCredits from "./components/ctoComponents/myCtoCredits";
 import AllCtoApplications from "./components/ctoComponents/ctoAllApplications";
@@ -35,7 +37,6 @@ import CtoRecords from "./components/ctoComponents/ctoRecords";
 import CtoEmployeeInformation from "./components/ctoComponents/ctoCreditHistory/ctoEmployeeInformation";
 import EmployeePlaceholder from "./components/ctoComponents/ctoApplicationApprovalsComponents/ctoEmployeePlaceholder";
 import EmployeeRecordsPlaceholder from "./components/ctoComponents/ctoCreditHistory/ctoEmployeeRecordPlaceholder";
-// ✅ IMPORT THE NEW CTO APPLICATION FORM
 import AddCtoApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addCtoApplicationForm";
 
 /* Wellness Components */
@@ -45,6 +46,9 @@ import WellnessApplicationApprovals from "./components/wellnessComponents/wellne
 import WellnessApplicationDetails from "./components/wellnessComponents/wellnessApplicationApprovalComponents/wellnessApplicationDetails";
 import AllWellnessApplicationsHistory from "./components/wellnessComponents/wellnessApplicationComponents/allWellnessApplicationHistory";
 import WellnessCreditHistory from "./components/wellnessComponents/wellnessCreditComponents/recentWellnessCreditHistory";
+import AddWellnessCreditForm from "./components/wellnessComponents/wellnessCreditComponents/forms/addWellnessCreditForm";
+import AddWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addWellnessApplicationForm";
+
 import AddEmployeeForm from "./components/employeeDashboard/forms/addEmployeeForm";
 import EmployeeInformation from "./components/employeeDashboard/employeeInformation";
 
@@ -58,20 +62,20 @@ import BackupSettings from "./components/generalSettingsComponents/backupSetting
 import GeneralSettings from "./components/generalSettingsComponents/generalSettings";
 import WorkingDaysSettings from "./components/generalSettingsComponents/workingDaysSettings";
 
-// ✅ Role Settings Components
+// Role Settings Components
 import RolesSettings from "./components/generalSettingsComponents/rolesSettings/rolesSettings";
 import AddRole from "./components/generalSettingsComponents/rolesSettings/addRole";
 import UpdateRole from "./components/generalSettingsComponents/rolesSettings/updateRole";
 import ViewRole from "./components/generalSettingsComponents/rolesSettings/viewRole";
 
-// ✅ Email Notification Settings
+// Email Notification Settings
 import EmailNotificationSettings from "./components/generalSettingsComponents/emailNotificationSetting";
 
-// ✅ Approval Routes (Separated into List and Form)
+// Approval Routes (Separated into List and Form)
 import ApprovalRoutesList from "./components/generalSettingsComponents/approvalRoutes/approvalRoutesList";
 import ApprovalRouteStepForm from "./components/generalSettingsComponents/approvalRoutes/approvalRouteStepForm";
 
-// ✅ User Preferences Settings (theme + accent)
+// User Preferences Settings (theme + accent)
 import UserPreferencesSettings from "./components/generalSettingsComponents/userPreferencesSetting";
 
 /* Profile */
@@ -92,7 +96,7 @@ function resolveTheme(prefTheme) {
   return prefTheme === "dark" ? "dark" : "light";
 }
 
-/* ✅ Reactive resolved theme for system mode */
+/* Reactive resolved theme for system mode */
 function useResolvedTheme(prefTheme) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined")
@@ -131,7 +135,7 @@ function App() {
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
-  // ✅ SESSION RECOVERY LOGIC
+  // SESSION RECOVERY LOGIC
   const login = useAuth((s) => s.login);
   const admin = useAuth((s) => s.admin);
 
@@ -242,6 +246,10 @@ function App() {
           >
             <Route path="wellness-dashboard" element={<WellnessDashboard />} />
             <Route path="wellness-apply" element={<MyWellnessApplications />} />
+            <Route
+              path="wellness-apply/add"
+              element={<AddWellnessApplicationForm />}
+            />
           </Route>
 
           {/* ===================== */}
@@ -303,6 +311,8 @@ function App() {
             element={<ProtectedRoute requiredPermission="cto.credits_view" />}
           >
             <Route path="cto-credit" element={<CtoCredits />} />
+            {/* ✅ ADDED THE SEPARATE ROUTE FOR ADDING CTO CREDITS */}
+            <Route path="cto-credit/add" element={<AddCtoCreditForm />} />
           </Route>
 
           {/* View All CTO Applications */}
@@ -336,6 +346,10 @@ function App() {
             element={<ProtectedRoute requiredPermission="wellness.manage" />}
           >
             <Route path="wellness-credit" element={<WellnessCreditHistory />} />
+            <Route
+              path="wellness-credit/add"
+              element={<AddWellnessCreditForm />}
+            />
           </Route>
 
           {/* View All Wellness Applications */}
@@ -440,7 +454,7 @@ function App() {
           </Route>
 
           {/* ===================== */}
-          {/* ✅ WELLNESS APPROVALS (Dynamic Guard) */}
+          {/* WELLNESS APPROVALS (Dynamic Guard) */}
           {/* ===================== */}
           <Route
             element={

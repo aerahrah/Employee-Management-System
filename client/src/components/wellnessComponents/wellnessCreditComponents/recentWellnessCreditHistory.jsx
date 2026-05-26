@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
@@ -13,7 +14,6 @@ import Modal from "../../modal";
 import { toast } from "react-toastify";
 import Breadcrumbs from "../../breadCrumbs";
 import FilterSelect from "../../filterSelect";
-import AddWellnessCreditForm from "./forms/addWellnessCreditForm";
 
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
@@ -469,6 +469,7 @@ const CompactPagination = ({
 
 const WellnessCreditHistory = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { can } = usePermissions();
   const canManageCredits = can("wellness.manage");
@@ -500,9 +501,6 @@ const WellnessCreditHistory = () => {
   const [searchFilter, setSearchFilter] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
-
-  const [isAddWellnessOpen, setIsAddWellnessOpen] = useState(false);
-  const [isAddBusy, setIsAddBusy] = useState(false);
 
   const [isConfirmRollback, setIsConfirmRollback] = useState(false);
   const [selectedCreditId, setSelectedCreditId] = useState(null);
@@ -706,12 +704,7 @@ const WellnessCreditHistory = () => {
               {canManageCredits && (
                 <button
                   type="button"
-                  onClick={() => {
-                    queryClient.invalidateQueries({
-                      queryKey: ["wellnessCreditEmployees"],
-                    });
-                    setIsAddWellnessOpen(true);
-                  }}
+                  onClick={() => navigate("/app/wellness-credit/add")}
                   className="group relative inline-flex items-center gap-2 justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 ease-out hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 w-full md:w-auto"
                   style={{ backgroundColor: "var(--accent, #2563EB)" }}
                   onMouseEnter={(e) =>
@@ -1305,20 +1298,6 @@ const WellnessCreditHistory = () => {
               </p>
             </div>
           </div>
-        </Modal>
-
-        <Modal
-          isOpen={isAddWellnessOpen}
-          onClose={() => setIsAddWellnessOpen(false)}
-          showFooter={false}
-          isBusy={isAddBusy}
-          preventCloseWhenBusy={true}
-          maxWidth="max-w-lg"
-        >
-          <AddWellnessCreditForm
-            onClose={() => setIsAddWellnessOpen(false)}
-            onPendingChange={(v) => setIsAddBusy(!!v)}
-          />
         </Modal>
       </SkeletonTheme>
     </div>

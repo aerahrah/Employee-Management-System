@@ -1,19 +1,17 @@
-import React, {
-  useState,
-  useRef,
-  useMemo,
-  useEffect,
-  useCallback,
-} from "react";
+import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../../../store/authStore";
-import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom"; // ✅ Imported useNavigate
+import { StatusBadge } from "../../statusUtils";
 import {
-  CalendarDays,
-  CheckCircle2,
-  AlertCircle,
-  XCircle,
-  Ban,
+  fetchMyWellnessApplications,
+  cancelWellnessApplicationRequest,
+} from "../../../api/wellnessApplication";
+import Modal from "../../modal";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import Breadcrumbs from "../../breadCrumbs";
+import FilterSelect from "../../filterSelect";
+import "react-loading-skeleton/dist/skeleton.css";
+import {
   Search,
   ChevronLeft,
   ChevronRight,
@@ -27,26 +25,17 @@ import {
   Info,
   ArrowUp,
   HeartPulse,
+  CheckCircle2,
+  XCircle,
+  Ban,
+  AlertCircle,
 } from "lucide-react";
-import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
-import "react-loading-skeleton/dist/skeleton.css";
-
-import { StatusBadge } from "../../statusUtils";
-import Modal from "../../modal";
-import Breadcrumbs from "../../breadCrumbs";
-import FilterSelect from "../../filterSelect";
-import AddWellnessApplicationForm from "./forms/addWellnessApplicationForm";
+import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
-import {
-  fetchMyWellnessApplications,
-  cancelWellnessApplicationRequest,
-} from "../../../api/wellnessApplication";
-
-import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
 
 const pageSizeOptions = [20, 50, 100];
 
-/* ------------------ Resolve theme ------------------ */
+/* ------------------ Theme Resolvers ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -116,9 +105,6 @@ const tabTone = {
   },
 };
 
-/* =========================
-   Per-row Action Menu
-========================= */
 const ApplicationActionMenu = ({
   app,
   onViewDetails,
@@ -209,9 +195,6 @@ const ApplicationActionMenu = ({
             onClick={() => handle(onCancel)}
             className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
             type="button"
-            title={
-              !canCancel ? "Only PENDING applications can be cancelled" : ""
-            }
             style={{ color: "#ef4444" }}
             onMouseEnter={(e) => {
               if (e.currentTarget.disabled) return;
@@ -229,9 +212,6 @@ const ApplicationActionMenu = ({
   );
 };
 
-/* =========================
-   Date Formatter
-========================= */
 const formatCoveredDates = (dates = []) => {
   if (!dates || dates.length === 0) return "-";
   return dates
@@ -246,9 +226,6 @@ const formatCoveredDates = (dates = []) => {
     .join(", ");
 };
 
-/* =========================
-   Mobile/Tablet Card View
-========================= */
 const ApplicationCard = ({
   app,
   leftStripClassName,
@@ -283,7 +260,6 @@ const ApplicationCard = ({
                 Wellness Leave
               </span>
             </div>
-
             <div
               className="mt-2 flex items-center gap-2 text-xs transition-colors duration-300 ease-out"
               style={{ color: "var(--app-muted)" }}
@@ -292,7 +268,6 @@ const ApplicationCard = ({
               <span className="truncate">{coveredDatesLabel}</span>
             </div>
           </div>
-
           <div className="flex items-start gap-2 flex-none">
             <StatusBadge status={app?.overallStatus} />
           </div>
@@ -319,7 +294,6 @@ const ApplicationCard = ({
               {app?.totalDays || 0} Day(s)
             </div>
           </div>
-
           <div
             className="rounded-lg border p-2 transition-colors duration-300 ease-out"
             style={{
@@ -396,9 +370,6 @@ const ApplicationCard = ({
   );
 };
 
-/* =========================
-   Compact Pagination
-========================= */
 const CompactPagination = ({
   page,
   totalPages,
@@ -537,6 +508,7 @@ const CompactPagination = ({
 ========================= */
 const MyWellnessApplications = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate(); // ✅ Hook for navigation
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const user = useAuth((s) => s.user);
@@ -565,8 +537,6 @@ const MyWellnessApplications = () => {
   }, [resolvedTheme]);
 
   const [selectedApp, setSelectedApp] = useState(null);
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-
   const [statusFilter, setStatusFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
@@ -780,7 +750,7 @@ const MyWellnessApplications = () => {
               {can("wellness.manage_self") && (
                 <div className="w-full md:w-auto flex flex-row items-stretch md:items-center gap-3 rounded-xl">
                   <button
-                    onClick={() => setIsFormModalOpen(true)}
+                    onClick={() => navigate("/app/wellness-apply/add")}
                     className="group relative inline-flex items-center gap-2 justify-center rounded-lg min-w-42 md:py-3.5 px-6 py-3 text-sm font-semibold shadow-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full"
                     type="button"
                     style={{
@@ -880,7 +850,6 @@ const MyWellnessApplications = () => {
                       className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
                       style={{ color: "var(--app-muted)" }}
                     />
-                    {/* ✅ Search input with maxLength strictly applied */}
                     <input
                       type="text"
                       placeholder="Search reasons..."
@@ -1037,13 +1006,6 @@ const MyWellnessApplications = () => {
                   >
                     No Results Found
                   </h3>
-                  <p
-                    className="text-sm max-w-xs mt-1"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Try adjusting your search or filters to find what you're
-                    looking for.
-                  </p>
                   {isFiltered && (
                     <button
                       onClick={handleResetFilters}
@@ -1071,7 +1033,7 @@ const MyWellnessApplications = () => {
                 <>
                   {/* Mobile & Tablet cards */}
                   <div className="block lg:hidden p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                    <div className="space-y-3">
                       {isLoading
                         ? [...Array(Math.min(limit, 6))].map((_, i) => (
                             <div
@@ -1380,24 +1342,6 @@ const MyWellnessApplications = () => {
                 This will stop the approval workflow immediately.
               </p>
             </div>
-          </div>
-        </Modal>
-
-        {/* Form Modal */}
-        <Modal
-          isOpen={isFormModalOpen}
-          onClose={() => setIsFormModalOpen(false)}
-          closeLabel={null}
-          maxWidth="max-w-lg"
-        >
-          <div className="w-full">
-            <AddWellnessApplicationForm
-              onClose={() => setIsFormModalOpen(false)}
-              onSuccess={() => {
-                setIsFormModalOpen(false);
-                refetch();
-              }}
-            />
           </div>
         </Modal>
       </SkeletonTheme>

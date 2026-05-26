@@ -1,21 +1,20 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { addWellnessApplicationRequest } from "../../../../api/wellnessApplication";
 import { fetchWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { getMyWellnessBalance } from "../../../../api/employee";
 import { useAuth } from "../../../../store/authStore";
+import Breadcrumbs from "../../../breadCrumbs";
 import {
   Calendar,
   FileText,
   UserCheck,
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
   X,
   HeartPulse,
   Layers,
-  Info,
 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -65,6 +64,14 @@ const getMinSelectableDateISO = (leadTimeDays = 5) => {
   }
 
   return date.toISOString().split("T")[0];
+};
+
+const makeClientRequestId = () => {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID)
+      return crypto.randomUUID();
+  } catch {}
+  return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
 
 /* ------------------ Resolve theme ------------------ */
@@ -123,11 +130,12 @@ const validateDate = ({
 
   const tempDates = [...inclusiveDates, value];
 
-  // We explicitly removed the 3-day max check here so it doesn't instantly block selection,
-  // relying instead on the submit-time validation to show the toast as requested.
-
   if (tempDates.length > maxWellnessDays) {
     return `You only have ${maxWellnessDays} Wellness Day(s) left.`;
+  }
+
+  if (tempDates.length > MAX_WELLNESS_DAYS) {
+    return `Maximum of ${MAX_WELLNESS_DAYS} days allowed per request.`;
   }
 
   return "";
@@ -163,7 +171,7 @@ const Banner = ({ tone = "error", message, borderColor }) => {
 
   return (
     <div
-      className="rounded-xl border px-3 py-2 text-xs font-medium flex items-start gap-2 transition-colors duration-300 ease-out"
+      className="rounded-xl border px-3 py-2 text-xs font-medium flex items-start gap-2 transition-colors duration-300 ease-out mb-6"
       role={tone === "error" ? "alert" : "status"}
       style={{
         backgroundColor: palette.bg,
@@ -183,8 +191,9 @@ const Banner = ({ tone = "error", message, borderColor }) => {
 /* =========================
    Main Form Component
 ========================= */
-const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
+const AddWellnessApplicationForm = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { admin, user } = useAuth();
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
@@ -211,7 +220,6 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
     };
   }, [resolvedTheme]);
 
-  const [showRouting, setShowRouting] = useState(false);
   const dateInputRef = useRef(null);
 
   // Date input states
@@ -237,17 +245,6 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
   );
 
   const [formData, setFormData] = useState(initialState);
-
-  const resetForm = useCallback(() => {
-    setFormData(initialState);
-    setShowRouting(false);
-    setDateValue("");
-    setDateError("");
-    clearBanner();
-    successLatchRef.current = false;
-    setSuccessLatchUI(false);
-    submitInFlightRef.current = false;
-  }, [initialState]);
 
   useEffect(() => {
     return () => {
@@ -295,6 +292,7 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
         "Could not load Working Days settings. Using default lead time.",
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingDaysIsError]);
 
   // Fetch Balances
@@ -313,18 +311,28 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
   });
 
   // Auto-select route
+  const myRoute = useMemo(() => {
+    if (!routesResponse || !Array.isArray(routesResponse)) return null;
+    return routesResponse.find(
+      (r) =>
+        String(r.createdBy?._id || r.createdBy) ===
+        String(admin?.id || admin?._id),
+    );
+  }, [routesResponse, admin]);
+
+  const hasValidApprovalRoute = useMemo(() => {
+    if (!myRoute) return false;
+    if (!myRoute.steps || myRoute.steps.length === 0) return false;
+    return myRoute.steps.some(
+      (step) => step.isEnabled !== false && step.approver,
+    );
+  }, [myRoute]);
+
   useEffect(() => {
-    if (routesResponse && Array.isArray(routesResponse) && !formData.routeId) {
-      const myRoute = routesResponse.find(
-        (r) =>
-          String(r.createdBy?._id || r.createdBy) ===
-          String(admin?.id || admin?._id),
-      );
-      if (myRoute) {
-        setFormData((prev) => ({ ...prev, routeId: myRoute._id }));
-      }
+    if (myRoute && !formData.routeId) {
+      setFormData((prev) => ({ ...prev, routeId: myRoute._id }));
     }
-  }, [routesResponse, admin, formData.routeId]);
+  }, [myRoute, formData.routeId]);
 
   const mutation = useMutation({
     mutationFn: addWellnessApplicationRequest,
@@ -424,17 +432,32 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
       return { ok: false, message: "Please select at least 1 date." };
     }
 
-    // 🚨 Triggers the toast error if they try to submit more than 3 days
     if (formData.inclusiveDates.length > MAX_WELLNESS_DAYS) {
       return {
         ok: false,
         message: `Maximum of ${MAX_WELLNESS_DAYS} days allowed per request.`,
-        isToastOnly: true, // We can catch this flag to throw a toast
+        isToastOnly: true,
+      };
+    }
+
+    if (formData.inclusiveDates.length > maxWellnessDays) {
+      return {
+        ok: false,
+        message: `You only have ${maxWellnessDays} Wellness Day(s) left.`,
+        isToastOnly: true,
       };
     }
 
     if (!formData.routeId) {
       return { ok: false, message: "Please select an approval route." };
+    }
+
+    if (!hasValidApprovalRoute) {
+      return {
+        ok: false,
+        message:
+          "Your approval workflow has no active approvers. Please check your settings.",
+      };
     }
 
     const reason = String(formData.reason || "")
@@ -453,6 +476,7 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
         inclusiveDates: formData.inclusiveDates,
         reason,
         routeId: formData.routeId,
+        clientRequestId: makeClientRequestId(),
       },
     };
   };
@@ -486,14 +510,17 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
       queryClient.invalidateQueries({ queryKey: ["myWellnessApplications"] });
       queryClient.invalidateQueries({ queryKey: ["myWellnessBalance"] });
 
-      onSuccess?.();
-      if (!onSuccess) onClose?.();
+      setTimeout(() => {
+        navigate(-1);
+      }, 1500);
     } catch (err) {
       const msg =
         err?.response?.data?.error ||
+        err?.response?.data?.message ||
         err?.message ||
         "Failed to submit request.";
       showBanner("error", msg);
+      toast.error(msg);
       submitInFlightRef.current = false;
       successLatchRef.current = false;
       setSuccessLatchUI(false);
@@ -512,375 +539,370 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
 
   return (
     <div
-      className="w-full max-w-xl mx-auto rounded-xl overflow-hidden border transition-colors duration-300 ease-out"
-      style={{
-        backgroundColor: "var(--app-surface)",
-        borderColor: borderColor,
-        color: "var(--app-text)",
-      }}
+      className="w-full max-w-4xl transition-colors duration-300 ease-out pb-12"
+      style={{ color: "var(--app-text)" }}
     >
       <SkeletonTheme
         baseColor={skeletonColors.baseColor}
         highlightColor={skeletonColors.highlightColor}
       >
-        {/* Header */}
+        {/* Page Header */}
+        <div className="pt-2 pb-6 px-4 md:px-0">
+          <Breadcrumbs rootLabel="home" rootTo="/app" />
+          <h1
+            className="text-2xl md:text-3xl font-bold tracking-tight font-sans mt-2"
+            style={{ color: "var(--app-text)" }}
+          >
+            New Wellness Leave
+          </h1>
+          <p
+            className="block text-sm mt-1 max-w-2xl"
+            style={{ color: "var(--app-muted)" }}
+          >
+            File a new day-based Wellness Leave request for approval.
+          </p>
+        </div>
+
+        {/* Form Card */}
         <div
-          className="px-4 py-4 border-b flex items-start sm:items-center justify-between gap-3 transition-colors duration-300 ease-out"
+          className="w-full rounded-xl overflow-hidden border shadow-sm transition-colors duration-300 ease-out"
           style={{
             backgroundColor: "var(--app-surface)",
             borderColor: borderColor,
           }}
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors duration-300 ease-out"
-              style={{
-                backgroundColor: "var(--accent-soft)",
-                borderColor: "var(--accent-soft2, rgba(37,99,235,0.18))",
-                color: "var(--accent)",
-              }}
-            >
-              <HeartPulse className="w-5 h-5" />
+          {/* Card Header */}
+          <div
+            className="px-6 py-5 border-b flex items-center justify-between gap-3 transition-colors duration-300 ease-out"
+            style={{ borderColor: borderColor }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--accent-soft)",
+                  borderColor: "var(--accent-soft2, rgba(37,99,235,0.18))",
+                  color: "var(--accent)",
+                }}
+              >
+                <HeartPulse className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold truncate">
+                  Request Details
+                </h2>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold truncate">Wellness Leave</h2>
+
+            <div className="text-right shrink-0">
               <p
-                className="text-xs truncate"
+                className="text-[10px] font-bold uppercase tracking-wider"
                 style={{ color: "var(--app-muted)" }}
               >
-                Day-based wellness request
+                Available Balance
               </p>
+              {isBalanceLoading ? (
+                <Skeleton width={40} />
+              ) : (
+                <p
+                  className="text-sm font-extrabold"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {maxWellnessDays} Day(s)
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="text-right shrink-0">
-            <p
-              className="text-[10px] font-bold uppercase tracking-wider mb-0.5"
-              style={{ color: "var(--app-muted)" }}
-            >
-              Available
-            </p>
-            {isBalanceLoading ? (
-              <Skeleton width={40} />
-            ) : (
-              <p
-                className="text-sm font-extrabold"
-                style={{ color: "var(--accent)" }}
-              >
-                {maxWellnessDays} Day(s)
-              </p>
-            )}
-          </div>
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            startSubmit();
-          }}
-          className="flex flex-col h-[calc(100dvh-16rem)] sm:h-[calc(100vh-16rem)]"
-        >
-          {/* Scroll Area */}
-          <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6 cto-scrollbar">
-            <Banner
-              tone={banner.tone}
-              message={banner.message}
-              borderColor={borderColor}
-            />
-
-            {/* Total Days & Inclusive Dates Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <div className="space-y-2">
-                <div
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center border"
-                    style={{
-                      backgroundColor: "var(--app-surface-2)",
-                      borderColor: borderColor,
-                      color: "var(--app-muted)",
-                    }}
-                  >
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  Total Days Selected
-                </div>
-                <div
-                  className="w-full h-11 sm:h-10 px-3 rounded-lg border flex items-center transition-colors duration-200 ease-out"
-                  style={{
-                    backgroundColor: "var(--app-surface-2)",
-                    borderColor: borderColor,
-                  }}
-                >
-                  <span
-                    className="font-bold text-sm"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    {formData.inclusiveDates.length} Day(s)
-                  </span>
-                </div>
-                {formData.inclusiveDates.length > 0 && (
-                  <div
-                    className="text-[10px] leading-relaxed"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Remaining allowance:{" "}
-                    <span style={{ color: "var(--app-text)", fontWeight: 700 }}>
-                      {Math.max(
-                        0,
-                        maxWellnessDays - formData.inclusiveDates.length,
-                      )}
-                    </span>{" "}
-                    day(s)
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <div
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center border"
-                    style={{
-                      backgroundColor: "var(--app-surface-2)",
-                      borderColor: borderColor,
-                      color: "var(--app-muted)",
-                    }}
-                  >
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                  Add Inclusive Date
-                </div>
-
-                <div className="relative">
-                  <input
-                    ref={dateInputRef}
-                    type="date"
-                    min={minDate}
-                    value={dateValue}
-                    onInput={handleDateInput}
-                    onChange={handleDateCommit}
-                    disabled={dateDisabled}
-                    aria-invalid={!!dateError}
-                    className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-[16px] sm:text-sm"
-                    style={{
-                      backgroundColor: dateDisabled
-                        ? "var(--app-surface-2)"
-                        : dateError
-                          ? "rgba(239,68,68,0.08)"
-                          : "var(--app-surface)",
-                      borderColor: dateError
-                        ? "rgba(239,68,68,0.22)"
-                        : borderColor,
-                      color: dateDisabled
-                        ? "var(--app-muted)"
-                        : "var(--app-text)",
-                    }}
-                  />
-                </div>
-
-                {dateError ? (
-                  <div
-                    className="text-[11px] font-semibold"
-                    style={{ color: "#ef4444" }}
-                  >
-                    {dateError}
-                  </div>
-                ) : (
-                  <div
-                    className="text-[10px] leading-relaxed"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Earliest selectable date:{" "}
-                    <span style={{ color: "var(--app-text)", fontWeight: 700 }}>
-                      {minDate}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Selected Dates Display */}
-            <div className="space-y-3 animate-in fade-in duration-300">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-1">
-                <span
-                  className="text-[10px] font-bold uppercase tracking-widest"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  Selected Dates
-                </span>
-                <span
-                  className="text-[10px] italic"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  {leadTimeLabel}
-                </span>
-              </div>
-
-              <div
-                className="flex flex-wrap gap-2 p-3 rounded-xl border min-h-[50px] transition-colors duration-300 ease-out"
-                style={{
-                  backgroundColor: "rgba(37,99,235,0.06)",
-                  borderColor: "rgba(37,99,235,0.14)",
-                }}
-              >
-                {formData.inclusiveDates.length === 0 ? (
-                  <p
-                    className="text-xs italic flex items-center gap-2"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    <Info size={14} style={{ color: "var(--app-muted)" }} /> No
-                    dates selected yet
-                  </p>
-                ) : (
-                  formData.inclusiveDates.map((date) => (
-                    <div
-                      key={date}
-                      className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-sm border transition-colors duration-300 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor:
-                          "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        color: "var(--accent)",
-                      }}
-                    >
-                      <span className="truncate max-w-[150px]">{date}</span>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleDateRemove(date)}
-                        className="transition-colors disabled:opacity-50"
-                        style={{ color: "var(--app-muted)" }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.color = "#ef4444")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.color = "var(--app-muted)")
-                        }
-                        aria-label={`Remove ${date}`}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Reason */}
-            <div className="space-y-2">
-              <div
-                className="flex items-center gap-2 text-sm font-medium"
-                style={{ color: "var(--app-text)" }}
-              >
-                <div
-                  className="w-7 h-7 rounded-md flex items-center justify-center border"
-                  style={{
-                    backgroundColor: "var(--app-surface-2)",
-                    borderColor: borderColor,
-                    color: "var(--app-muted)",
-                  }}
-                >
-                  <FileText className="w-4 h-4" />
-                </div>
-                Reason / Justification
-              </div>
-
-              <textarea
-                name="reason"
-                value={formData.reason}
-                onChange={handleChange}
-                rows="4"
-                maxLength={MAX_REASON_LEN}
-                placeholder="Provide details for your wellness leave..."
-                disabled={isBusy}
-                className="w-full p-3 rounded-lg outline-none resize-none text-sm border transition-colors duration-200 ease-out"
-                style={{
-                  backgroundColor: isBusy
-                    ? "var(--app-surface-2)"
-                    : "var(--app-surface)",
-                  borderColor: borderColor,
-                  color: isBusy ? "var(--app-muted)" : "var(--app-text)",
-                }}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              startSubmit();
+            }}
+            className="flex flex-col"
+          >
+            <div className="px-6 py-6 space-y-8">
+              <Banner
+                tone={banner.tone}
+                message={banner.message}
+                borderColor={borderColor}
               />
 
-              <div
-                className="text-[10px] text-right"
-                style={{ color: "var(--app-muted)" }}
-              >
-                {String(formData.reason || "").length}/{MAX_REASON_LEN}
-              </div>
-            </div>
-
-            {/* Approval Routing */}
-            <div className="space-y-3 pt-2">
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={() => setShowRouting((s) => !s)}
-                className="w-full flex items-center justify-between p-3 rounded-lg border transition-colors duration-200 ease-out disabled:opacity-60"
-                style={{
-                  backgroundColor: "var(--app-surface-2)",
-                  borderColor: borderColor,
-                  color: "var(--app-text)",
-                }}
-              >
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <UserCheck size={16} style={{ color: "var(--app-muted)" }} />
-                  Approval Routing
-                </div>
-                {showRouting ? (
-                  <ChevronUp size={16} style={{ color: "var(--app-muted)" }} />
-                ) : (
-                  <ChevronDown
-                    size={16}
-                    style={{ color: "var(--app-muted)" }}
-                  />
-                )}
-              </button>
-
-              <div
-                className={`overflow-hidden transition-all duration-300 ${
-                  showRouting
-                    ? "max-h-[420px] opacity-100"
-                    : "max-h-0 opacity-0"
-                }`}
-              >
-                <div className="space-y-3 pt-1 px-1">
-                  {isRoutesLoading ? (
-                    <Skeleton height={40} borderRadius={8} />
-                  ) : !formData.routeId ? (
-                    <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-medium flex items-center gap-2">
-                      <AlertCircle size={14} />
-                      You haven't set up an approval route yet.
-                      <a
-                        href="/app/approval-routes"
-                        className="underline font-bold"
-                      >
-                        Set it up here
-                      </a>
+              {/* Total Days & Inclusive Dates Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                <div className="space-y-2">
+                  <div
+                    className="flex items-center gap-2 text-sm font-medium"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-md flex items-center justify-center border"
+                      style={{
+                        backgroundColor: "var(--app-surface-2)",
+                        borderColor: borderColor,
+                        color: "var(--app-muted)",
+                      }}
+                    >
+                      <Layers className="w-4 h-4" />
                     </div>
-                  ) : (
-                    <div className="px-3 py-2 rounded-lg border bg-[color:var(--app-surface-2)] border-[color:var(--app-border)]">
-                      <p className="text-[10px] font-bold uppercase tracking-wider opacity-50 mb-1">
-                        Active Workflow
-                      </p>
-                      <p className="text-sm font-bold text-[color:var(--app-text)]">
-                        {routesResponse?.find((r) => r._id === formData.routeId)
-                          ?.name || "Personal Workflow"}
-                      </p>
+                    Total Days Selected
+                  </div>
+                  <div
+                    className="w-full h-11 sm:h-10 px-3 rounded-lg border flex items-center transition-colors duration-200 ease-out"
+                    style={{
+                      backgroundColor: isBusy
+                        ? "var(--app-surface-2)"
+                        : "var(--app-surface)",
+                      borderColor: borderColor,
+                    }}
+                  >
+                    <span
+                      className="font-bold text-sm"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {formData.inclusiveDates.length} Day(s)
+                    </span>
+                  </div>
+                  {formData.inclusiveDates.length > 0 && (
+                    <div
+                      className="text-[10px] leading-relaxed"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Remaining allowance:{" "}
+                      <span
+                        style={{ color: "var(--app-text)", fontWeight: 700 }}
+                      >
+                        {Math.max(
+                          0,
+                          maxWellnessDays - formData.inclusiveDates.length,
+                        )}
+                      </span>{" "}
+                      day(s)
                     </div>
                   )}
+                </div>
 
-                  <div className="space-y-2 mt-2 max-h-[250px] overflow-y-auto pr-1 cto-scrollbar">
-                    {formData.routeId &&
-                      routesResponse
-                        ?.find((r) => r._id === formData.routeId)
-                        ?.steps?.filter((s) => s.isEnabled !== false)
+                <div className="space-y-2">
+                  <div
+                    className="flex items-center gap-2 text-sm font-medium"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-md flex items-center justify-center border"
+                      style={{
+                        backgroundColor: "var(--app-surface-2)",
+                        borderColor: borderColor,
+                        color: "var(--app-muted)",
+                      }}
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    Add Inclusive Date
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      ref={dateInputRef}
+                      type="date"
+                      min={minDate}
+                      value={dateValue}
+                      onInput={handleDateInput}
+                      onChange={handleDateCommit}
+                      disabled={dateDisabled}
+                      aria-invalid={!!dateError}
+                      className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-[16px] sm:text-sm"
+                      style={{
+                        backgroundColor: dateDisabled
+                          ? "var(--app-surface-2)"
+                          : dateError
+                            ? "rgba(239,68,68,0.08)"
+                            : "var(--app-surface)",
+                        borderColor: dateError
+                          ? "rgba(239,68,68,0.22)"
+                          : borderColor,
+                        color: dateDisabled
+                          ? "var(--app-muted)"
+                          : "var(--app-text)",
+                      }}
+                    />
+                  </div>
+
+                  {dateError ? (
+                    <div
+                      className="text-[11px] font-semibold"
+                      style={{ color: "#ef4444" }}
+                    >
+                      {dateError}
+                    </div>
+                  ) : (
+                    <div
+                      className="text-[10px] leading-relaxed"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Earliest selectable date:{" "}
+                      <span
+                        style={{ color: "var(--app-text)", fontWeight: 700 }}
+                      >
+                        {minDate}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Selected Dates Display */}
+              {formData.inclusiveDates.length > 0 && (
+                <div className="space-y-3 animate-in fade-in duration-300">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-1">
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-widest"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Dates Selected ({formData.inclusiveDates.length} /{" "}
+                      {Math.min(MAX_WELLNESS_DAYS, maxWellnessDays)} Max)
+                    </span>
+                    <span
+                      className="text-[10px] italic"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      {leadTimeLabel}
+                    </span>
+                  </div>
+
+                  <div
+                    className="flex flex-wrap gap-2 p-3 rounded-xl border min-h-[50px] transition-colors duration-300 ease-out"
+                    style={{
+                      backgroundColor: "rgba(37,99,235,0.06)",
+                      borderColor: "rgba(37,99,235,0.14)",
+                    }}
+                  >
+                    {formData.inclusiveDates.map((date) => (
+                      <div
+                        key={date}
+                        className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-sm border transition-colors duration-300 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor:
+                            "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        <span className="truncate max-w-[150px]">{date}</span>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleDateRemove(date)}
+                          className="transition-colors disabled:opacity-50"
+                          style={{ color: "var(--app-muted)" }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.color = "#ef4444")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.color = "var(--app-muted)")
+                          }
+                          aria-label={`Remove ${date}`}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reason */}
+              <div className="space-y-2">
+                <div
+                  className="flex items-center gap-2 text-sm font-medium"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center border"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  Reason / Justification
+                </div>
+
+                <textarea
+                  name="reason"
+                  value={formData.reason}
+                  onChange={handleChange}
+                  rows="4"
+                  maxLength={MAX_REASON_LEN}
+                  placeholder="Provide details for your wellness leave..."
+                  disabled={isBusy}
+                  className="w-full p-3 rounded-lg outline-none resize-none text-sm border transition-colors duration-200 ease-out"
+                  style={{
+                    backgroundColor: isBusy
+                      ? "var(--app-surface-2)"
+                      : "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                  }}
+                />
+
+                <div
+                  className="text-[10px] text-right"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  {String(formData.reason || "").length}/{MAX_REASON_LEN}
+                </div>
+              </div>
+
+              {/* Approval Routing */}
+              <div
+                className="space-y-3 pt-6 mt-6 border-t transition-colors duration-300 ease-out"
+                style={{ borderColor: borderColor }}
+              >
+                <div
+                  className="flex items-center gap-2 text-sm font-bold"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center border"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  Approval Steps
+                </div>
+
+                <div className="space-y-2 mt-2">
+                  {isRoutesLoading ? (
+                    <Skeleton height={40} borderRadius={8} count={2} />
+                  ) : !hasValidApprovalRoute ? (
+                    <div
+                      className="p-3 rounded-lg border flex items-start sm:items-center gap-2 text-xs font-medium transition-colors duration-300 ease-out"
+                      style={{
+                        backgroundColor: "rgba(245,158,11,0.10)",
+                        borderColor: "rgba(245,158,11,0.30)",
+                        color: resolvedTheme === "dark" ? "#fcd34d" : "#b45309",
+                      }}
+                    >
+                      <AlertCircle
+                        size={14}
+                        className="shrink-0 mt-0.5 sm:mt-0"
+                      />
+                      <span>
+                        You need an active approval route to submit an
+                        application. Please configure your approval route
+                        settings and ensure at least one approver is enabled.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {myRoute?.steps
+                        ?.filter((s) => s.isEnabled !== false)
                         ?.map((step, idx) => (
                           <div
                             key={idx}
@@ -921,81 +943,73 @@ const AddWellnessApplicationForm = ({ onClose, onSuccess }) => {
                             </div>
                           </div>
                         ))}
-                    {!formData.routeId && !isRoutesLoading && (
-                      <div
-                        className="p-3 text-center text-xs italic"
-                        style={{ color: "var(--app-muted)" }}
-                      >
-                        Please select an approval route to proceed.
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Sticky Footer */}
-          <div
-            className="border-t px-4 py-3 flex flex-row items-stretch sm:items-center gap-2 sm:gap-3 sticky bottom-0 transition-colors duration-300 ease-out"
-            style={{
-              backgroundColor: "var(--app-surface)",
-              borderColor: borderColor,
-            }}
-          >
-            <button
-              type="button"
-              disabled={mutation.isPending}
-              onClick={() => {
-                if (mutation.isPending) return;
-                if (!successLatchRef.current) resetForm();
-                onClose?.();
-              }}
-              className="w-full sm:flex-1 px-4 py-2.5 sm:py-2 rounded-lg border font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+            {/* Sticky Footer */}
+            <div
+              className="border-t px-6 py-4 flex flex-row items-stretch sm:items-center justify-end gap-3 sticky bottom-0 transition-colors duration-300 ease-out"
               style={{
-                backgroundColor: "var(--app-surface-2)",
+                backgroundColor: "var(--app-surface)",
                 borderColor: borderColor,
-                color: "var(--app-text)",
               }}
-              onMouseEnter={(e) => {
-                if (e.currentTarget.disabled) return;
-                e.currentTarget.style.filter = "brightness(0.98)";
-              }}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
             >
-              Close
-            </button>
+              <button
+                type="button"
+                disabled={mutation.isPending}
+                onClick={() => {
+                  if (mutation.isPending) return;
+                  navigate(-1);
+                }}
+                className="px-6 py-2.5 sm:py-2 rounded-lg border font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                  color: "var(--app-text)",
+                }}
+                onMouseEnter={(e) => {
+                  if (e.currentTarget.disabled) return;
+                  e.currentTarget.style.filter = "brightness(0.98)";
+                }}
+                onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+              >
+                Back
+              </button>
 
-            <button
-              type="submit"
-              disabled={
-                isBusy ||
-                (workingDaysLoading && !workingDaysIsError) ||
-                formData.inclusiveDates.length === 0 ||
-                !!dateError
-              }
-              className="w-full sm:flex-1 px-4 py-2.5 sm:py-2 rounded-lg font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 ease-out shadow-sm"
-              style={{
-                backgroundColor: "var(--accent)",
-                border: "1px solid var(--accent)",
-                color: "#fff",
-              }}
-              onMouseEnter={(e) => {
-                if (e.currentTarget.disabled) return;
-                e.currentTarget.style.filter = "brightness(0.95)";
-              }}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
-            >
-              {workingDaysLoading
-                ? "Loading..."
-                : mutation.isPending
-                  ? "Submitting..."
-                  : successLatchUI
-                    ? "Submitted"
-                    : "Submit Request"}
-            </button>
-          </div>
-        </form>
+              <button
+                type="submit"
+                disabled={
+                  isBusy ||
+                  (workingDaysLoading && !workingDaysIsError) ||
+                  !hasValidApprovalRoute ||
+                  formData.inclusiveDates.length === 0
+                }
+                className="w-full sm:w-auto px-8 py-2.5 sm:py-2 rounded-lg font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+                style={{
+                  backgroundColor: "var(--accent)",
+                  border: "1px solid var(--accent)",
+                  color: "#fff",
+                }}
+                onMouseEnter={(e) => {
+                  if (e.currentTarget.disabled) return;
+                  e.currentTarget.style.filter = "brightness(0.95)";
+                }}
+                onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+              >
+                {workingDaysLoading
+                  ? "Loading..."
+                  : mutation.isPending
+                    ? "Submitting..."
+                    : successLatchUI
+                      ? "Submitted"
+                      : "Submit Application"}
+              </button>
+            </div>
+          </form>
+        </div>
       </SkeletonTheme>
     </div>
   );

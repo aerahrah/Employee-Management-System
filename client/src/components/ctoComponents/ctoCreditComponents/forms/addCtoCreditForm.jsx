@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Upload, Users, Clock, FileText, Calendar } from "lucide-react";
+import {
+  Upload,
+  Users,
+  Clock,
+  FileText,
+  Calendar,
+  X,
+  AlertCircle,
+} from "lucide-react";
 import Select from "react-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { fetchApprovers, addCreditRequest } from "../../../../api/cto";
 import { toast } from "react-toastify";
+import Breadcrumbs from "../../../breadCrumbs";
+import { useAuth } from "../../../../store/authStore";
 
 const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
@@ -27,18 +38,114 @@ const makeClientRequestId = () => {
   return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
 
-const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
+/* ------------------ Theme Resolvers ------------------ */
+function resolveTheme(prefTheme) {
+  if (prefTheme === "system") {
+    const systemDark =
+      window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false;
+    return systemDark ? "dark" : "light";
+  }
+  return prefTheme === "dark" ? "dark" : "light";
+}
+
+function useResolvedTheme(prefTheme) {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined")
+      return prefTheme === "dark" ? "dark" : "light";
+    return resolveTheme(prefTheme);
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (prefTheme !== "system") {
+      setTheme(prefTheme === "dark" ? "dark" : "light");
+      return;
+    }
+
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setTheme(mq.matches ? "dark" : "light");
+
+    update();
+    if (mq.addEventListener) mq.addEventListener("change", update);
+    else mq.addListener(update);
+
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", update);
+      else mq.removeListener(update);
+    };
+  }, [prefTheme]);
+
+  return theme;
+}
+
+/* ------------------ Banner Component ------------------ */
+const Banner = ({ tone = "error", message, borderColor }) => {
+  if (!message) return null;
+
+  const palette =
+    tone === "info"
+      ? {
+          bg: "rgba(37,99,235,0.10)",
+          br: "rgba(37,99,235,0.18)",
+          fg: "var(--app-text)",
+          icon: "var(--accent)",
+        }
+      : tone === "success"
+        ? {
+            bg: "rgba(34,197,94,0.12)",
+            br: "rgba(34,197,94,0.20)",
+            fg: "var(--app-text)",
+            icon: "#16a34a",
+          }
+        : {
+            bg: "rgba(239,68,68,0.10)",
+            br: "rgba(239,68,68,0.18)",
+            fg: "var(--app-text)",
+            icon: "#ef4444",
+          };
+
+  return (
+    <div
+      className="rounded-xl border px-3 py-2 text-xs font-medium flex items-start gap-2 transition-colors duration-300 ease-out mb-6"
+      role={tone === "error" ? "alert" : "status"}
+      style={{
+        backgroundColor: palette.bg,
+        borderColor: palette.br || borderColor || "var(--app-border)",
+        color: palette.fg,
+      }}
+    >
+      <AlertCircle
+        className="w-4 h-4 mt-0.5 shrink-0 opacity-90"
+        style={{ color: palette.icon }}
+      />
+      <div className="leading-relaxed">{message}</div>
+    </div>
+  );
+};
+
+/* ------------------ Main Form Component ------------------ */
+const AddCtoCreditForm = () => {
   const queryClient = useQueryClient();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
-  // ✅ Rapid-click guard (beats React render timing)
+  const prefTheme = useAuth((s) => s.preferences?.theme || "system");
+  const resolvedTheme = useResolvedTheme(prefTheme);
+
+  const borderColor = useMemo(() => {
+    return resolvedTheme === "dark"
+      ? "rgba(255,255,255,0.07)"
+      : "rgba(15,23,42,0.10)";
+  }, [resolvedTheme]);
+
+  const [banner, setBanner] = useState({ tone: "error", message: "" });
+  const clearBanner = () => setBanner({ tone: "error", message: "" });
+  const showBanner = (tone, message) => setBanner({ tone, message });
+
+  // Rapid-click guard & Success latch
   const submitInFlightRef = useRef(false);
-
-  // ✅ Success latch: once success happens, keep disabled until unmount
   const successLatchRef = useRef(false);
   const [successLatchUI, setSuccessLatchUI] = useState(false);
-
-  // UI lock for instant disabling on click (and keeps busy true)
   const [submitLockUI, setSubmitLockUI] = useState(false);
 
   const initialState = useMemo(
@@ -54,18 +161,6 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
 
   const [formData, setFormData] = useState(initialState);
 
-  const resetForm = useCallback(() => {
-    setFormData(initialState);
-    setMenuOpen(false);
-
-    // unlock only when user closes without success OR on unmount
-    submitInFlightRef.current = false;
-    successLatchRef.current = false;
-    setSuccessLatchUI(false);
-    setSubmitLockUI(false);
-  }, [initialState]);
-
-  // Reset refs on unmount (modal fully removed)
   useEffect(() => {
     return () => {
       submitInFlightRef.current = false;
@@ -73,48 +168,61 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
     };
   }, []);
 
-  const {
-    data: employeesData,
-    isLoading,
-    refetch,
-  } = useQuery({
+  const { data: employeesData, isLoading } = useQuery({
     queryKey: ["ctoCreditEmployees"],
     queryFn: fetchApprovers,
-    enabled: menuOpen,
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
-
-  useEffect(() => {
-    if (menuOpen) refetch();
-  }, [menuOpen, refetch]);
 
   const mutation = useMutation({
     mutationFn: addCreditRequest,
     retry: 0,
   });
 
-  // ✅ Busy stays true after success (prevents “click again before close”)
-  const busy = mutation.isPending || submitLockUI || successLatchUI;
+  const isBusy = mutation.isPending || submitLockUI || successLatchUI;
 
-  // Tell parent modal whether we’re “busy”
-  useEffect(() => {
-    onPendingChange?.(busy);
-  }, [busy, onPendingChange]);
+  // Extract raw employees for filtering
+  const rawEmployees = useMemo(() => {
+    return employeesData?.data?.data || employeesData?.data || [];
+  }, [employeesData]);
 
   const employeeOptions = useMemo(() => {
-    const list = employeesData?.data?.data || employeesData?.data || [];
-    return list.map((emp) => ({
+    return rawEmployees.map((emp) => ({
       value: emp._id,
       label: `${emp.firstName} ${emp.lastName}`.trim(),
     }));
-  }, [employeesData]);
+  }, [rawEmployees]);
+
+  // Quick Select Groups
+  const organicIds = useMemo(() => {
+    return rawEmployees
+      .filter(
+        (e) =>
+          e.employeeType === "Organic" ||
+          (!e.employeeType &&
+            !/JO|Job Order|Contractual/i.test(e.position || "")),
+      )
+      .map((e) => e._id);
+  }, [rawEmployees]);
+
+  const joIds = useMemo(() => {
+    return rawEmployees
+      .filter(
+        (e) =>
+          e.employeeType === "Job Order" ||
+          (!e.employeeType &&
+            /JO|Job Order|Contractual/i.test(e.position || "")),
+      )
+      .map((e) => e._id);
+  }, [rawEmployees]);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
+    clearBanner();
 
-    if (busy) return; // optional hard block while busy
+    if (isBusy) return;
 
     if (name === "hours") {
       const hours = clampInt(value, 0, 1000);
@@ -143,46 +251,64 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Selection Handlers
+  const handleSelectGroup = (ids) => {
+    clearBanner();
+    setFormData((prev) => {
+      const newSet = new Set([...prev.employees, ...ids]);
+      return { ...prev, employees: Array.from(newSet) };
+    });
+  };
+
+  const handleClearSelection = () => {
+    clearBanner();
+    setFormData((prev) => ({ ...prev, employees: [] }));
+  };
+
+  const handleRemoveEmployee = (idToRemove) => {
+    clearBanner();
+    setFormData((prev) => ({
+      ...prev,
+      employees: prev.employees.filter((id) => id !== idToRemove),
+    }));
+  };
+
   const sanitizeAndValidate = () => {
     const employees = Array.from(new Set(formData.employees || [])).filter(
       isLikelyObjectId,
     );
 
     if (employees.length === 0) {
-      toast.error("Please select at least one employee.");
-      return { ok: false };
+      return { ok: false, msg: "Please select at least one employee." };
     }
 
     const hours = clampInt(formData.duration.hours, 0, 1000);
     const minutes = clampInt(formData.duration.minutes, 0, 59);
     if (hours === 0 && minutes === 0) {
-      toast.error("Please enter a credit duration (hours or minutes).");
-      return { ok: false };
+      return {
+        ok: false,
+        msg: "Please enter a credit duration (hours or minutes).",
+      };
     }
 
     const dateApproved = String(formData.dateApproved || "").trim();
     if (!dateApproved) {
-      toast.error("Please select the date approved.");
-      return { ok: false };
+      return { ok: false, msg: "Please select the date approved." };
     }
     if (dateApproved > todayISO()) {
-      toast.error("Date approved cannot be in the future.");
-      return { ok: false };
+      return { ok: false, msg: "Date approved cannot be in the future." };
     }
 
     const memoNo = String(formData.memoNo || "")
       .trim()
       .slice(0, 100);
-
     if (!memoNo) {
-      toast.error("Please enter the memo number.");
-      return { ok: false };
+      return { ok: false, msg: "Please enter the memo number." };
     }
 
     const memoFile = formData.memoFile;
     if (!memoFile) {
-      toast.error("Please upload the memo PDF.");
-      return { ok: false };
+      return { ok: false, msg: "Please upload the memo PDF." };
     }
 
     const fileName = String(memoFile.name || "");
@@ -191,13 +317,14 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
       String(memoFile.type || "").toLowerCase() === "application/pdf";
 
     if (!isPdfByExt && !isPdfByType) {
-      toast.error("Memo file must be a PDF.");
-      return { ok: false };
+      return { ok: false, msg: "Memo file must be a PDF." };
     }
 
     if (memoFile.size && memoFile.size > MAX_PDF_SIZE_BYTES) {
-      toast.error("PDF is too large. Please upload a smaller file.");
-      return { ok: false };
+      return {
+        ok: false,
+        msg: "PDF is too large. Please upload a smaller file.",
+      };
     }
 
     const payload = new FormData();
@@ -206,8 +333,6 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
     payload.append("dateApproved", dateApproved);
     payload.append("employees", JSON.stringify(employees));
     payload.append("duration", JSON.stringify({ hours, minutes }));
-
-    // ✅ optional idempotency key (server can dedupe if supported)
     payload.append("clientRequestId", makeClientRequestId());
 
     return { ok: true, payload };
@@ -215,22 +340,18 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
+    clearBanner();
 
-    // ✅ hard success latch
     if (successLatchRef.current) return;
-
-    // ✅ rapid-click lock (beats rerender)
     if (submitInFlightRef.current) return;
-
-    // ✅ if already busy, block
-    if (busy) return;
+    if (isBusy) return;
 
     submitInFlightRef.current = true;
-    setSubmitLockUI(true); // instant disable
+    setSubmitLockUI(true);
 
-    const { ok, payload } = sanitizeAndValidate();
+    const { ok, msg, payload } = sanitizeAndValidate();
     if (!ok) {
-      // unlock on validation fail
+      showBanner("error", msg);
       submitInFlightRef.current = false;
       setSubmitLockUI(false);
       return;
@@ -239,25 +360,26 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
     try {
       await mutation.mutateAsync(payload);
 
-      // ✅ LATCH AFTER SUCCESS (do NOT unlock until unmount)
       successLatchRef.current = true;
       setSuccessLatchUI(true);
 
-      toast.success("CTO credit added successfully");
+      toast.success("CTO credit added successfully!");
       queryClient.invalidateQueries({ queryKey: ["ctoCredits"] });
       queryClient.invalidateQueries({ queryKey: ["allCredits"] });
 
-      // ✅ do NOT reset here (avoid unlocking before modal fully closes)
-      onClose?.();
+      setTimeout(() => {
+        navigate(-1);
+      }, 1500);
     } catch (err) {
-      toast.error(
+      const errorMsg =
         err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          err?.message ||
-          "Failed to submit credit request",
-      );
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to submit credit request";
 
-      // allow retry on error
+      showBanner("error", errorMsg);
+      toast.error(errorMsg);
+
       submitInFlightRef.current = false;
       successLatchRef.current = false;
       setSuccessLatchUI(false);
@@ -266,136 +388,378 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
   };
 
   return (
-    <div className="max-w-xl mx-auto bg-white rounded-xl border border-gray-200 overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-4 border-b flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-          <Clock className="w-6 h-6 text-blue-600" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            Add CTO Credit
-          </h2>
-          <p className="text-xs text-gray-500">
-            Assign Compensatory Time Credits
-          </p>
-        </div>
+    <div
+      className="w-full max-w-4xl transition-colors duration-300 ease-out pb-12"
+      style={{ color: "var(--app-text)" }}
+    >
+      {/* Page Header */}
+      <div className="pt-2 pb-6 px-4 md:px-0">
+        <Breadcrumbs rootLabel="home" rootTo="/app" />
+        <h1
+          className="text-2xl md:text-3xl font-bold tracking-tight font-sans mt-2"
+          style={{ color: "var(--app-text)" }}
+        >
+          Add CTO Credit
+        </h1>
+        <p
+          className="block text-sm mt-1 max-w-2xl"
+          style={{ color: "var(--app-muted)" }}
+        >
+          Issue new Compensatory Time Credits to selected employees by uploading
+          a signed memo.
+        </p>
       </div>
 
-      {/* Form wrapper: scrollable content + sticky footer */}
-      <form onSubmit={handleSubmit} className="flex flex-col">
-        {/* Scrollable content */}
-        <div className="px-4 py-5 space-y-7 max-h-[calc(100vh-20rem)] overflow-y-auto">
-          {/* Employees */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <div className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center">
-                <Users className="w-4 h-4 text-gray-600" />
-              </div>
-              Employees
-            </div>
-
-            <Select
-              options={employeeOptions}
-              isMulti
-              isLoading={isLoading}
-              isDisabled={busy}
-              value={employeeOptions.filter((o) =>
-                (formData.employees || []).includes(o.value),
-              )}
-              onChange={(selected) =>
-                setFormData((p) => ({
-                  ...p,
-                  employees: selected ? selected.map((s) => s.value) : [],
-                }))
-              }
-              onMenuOpen={() => setMenuOpen(true)}
-              placeholder="Search employees"
-              maxLength={100}
-              classNames={{
-                control: ({ isFocused }) =>
-                  `min-h-[42px] rounded-lg border ${
-                    isFocused
-                      ? "border-blue-500 ring-1 ring-blue-200"
-                      : "border-gray-300"
-                  } ${busy ? "opacity-70" : ""}`,
-                option: ({ isFocused, isSelected }) =>
-                  `${
-                    isSelected
-                      ? "bg-blue-600 text-white"
-                      : isFocused
-                        ? "bg-gray-100"
-                        : "bg-white"
-                  } px-3 py-2 cursor-pointer`,
-                multiValue: () =>
-                  "bg-blue-100 text-blue-900 rounded-md px-2 py-1",
+      {/* Form Card */}
+      <div
+        className="w-full rounded-xl overflow-hidden border shadow-sm transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-surface)",
+          borderColor: borderColor,
+        }}
+      >
+        {/* Card Header */}
+        <div
+          className="px-6 py-5 border-b flex items-center justify-between gap-3 transition-colors duration-300 ease-out"
+          style={{ borderColor: borderColor }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors duration-300 ease-out"
+              style={{
+                backgroundColor: "var(--accent-soft)",
+                borderColor: "var(--accent-soft2, rgba(37,99,235,0.18))",
+                color: "var(--accent)",
               }}
+            >
+              <Clock className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold truncate">
+                Crediting Details
+              </h2>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="px-6 py-6 space-y-8">
+            <Banner
+              tone={banner.tone}
+              message={banner.message}
+              borderColor={borderColor}
             />
-          </div>
 
-          {/* Duration & Date */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <div className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-gray-600" />
+            {/* Employees Selection Block */}
+            <div
+              className="space-y-4 border-b pb-8 transition-colors duration-300 ease-out"
+              style={{ borderColor: borderColor }}
+            >
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <div
+                  className="w-7 h-7 rounded-md flex items-center justify-center border"
+                  style={{
+                    backgroundColor: "var(--app-surface-2)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
+                >
+                  <Users className="w-4 h-4" />
                 </div>
-                Credit Duration
+                Select Employees
               </div>
 
-              <div className="flex gap-3">
-                <input
-                  type="number"
-                  name="hours"
-                  placeholder="Hours"
-                  min="0"
-                  value={formData.duration.hours}
-                  onChange={handleChange}
-                  disabled={busy}
-                  className="w-full h-10 px-3 border-neutral-400 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50"
-                />
-                <input
-                  type="number"
-                  name="minutes"
-                  placeholder="Minutes"
-                  min="0"
-                  max="59"
-                  value={formData.duration.minutes}
-                  onChange={handleChange}
-                  disabled={busy}
-                  className="w-full h-10 px-3 border-neutral-400 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50"
-                />
+              {/* Quick Select Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="text-[10px] uppercase font-bold mr-1"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  Quick Select:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSelectGroup(organicIds)}
+                  disabled={isBusy || organicIds.length === 0}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border disabled:opacity-50 transition-colors"
+                  style={{
+                    backgroundColor: "rgba(16, 185, 129, 0.1)",
+                    color: "#059669",
+                    borderColor: "rgba(16, 185, 129, 0.2)",
+                  }}
+                >
+                  Organic ({organicIds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectGroup(joIds)}
+                  disabled={isBusy || joIds.length === 0}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border disabled:opacity-50 transition-colors"
+                  style={{
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    color: "#d97706",
+                    borderColor: "rgba(245, 158, 11, 0.2)",
+                  }}
+                >
+                  Job Order ({joIds.length})
+                </button>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <div className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center">
-                  <Calendar className="w-4 h-4 text-gray-600" />
-                </div>
-                Date Approved
-              </div>
-
-              <input
-                type="date"
-                name="dateApproved"
-                value={formData.dateApproved}
-                onChange={handleChange}
-                max={todayISO()}
-                disabled={busy}
-                className="w-full h-10 px-3 border-neutral-400 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50"
+              {/* Dropdown - Strictly for Searching & Adding */}
+              <Select
+                options={employeeOptions}
+                isMulti
+                controlShouldRenderValue={false}
+                hideSelectedOptions={true}
+                closeMenuOnSelect={false}
+                isLoading={isLoading}
+                isDisabled={isBusy}
+                maxMenuHeight={250}
+                value={employeeOptions.filter((o) =>
+                  (formData.employees || []).includes(o.value),
+                )}
+                onChange={(selected) => {
+                  clearBanner();
+                  setFormData((p) => ({
+                    ...p,
+                    employees: selected ? selected.map((s) => s.value) : [],
+                  }));
+                }}
+                placeholder="Search and add employees..."
+                classNames={{
+                  control: ({ isFocused }) =>
+                    `min-h-[42px] rounded-lg border transition-colors duration-200 ${
+                      isFocused
+                        ? "border-blue-500 ring-1 ring-blue-200"
+                        : "border-gray-300"
+                    } ${isBusy ? "opacity-70" : ""}`,
+                  menuList: () => "custom-scrollbar",
+                  option: ({ isFocused, isSelected }) =>
+                    `${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : isFocused
+                          ? "bg-gray-100 text-gray-900"
+                          : "bg-white text-gray-800"
+                    } px-3 py-2 cursor-pointer transition-colors duration-150`,
+                }}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: isBusy
+                      ? "var(--app-surface-2)"
+                      : "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-text)",
+                  }),
+                  menu: (base) => ({
+                    ...base,
+                    backgroundColor: "var(--app-surface)",
+                    border: `1px solid ${borderColor}`,
+                    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                    zIndex: 50,
+                  }),
+                }}
               />
-            </div>
-          </div>
 
-          {/* Memo */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <div className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-gray-600" />
+              {/* SEPARATE SELECTED EMPLOYEES BLOCK */}
+              <div
+                className="rounded-lg overflow-hidden border shadow-sm flex flex-col transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-3 border-b shrink-0 transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--app-surface-2)",
+                    borderColor: borderColor,
+                  }}
+                >
+                  <span
+                    className="text-xs font-semibold"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    Selected Employees ({formData.employees.length})
+                  </span>
+                  {formData.employees.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearSelection}
+                      disabled={isBusy}
+                      className="text-[11px] text-red-600 hover:text-red-700 font-bold disabled:opacity-50 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
                 </div>
-                Memo Number
+
+                {/* Fixed height scrollable area for selected chips */}
+                <div className="max-h-[250px] overflow-y-auto p-3 custom-scrollbar flex flex-wrap gap-2 content-start min-h-[80px]">
+                  {formData.employees.length === 0 ? (
+                    <div
+                      className="text-xs flex items-center justify-center p-4 text-center w-full italic font-medium"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      No employees selected. Use the search bar or quick select
+                      above.
+                    </div>
+                  ) : (
+                    formData.employees.map((empId) => {
+                      const emp = rawEmployees.find((e) => e._id === empId);
+                      if (!emp) return null;
+                      return (
+                        <div
+                          key={empId}
+                          className="flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors duration-300 ease-out animate-in fade-in zoom-in duration-200"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                            color: "var(--accent)",
+                          }}
+                        >
+                          <span className="whitespace-nowrap">
+                            {emp.firstName} {emp.lastName}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleRemoveEmployee(empId)}
+                            className="transition-colors disabled:opacity-50 ml-1"
+                            style={{ color: "var(--accent)" }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.color = "#ef4444")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.color = "var(--accent)")
+                            }
+                            aria-label={`Remove ${emp.firstName}`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Duration & Date */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+              <div className="space-y-2">
+                <div
+                  className="flex items-center gap-2 text-sm font-medium"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center border"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  Credit Duration
+                </div>
+
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    name="hours"
+                    placeholder="Hours"
+                    min="0"
+                    value={formData.duration.hours}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out"
+                    style={{
+                      backgroundColor: isBusy
+                        ? "var(--app-surface-2)"
+                        : "var(--app-surface)",
+                      borderColor: borderColor,
+                      color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                    }}
+                  />
+                  <input
+                    type="number"
+                    name="minutes"
+                    placeholder="Minutes"
+                    min="0"
+                    max="59"
+                    value={formData.duration.minutes}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out"
+                    style={{
+                      backgroundColor: isBusy
+                        ? "var(--app-surface-2)"
+                        : "var(--app-surface)",
+                      borderColor: borderColor,
+                      color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div
+                  className="flex items-center gap-2 text-sm font-medium"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center border"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  Date Approved
+                </div>
+
+                <input
+                  type="date"
+                  name="dateApproved"
+                  value={formData.dateApproved}
+                  onChange={handleChange}
+                  max={todayISO()}
+                  disabled={isBusy}
+                  className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-[16px] sm:text-sm"
+                  style={{
+                    backgroundColor: isBusy
+                      ? "var(--app-surface-2)"
+                      : "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Memo Number */}
+            <div className="space-y-2">
+              <div
+                className="flex items-center gap-2 text-sm font-medium"
+                style={{ color: "var(--app-text)" }}
+              >
+                <div
+                  className="w-7 h-7 rounded-md flex items-center justify-center border"
+                  style={{
+                    backgroundColor: "var(--app-surface-2)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                </div>
+                Memo Reference
               </div>
 
               <input
@@ -403,31 +767,61 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
                 name="memoNo"
                 value={formData.memoNo}
                 onChange={handleChange}
-                placeholder="Enter memo number"
+                placeholder="Enter memo or reference number"
                 maxLength={100}
-                disabled={busy}
-                className="w-full h-10 px-3 border-neutral-400 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50"
+                disabled={isBusy}
+                className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out"
+                style={{
+                  backgroundColor: isBusy
+                    ? "var(--app-surface-2)"
+                    : "var(--app-surface)",
+                  borderColor: borderColor,
+                  color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                }}
               />
             </div>
 
-            {/* Upload */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            {/* File Upload */}
+            <div className="space-y-2">
+              <label
+                className="block text-sm font-medium mb-2"
+                style={{ color: "var(--app-text)" }}
+              >
                 Upload Memo (PDF)
               </label>
 
               <label
-                className={`flex items-center gap-3 px-4 py-3 border border-neutral-600 border-dashed rounded-lg bg-gray-50 transition ${
-                  busy
-                    ? "opacity-70 cursor-not-allowed"
-                    : "hover:bg-gray-100 cursor-pointer"
+                className={`flex items-center gap-3 px-4 py-3 border border-dashed rounded-lg transition-colors duration-200 ease-out ${
+                  isBusy ? "opacity-70 cursor-not-allowed" : "cursor-pointer"
                 }`}
+                style={{
+                  backgroundColor: isBusy
+                    ? "var(--app-surface-2)"
+                    : "rgba(37,99,235,0.04)",
+                  borderColor: isBusy ? borderColor : "rgba(37,99,235,0.3)",
+                }}
+                onMouseEnter={(e) => {
+                  if (isBusy) return;
+                  e.currentTarget.style.backgroundColor =
+                    "rgba(37,99,235,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  if (isBusy) return;
+                  e.currentTarget.style.backgroundColor =
+                    "rgba(37,99,235,0.04)";
+                }}
               >
-                <Upload className="w-5 h-5 text-gray-500" />
-                <span className="text-sm text-gray-700 truncate">
+                <Upload
+                  className="w-5 h-5"
+                  style={{ color: "var(--accent)" }}
+                />
+                <span
+                  className="text-sm font-medium truncate"
+                  style={{ color: "var(--app-text)" }}
+                >
                   {formData.memoFile
                     ? formData.memoFile.name
-                    : "Choose PDF file"}
+                    : "Choose a PDF file to upload"}
                 </span>
 
                 <input
@@ -435,7 +829,7 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
                   accept="application/pdf,.pdf"
                   name="memoFile"
                   onChange={handleChange}
-                  disabled={busy}
+                  disabled={isBusy}
                   className="hidden"
                 />
               </label>
@@ -443,61 +837,81 @@ const AddCtoCreditForm = ({ onClose, onPendingChange }) => {
               {formData.memoFile && (
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={isBusy}
                   onClick={() => setFormData((p) => ({ ...p, memoFile: null }))}
-                  className={`mt-2 text-xs text-red-600 hover:underline ${
-                    busy ? "opacity-50 cursor-not-allowed" : ""
+                  className={`mt-2 text-xs font-bold transition-colors ${
+                    isBusy ? "opacity-50 cursor-not-allowed" : "hover:underline"
                   }`}
+                  style={{ color: "#ef4444" }}
                 >
                   Remove file
                 </button>
               )}
 
-              <div className="mt-2 text-[10px] text-gray-400">
+              <div
+                className="mt-2 text-[10px]"
+                style={{ color: "var(--app-muted)" }}
+              >
                 Max file size: {Math.round(MAX_PDF_SIZE_BYTES / (1024 * 1024))}
                 MB
               </div>
             </div>
           </div>
 
-          <div className="h-4" />
-        </div>
-
-        {/* Sticky Footer */}
-        <div className="sticky bottom-0 z-10 border-t border-gray-100 bg-white/95 backdrop-blur px-4 py-3">
-          <div className="flex gap-3">
+          {/* Sticky Footer */}
+          <div
+            className="border-t px-6 py-4 flex flex-row items-stretch sm:items-center justify-end gap-3 sticky bottom-0 transition-colors duration-300 ease-out"
+            style={{
+              backgroundColor: "var(--app-surface)",
+              borderColor: borderColor,
+            }}
+          >
             <button
               type="button"
+              disabled={isBusy}
               onClick={() => {
-                // ✅ Only reset if NOT success-latched (avoid unlock before close)
-                if (!successLatchRef.current && !mutation.isPending)
-                  resetForm();
-                onClose?.();
+                if (isBusy) return;
+                navigate(-1);
               }}
-              disabled={busy}
-              className={`w-full px-4 py-2 rounded border border-neutral-200 bg-neutral-100 hover:bg-neutral-200 cursor-pointer ${
-                busy ? "opacity-70 cursor-not-allowed" : ""
-              }`}
+              className="px-6 py-2.5 sm:py-2 rounded-lg border font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+              style={{
+                backgroundColor: "var(--app-surface-2)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.filter = "brightness(0.98)";
+              }}
+              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
             >
-              Close
+              Cancel
             </button>
 
             <button
               type="submit"
-              disabled={busy}
-              className={`w-full px-4 py-2 rounded bg-blue-600 text-white  hover:bg-blue-700 cursor-pointer ${
-                busy ? "opacity-70 cursor-not-allowed" : ""
-              }`}
+              disabled={isBusy}
+              className="w-full sm:w-auto px-8 py-2.5 sm:py-2 rounded-lg font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 ease-out shadow-sm"
+              style={{
+                backgroundColor: "var(--accent)",
+                border: "1px solid var(--accent)",
+                color: "#fff",
+              }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.filter = "brightness(0.95)";
+              }}
+              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
             >
               {mutation.isPending
                 ? "Saving..."
                 : successLatchUI
                   ? "Saved"
-                  : "Save"}
+                  : "Add Credit"}
             </button>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

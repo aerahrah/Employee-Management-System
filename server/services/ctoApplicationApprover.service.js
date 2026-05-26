@@ -106,9 +106,27 @@ async function canSend(key) {
 ========================= */
 
 const getApproverOptionsService = async () => {
-  return Employee.find({}, "_id firstName lastName position email")
+  // Fetch employees and project the needed fields, now including employeeType
+  const employees = await Employee.find(
+    {},
+    "_id firstName lastName position email employeeType",
+  )
     .sort({ lastName: 1, firstName: 1 })
     .lean();
+
+  // Calculate counts using the enum values you defined
+  const organicCount = employees.filter(
+    (e) => e.employeeType === "Organic",
+  ).length;
+  const jobOrderCount = employees.filter(
+    (e) => e.employeeType === "Job Order",
+  ).length;
+
+  return {
+    data: employees,
+    organicCount,
+    jobOrderCount,
+  };
 };
 
 const fetchPendingCtoCountService = async (approverId) => {
