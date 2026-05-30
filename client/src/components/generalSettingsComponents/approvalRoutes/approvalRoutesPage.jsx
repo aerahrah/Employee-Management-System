@@ -20,20 +20,16 @@ import {
   Route as RouteIcon,
   CheckCircle2,
   Zap,
-  Mail,
   Search,
   Filter,
   Trash2,
   Edit2,
-  AlertCircle,
   FileSignature,
   Settings,
-  MoreVertical,
-  LayoutGrid,
-  RotateCcw,
   ArrowUp,
 } from "lucide-react";
-import Select from "react-select";
+// FIXED: Import components to allow custom input
+import Select, { components } from "react-select";
 
 import Modal from "../../modal";
 import Breadcrumbs from "../../breadCrumbs";
@@ -78,6 +74,11 @@ function useResolvedTheme(prefTheme) {
 
   return theme;
 }
+
+// FIXED: Added Custom Input component to enforce maxLength
+const CustomInput = (props) => {
+  return <components.Input {...props} maxLength={100} />;
+};
 
 /* =========================
    StatCard
@@ -267,7 +268,8 @@ const ApprovalRoutesPage = () => {
         myRoute.steps.map((s) => ({
           id: Math.random().toString(36).substr(2, 9),
           level: s.level,
-          approver: s.approver?._id || s.approver,
+          // FIXED: Strictly cast to String
+          approver: String(s.approver?._id || s.approver),
           role: s.role || "",
           notes: s.notes || "",
           isEnabled: s.isEnabled !== false,
@@ -284,17 +286,21 @@ const ApprovalRoutesPage = () => {
   });
 
   const approverOptions = useMemo(() => {
-    const list = Array.isArray(approversRaw?.data)
-      ? approversRaw.data
-      : Array.isArray(approversRaw)
-        ? approversRaw
-        : [];
+    // FIXED: Safely unwrap deeply nested data payloads returned by Axios/Backend
+    const list = Array.isArray(approversRaw?.data?.data)
+      ? approversRaw.data.data
+      : Array.isArray(approversRaw?.data)
+        ? approversRaw.data
+        : Array.isArray(approversRaw)
+          ? approversRaw
+          : [];
+
     return list
       .filter((emp) => emp?._id && (emp?.firstName || emp?.lastName))
       .map((emp) => {
         const empId = String(emp._id);
         const isAlreadySelected = steps.some(
-          (s) => s.approver === empId && s.id !== editingStepId,
+          (s) => String(s.approver) === empId && s.id !== editingStepId,
         );
 
         return {
@@ -396,7 +402,9 @@ const ApprovalRoutesPage = () => {
     if (!modalData.role) return toast.error("Please select a role assignment.");
 
     const isDuplicate = steps.some(
-      (s) => s.approver === modalData.approver && s.id !== editingStepId,
+      (s) =>
+        String(s.approver) === String(modalData.approver) &&
+        s.id !== editingStepId,
     );
 
     if (isDuplicate) {
@@ -693,8 +701,9 @@ const ApprovalRoutesPage = () => {
                     </thead>
                     <tbody className="divide-y" style={{ borderColor }}>
                       {steps.map((step, idx) => {
+                        // FIXED: String mapping cast
                         const selectedApprover = approverOptions.find(
-                          (o) => o.value === step.approver,
+                          (o) => String(o.value) === String(step.approver),
                         );
                         const roleObj = APPROVER_ROLES.find(
                           (r) => r.id === step.role,
@@ -905,10 +914,12 @@ const ApprovalRoutesPage = () => {
                     Approver <span className="text-red-500">*</span>
                   </label>
                   <Select
+                    components={{ Input: CustomInput }} // FIXED: added Custom Input
                     options={approverOptions}
                     value={
+                      // FIXED: Strictly cast to String
                       approverOptions.find(
-                        (o) => o.value === modalData.approver,
+                        (o) => String(o.value) === String(modalData.approver),
                       ) || null
                     }
                     onChange={(v) =>

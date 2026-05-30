@@ -163,7 +163,8 @@ const ApprovalRouteStepForm = () => {
     return myRoute.steps.map((s) => ({
       id: Math.random().toString(36).substr(2, 9),
       level: s.level,
-      approver: s.approver?._id || s.approver,
+      // FIXED: Strictly cast to String to allow reliable lookups against the URL param
+      approver: String(s.approver?._id || s.approver),
       role: s.role || "",
       isEnabled: s.isEnabled !== false,
     }));
@@ -188,11 +189,15 @@ const ApprovalRouteStepForm = () => {
   });
 
   const approverOptions = useMemo(() => {
-    const list = Array.isArray(approversRaw?.data)
-      ? approversRaw.data
-      : Array.isArray(approversRaw)
-        ? approversRaw
-        : [];
+    // FIXED: Safely unwrap deeply nested data payloads returned by Axios/Backend
+    const list = Array.isArray(approversRaw?.data?.data)
+      ? approversRaw.data.data
+      : Array.isArray(approversRaw?.data)
+        ? approversRaw.data
+        : Array.isArray(approversRaw)
+          ? approversRaw
+          : [];
+
     return list
       .filter((emp) => emp?._id && (emp?.firstName || emp?.lastName))
       .map((emp) => {

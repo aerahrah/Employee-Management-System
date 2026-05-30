@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   Zap,
   Search,
-  Filter,
   RotateCcw,
   Trash2,
   Edit2,
@@ -567,7 +566,8 @@ export default function ApprovalRoutesList() {
         myRoute.steps.map((s) => ({
           id: Math.random().toString(36).substr(2, 9),
           level: s.level,
-          approver: s.approver?._id || s.approver,
+          // FIXED: Strictly cast to String to ensure equality checks work perfectly later
+          approver: String(s.approver?._id || s.approver),
           role: s.role || "",
           isEnabled: s.isEnabled !== false,
         })),
@@ -583,11 +583,15 @@ export default function ApprovalRoutesList() {
   });
 
   const approverOptions = useMemo(() => {
-    const list = Array.isArray(approversRaw?.data)
-      ? approversRaw.data
-      : Array.isArray(approversRaw)
-        ? approversRaw
-        : [];
+    // FIXED: Safely unwrap deeply nested data payloads returned by Axios/Backend
+    const list = Array.isArray(approversRaw?.data?.data)
+      ? approversRaw.data.data
+      : Array.isArray(approversRaw?.data)
+        ? approversRaw.data
+        : Array.isArray(approversRaw)
+          ? approversRaw
+          : [];
+
     return list
       .filter((emp) => emp?._id && (emp?.firstName || emp?.lastName))
       .map((emp) => ({
@@ -648,9 +652,11 @@ export default function ApprovalRoutesList() {
     const q = searchInput.toLowerCase().trim();
     if (!q) return steps;
     return steps.filter((step) => {
-      const approver = approverOptions.find((o) => o.value === step.approver);
+      // FIXED: Ensure step.approver is compared as a string
+      const approver = approverOptions.find(
+        (o) => o.value === String(step.approver),
+      );
       const role = APPROVER_ROLES.find((r) => r.id === step.role);
-      // Notes is removed from search criteria
       const hay = `${approver?.label} ${role?.label}`.toLowerCase();
       return hay.includes(q);
     });
@@ -899,8 +905,9 @@ export default function ApprovalRoutesList() {
                           <SkeletonRow key={i} theme={resolvedTheme} />
                         ))
                       : filteredSteps.map((step, i) => {
+                          // FIXED: Ensure step.approver is compared as a string
                           const selectedApprover = approverOptions.find(
-                            (o) => o.value === step.approver,
+                            (o) => String(o.value) === String(step.approver),
                           );
                           const roleObj = APPROVER_ROLES.find(
                             (r) => r.id === step.role,
