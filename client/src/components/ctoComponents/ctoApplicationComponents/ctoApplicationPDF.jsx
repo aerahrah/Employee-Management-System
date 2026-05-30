@@ -485,6 +485,8 @@ export default function CtoApplicationPdf({
   const dateOfFiling = fmtDateLong(app?.createdAt) || "";
   const requestedHours = safeNumber(app?.requestedHours);
   const inclusiveDates = formatInclusiveDates(app?.inclusiveDates || []);
+  console.log(app);
+  const reason = app?.reason || "";
   const dayCount = Array.isArray(app?.inclusiveDates)
     ? app.inclusiveDates.length
     : 0;
@@ -597,6 +599,13 @@ export default function CtoApplicationPdf({
               value={inclusiveDates}
               lineFlex={1}
               align="center"
+            />
+
+            <LabeledUnderlineRow
+              label="Purpose/Reason:"
+              value={reason}
+              lineFlex={1}
+              align="left"
             />
           </View>
 

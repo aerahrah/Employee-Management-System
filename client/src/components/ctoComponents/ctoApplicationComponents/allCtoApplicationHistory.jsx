@@ -26,12 +26,15 @@ import {
   User,
   FileDown,
   ArrowUp,
+  FileBadge,
+  ChevronDown,
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
 
-// ✅ PDF Modal
+// ✅ PDF Modals
 import CtoApplicationPdfModal from "./ctoApplicationPDFModal";
+import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 
 import { useAuth } from "../../../store/authStore";
 
@@ -163,7 +166,9 @@ const ApplicationActionMenu = ({
   app,
   onViewDetails,
   onViewPdf,
+  onViewCscForm6,
   onViewMemos,
+  isOrganicApp,
   borderColor,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -202,20 +207,22 @@ const ApplicationActionMenu = ({
           e.stopPropagation();
           setIsOpen((o) => !o);
         }}
-        className="p-1.5 rounded-md transition-colors duration-200 ease-out"
-        style={{ color: "var(--app-muted)" }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
-          e.currentTarget.style.color = "var(--app-text)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "transparent";
-          e.currentTarget.style.color = "var(--app-muted)";
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm text-xs font-bold transition-all duration-200 ease-out active:scale-95"
+        style={{
+          backgroundColor: isOpen
+            ? "var(--app-surface-2)"
+            : "var(--app-surface)",
+          borderColor: borderColor,
+          color: isOpen ? "var(--accent)" : "var(--app-text)",
         }}
         title="Actions"
         type="button"
       >
-        <MoreVertical size={16} />
+        <span>Actions</span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
@@ -258,8 +265,27 @@ const ApplicationActionMenu = ({
               e.currentTarget.style.color = "var(--app-muted)";
             }}
           >
-            <FileDown size={14} /> View PDF
+            <FileDown size={14} /> View General PDF
           </button>
+
+          {isOrganicApp && (
+            <button
+              type="button"
+              onClick={() => handle(onViewCscForm6)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+            >
+              <FileBadge size={14} /> View CSC Form 6
+            </button>
+          )}
 
           <button
             type="button"
@@ -293,7 +319,9 @@ const ApplicationCard = ({
   leftStripClassName,
   onViewDetails,
   onViewPdf,
+  onViewCscForm6,
   onViewMemos,
+  isOrganicApp,
   borderColor,
 }) => {
   const memoLabel =
@@ -323,6 +351,7 @@ const ApplicationCard = ({
   }`.trim();
 
   const requestorRole = app?.employee?.position || "-";
+  const employeeType = app?.category || app?.employeeType || "Unknown";
 
   const hasMemos = Array.isArray(app?.memo) && app.memo.length > 0;
 
@@ -357,18 +386,30 @@ const ApplicationCard = ({
                 className="w-4 h-4 mt-[2px] flex-none"
                 style={{ color: "var(--app-muted)" }}
               />
-              <div className="min-w-0">
+              <div className="min-w-0 flex flex-col">
                 <div
                   className="text-xs font-semibold truncate transition-colors duration-300 ease-out"
                   style={{ color: "var(--app-text)" }}
                 >
                   {requestorName || "-"}
                 </div>
-                <div
-                  className="text-[11px] truncate transition-colors duration-300 ease-out"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  {requestorRole}
+                <div className="flex items-center gap-2 mt-1">
+                  <div
+                    className="text-[11px] truncate transition-colors duration-300 ease-out"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    {requestorRole}
+                  </div>
+                  <div
+                    className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors duration-300 ease-out"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    {employeeType}
+                  </div>
                 </div>
               </div>
             </div>
@@ -439,12 +480,12 @@ const ApplicationCard = ({
           backgroundColor: "var(--app-surface)",
         }}
       >
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onViewMemos}
             disabled={!hasMemos}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
             style={{
               backgroundColor: "var(--app-surface-2)",
               borderColor: borderColor,
@@ -465,7 +506,7 @@ const ApplicationCard = ({
           <button
             type="button"
             onClick={onViewDetails}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold border transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
             style={{
               backgroundColor: "var(--app-surface)",
               borderColor: borderColor,
@@ -485,7 +526,7 @@ const ApplicationCard = ({
           <button
             type="button"
             onClick={onViewPdf}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold border transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
             style={{
               backgroundColor: "var(--app-surface)",
               borderColor: borderColor,
@@ -499,8 +540,31 @@ const ApplicationCard = ({
             }}
           >
             <FileDown className="w-4 h-4" />
-            PDF
+            Gen PDF
           </button>
+
+          {isOrganicApp && (
+            <button
+              onClick={onViewCscForm6}
+              className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+              type="button"
+              title="View CSC Form 6"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface)";
+              }}
+            >
+              <FileBadge className="w-4 h-4" />
+              Form 6
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -660,6 +724,13 @@ const CompactPagination = ({
             disabled={page === 1 || total === 0}
             className="p-1.5 rounded-md disabled:opacity-30 transition-colors duration-200 ease-out"
             style={{ color: "var(--app-muted)" }}
+            onMouseEnter={(e) => {
+              if (e.currentTarget.disabled) return;
+              e.currentTarget.style.backgroundColor = "var(--app-surface)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -675,6 +746,13 @@ const CompactPagination = ({
             disabled={page >= safeTotalPages || total === 0}
             className="p-1.5 rounded-md disabled:opacity-30 transition-colors duration-200 ease-out"
             style={{ color: "var(--app-muted)" }}
+            onMouseEnter={(e) => {
+              if (e.currentTarget.disabled) return;
+              e.currentTarget.style.backgroundColor = "var(--app-surface)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -685,7 +763,6 @@ const CompactPagination = ({
 };
 
 const AllCtoApplicationsHistory = () => {
-  // ✅ Theme vars + skeleton colors
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
@@ -716,9 +793,11 @@ const AllCtoApplicationsHistory = () => {
 
   // ✅ PDF modal state
   const [pdfApp, setPdfApp] = useState(null);
+  const [organicPdfApp, setOrganicPdfApp] = useState(null);
 
   // ---- Filters / pagination ----
   const [statusFilter, setStatusFilter] = useState("");
+  const [employeeTypeFilter, setEmployeeTypeFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 500);
 
@@ -747,7 +826,9 @@ const AllCtoApplicationsHistory = () => {
   };
 
   // reset to page 1 when filters change
-  useEffect(() => setPage(1), [debouncedSearch, statusFilter, limit]);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter, employeeTypeFilter, limit]);
 
   // ---- Data fetching ----
   const { data, isLoading } = useQuery({
@@ -757,6 +838,7 @@ const AllCtoApplicationsHistory = () => {
       limit,
       statusFilter,
       debouncedSearch,
+      employeeTypeFilter,
     ],
     queryFn: () =>
       fetchAllCtoApplications({
@@ -764,6 +846,7 @@ const AllCtoApplicationsHistory = () => {
         limit,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
+        employeeType: employeeTypeFilter || undefined,
       }),
     keepPreviousData: true,
   });
@@ -801,10 +884,12 @@ const AllCtoApplicationsHistory = () => {
   const handleResetFilters = useCallback(() => {
     setSearchInput("");
     setStatusFilter("");
+    setEmployeeTypeFilter("");
     setPage(1);
   }, []);
 
-  const isFiltered = statusFilter !== "" || debouncedSearch !== "";
+  const isFiltered =
+    statusFilter !== "" || debouncedSearch !== "" || employeeTypeFilter !== "";
 
   // ✅ left strip class
   const getStatusStripClass = useCallback((status) => {
@@ -985,7 +1070,7 @@ const AllCtoApplicationsHistory = () => {
                 borderColor: borderColor,
               }}
             >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                 {/* Tabs */}
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                   {statusTabs(statusCounts, pagination.total).map((tab) => {
@@ -1028,9 +1113,9 @@ const AllCtoApplicationsHistory = () => {
                   })}
                 </div>
 
-                {/* Search + limit */}
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                  <div className="relative flex-1 md:w-64">
+                {/* Search + limits/filters */}
+                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                  <div className="relative flex-1 min-w-[200px]">
                     <Search
                       className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
                       style={{ color: "var(--app-muted)" }}
@@ -1063,11 +1148,40 @@ const AllCtoApplicationsHistory = () => {
                   </div>
 
                   <div
-                    className="hidden md:flex items-center gap-2 pl-3 border-l"
+                    className="flex items-center gap-2 pl-3 border-l"
                     style={{ borderColor: borderColor }}
                   >
                     <span
-                      className="text-[10px] font-bold uppercase tracking-wider"
+                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Type
+                    </span>
+                    <select
+                      value={employeeTypeFilter}
+                      onChange={(e) => {
+                        setEmployeeTypeFilter(e.target.value);
+                        setPage(1);
+                      }}
+                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        borderColor: borderColor,
+                        color: "var(--app-text)",
+                      }}
+                    >
+                      <option value="">All Types</option>
+                      <option value="Organic">Organic</option>
+                      <option value="Job Order">Job Order</option>
+                    </select>
+                  </div>
+
+                  <div
+                    className="flex items-center gap-2 pl-3 border-l"
+                    style={{ borderColor: borderColor }}
+                  >
+                    <span
+                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
                       style={{ color: "var(--app-muted)" }}
                     >
                       Show
@@ -1091,28 +1205,6 @@ const AllCtoApplicationsHistory = () => {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div
-                    className="md:hidden flex items-center gap-1.5 px-2 border-l ml-1"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="text-xs font-medium uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      shows
-                    </span>
-                    <FilterSelect
-                      label=""
-                      value={limit}
-                      onChange={(v) => {
-                        setLimit(v);
-                        setPage(1);
-                      }}
-                      options={pageSizeOptions}
-                      className="!mb-0 w-20 text-xs"
-                    />
                   </div>
                 </div>
               </div>
@@ -1151,6 +1243,19 @@ const AllCtoApplicationsHistory = () => {
                         }}
                       >
                         {statusFilter}
+                      </span>
+                    )}
+                    {employeeTypeFilter && (
+                      <span
+                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                        style={{
+                          backgroundColor: "var(--accent-soft)",
+                          color: "var(--accent)",
+                          borderColor:
+                            "var(--accent-soft2, rgba(37,99,235,0.18))",
+                        }}
+                      >
+                        {employeeTypeFilter}
                       </span>
                     )}
                   </div>
@@ -1249,19 +1354,26 @@ const AllCtoApplicationsHistory = () => {
                               </div>
                             </div>
                           ))
-                        : applications.map((app) => (
-                            <ApplicationCard
-                              key={app._id}
-                              app={app}
-                              borderColor={borderColor}
-                              leftStripClassName={getStatusStripClass(
-                                app.overallStatus,
-                              )}
-                              onViewDetails={() => setSelectedApp(app)}
-                              onViewPdf={() => setPdfApp(app)}
-                              onViewMemos={() => openMemoModal(app.memo)}
-                            />
-                          ))}
+                        : applications.map((app) => {
+                            const isAppOrganic =
+                              app?.employeeType === "Organic" ||
+                              app?.category === "Organic";
+                            return (
+                              <ApplicationCard
+                                key={app._id}
+                                app={app}
+                                borderColor={borderColor}
+                                isOrganicApp={isAppOrganic}
+                                leftStripClassName={getStatusStripClass(
+                                  app.overallStatus,
+                                )}
+                                onViewDetails={() => setSelectedApp(app)}
+                                onViewPdf={() => setPdfApp(app)}
+                                onViewCscForm6={() => setOrganicPdfApp(app)}
+                                onViewMemos={() => openMemoModal(app.memo)}
+                              />
+                            );
+                          })}
                     </div>
                   </div>
 
@@ -1291,19 +1403,26 @@ const AllCtoApplicationsHistory = () => {
                               </div>
                             </div>
                           ))
-                        : applications.map((app) => (
-                            <ApplicationCard
-                              key={app._id}
-                              app={app}
-                              borderColor={borderColor}
-                              leftStripClassName={getStatusStripClass(
-                                app.overallStatus,
-                              )}
-                              onViewDetails={() => setSelectedApp(app)}
-                              onViewPdf={() => setPdfApp(app)}
-                              onViewMemos={() => openMemoModal(app.memo)}
-                            />
-                          ))}
+                        : applications.map((app) => {
+                            const isAppOrganic =
+                              app?.employeeType === "Organic" ||
+                              app?.category === "Organic";
+                            return (
+                              <ApplicationCard
+                                key={app._id}
+                                app={app}
+                                borderColor={borderColor}
+                                isOrganicApp={isAppOrganic}
+                                leftStripClassName={getStatusStripClass(
+                                  app.overallStatus,
+                                )}
+                                onViewDetails={() => setSelectedApp(app)}
+                                onViewPdf={() => setPdfApp(app)}
+                                onViewCscForm6={() => setOrganicPdfApp(app)}
+                                onViewMemos={() => openMemoModal(app.memo)}
+                              />
+                            );
+                          })}
                     </div>
                   </div>
 
@@ -1353,6 +1472,11 @@ const AllCtoApplicationsHistory = () => {
                                       .join(", ")
                                   : "No Memo Attached";
 
+                              const employeeType =
+                                app.category || app.employeeType || "Unknown";
+
+                              const isAppOrganic = employeeType === "Organic";
+
                               const bg =
                                 i % 2 === 0
                                   ? "var(--app-surface)"
@@ -1372,7 +1496,7 @@ const AllCtoApplicationsHistory = () => {
                                   }}
                                 >
                                   <td className="px-6 py-4">
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col items-start">
                                       <span
                                         className="font-semibold text-sm"
                                         style={{ color: "var(--app-text)" }}
@@ -1380,12 +1504,25 @@ const AllCtoApplicationsHistory = () => {
                                         {app?.employee?.firstName || ""}{" "}
                                         {app?.employee?.lastName || ""}
                                       </span>
-                                      <span
-                                        className="text-[10px] font-mono mt-0.5"
-                                        style={{ color: "var(--app-muted)" }}
-                                      >
-                                        {app?.employee?.position || "-"}
-                                      </span>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span
+                                          className="text-[10px] font-mono"
+                                          style={{ color: "var(--app-muted)" }}
+                                        >
+                                          {app?.employee?.position || "-"}
+                                        </span>
+                                        <span
+                                          className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
+                                          style={{
+                                            backgroundColor:
+                                              "var(--app-surface-2)",
+                                            color: "var(--app-muted)",
+                                            borderColor: borderColor,
+                                          }}
+                                        >
+                                          {employeeType}
+                                        </span>
+                                      </div>
                                     </div>
                                   </td>
 
@@ -1452,8 +1589,12 @@ const AllCtoApplicationsHistory = () => {
                                     <ApplicationActionMenu
                                       app={app}
                                       borderColor={borderColor}
+                                      isOrganicApp={isAppOrganic}
                                       onViewDetails={() => setSelectedApp(app)}
                                       onViewPdf={() => setPdfApp(app)}
+                                      onViewCscForm6={() =>
+                                        setOrganicPdfApp(app)
+                                      }
                                       onViewMemos={() =>
                                         openMemoModal(app.memo)
                                       }
@@ -1503,11 +1644,18 @@ const AllCtoApplicationsHistory = () => {
           </button>
         )}
 
-        {/* PDF Modal */}
+        {/* General PDF Modal */}
         <CtoApplicationPdfModal
           app={pdfApp}
           isOpen={!!pdfApp}
           onClose={() => setPdfApp(null)}
+        />
+
+        {/* Organic PDF Modal */}
+        <OrganicApplicationPdfModal
+          app={organicPdfApp}
+          isOpen={!!organicPdfApp}
+          onClose={() => setOrganicPdfApp(null)}
         />
 
         {/* Details modal */}

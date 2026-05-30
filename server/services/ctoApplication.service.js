@@ -509,23 +509,20 @@ const getAllCtoApplicationsService = async (
   limit = Math.min(parseInt(limit) || 20, 100);
   const skip = (page - 1) * limit;
 
-  const query = {};
+  // 1. Build Base Query (Ignores Status)
+  const baseQuery = {};
 
   if (filters.employeeId) {
     assertObjectId(filters.employeeId, "Employee ID");
-    query.employee = filters.employeeId;
+    baseQuery.employee = filters.employeeId;
   }
 
-  // NEW: Filter by employee type (Organic vs JO)
   if (filters.employeeType) {
-    query.employeeType = filters.employeeType;
+    baseQuery.employeeType = filters.employeeType;
   }
-
-  if (filters.status)
-    query.overallStatus = String(filters.status).toUpperCase();
 
   if (filters.from && filters.to) {
-    query.createdAt = {
+    baseQuery.createdAt = {
       $gte: new Date(filters.from),
       $lte: new Date(filters.to),
     };
@@ -533,12 +530,19 @@ const getAllCtoApplicationsService = async (
 
   if (filters.search) {
     const safeSearch = sanitizeSearch(filters.search, 100);
-    query["memo.memoId.memoNo"] = {
+    baseQuery["memo.memoId.memoNo"] = {
       $regex: safeSearch,
       $options: "i",
     };
   }
 
+  // 2. Add Status to Main Data Query
+  const query = { ...baseQuery };
+  if (filters.status) {
+    query.overallStatus = String(filters.status).toUpperCase();
+  }
+
+  // 3. Execute queries
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
@@ -565,14 +569,16 @@ const getAllCtoApplicationsService = async (
     const approvals = app.approvals || [];
     return {
       ...app,
-      category: app.employeeType, // NEW: Exposes 'category' for frontend tables
+      category: app.employeeType,
       approver1: approvals[0]?.approver || null,
       approver2: approvals[1]?.approver || null,
       approver3: approvals[2]?.approver || null,
     };
   });
 
+  // 4. Generate dynamic Status Counts applying ALL filters EXCEPT status
   const statusAgg = await CtoApplication.aggregate([
+    { $match: baseQuery },
     {
       $group: {
         _id: "$overallStatus",
@@ -581,7 +587,7 @@ const getAllCtoApplicationsService = async (
     },
   ]);
 
-  const totalAll = await CtoApplication.countDocuments({});
+  const totalAll = await CtoApplication.countDocuments(baseQuery);
 
   const statusCounts = {
     PENDING: 0,
@@ -620,18 +626,12 @@ const getCtoApplicationsByEmployeeService = async (
   limit = Math.min(parseInt(limit) || 20, 100);
   const skip = (page - 1) * limit;
 
+  // 1. Build the Base Pipeline structure
   const pipeline = [{ $match: { employee: employeeObjectId } }];
 
-  // NEW: Filter by employeeType in aggregation pipeline
   if (filters.employeeType) {
     pipeline.push({
       $match: { employeeType: filters.employeeType },
-    });
-  }
-
-  if (filters.status) {
-    pipeline.push({
-      $match: { overallStatus: String(filters.status).toUpperCase() },
     });
   }
 
@@ -689,6 +689,16 @@ const getCtoApplicationsByEmployeeService = async (
       $match: {
         "memoDetails.memoNo": { $regex: safeSearch, $options: "i" },
       },
+    });
+  }
+
+  // 2. Copy the base pipeline specifically for calculating our dynamic Status Counts
+  const countPipelineStages = [...pipeline];
+
+  // 3. Inject the Status Filter back into the Main Pipeline if provided
+  if (filters.status) {
+    pipeline.push({
+      $match: { overallStatus: String(filters.status).toUpperCase() },
     });
   }
 
@@ -759,7 +769,6 @@ const getCtoApplicationsByEmployeeService = async (
   let applications = await CtoApplication.aggregate(pipeline);
 
   applications = applications.map((app) => {
-    // NEW: Also map the category here just to be safe
     app.category = app.employeeType;
 
     if (app.memo && Array.isArray(app.memo)) {
@@ -782,7 +791,6 @@ const getCtoApplicationsByEmployeeService = async (
   });
 
   const countPipeline = [
-    { $match: { employee: employeeObjectId } },
     ...pipeline.filter(
       (stage) =>
         !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage),
@@ -793,19 +801,16 @@ const getCtoApplicationsByEmployeeService = async (
   const totalResult = await CtoApplication.aggregate(countPipeline);
   const total = totalResult[0]?.total || 0;
 
-  const statusCountsAgg = await CtoApplication.aggregate([
-    { $match: { employee: employeeObjectId } },
-    {
-      $group: {
-        _id: "$overallStatus",
-        count: { $sum: 1 },
-      },
+  // 4. Calculate dynamic counts strictly using the extracted base pipeline
+  countPipelineStages.push({
+    $group: {
+      _id: "$overallStatus",
+      count: { $sum: 1 },
     },
-  ]);
-
-  const totalAll = await CtoApplication.countDocuments({
-    employee: employeeObjectId,
   });
+
+  const statusCountsAgg = await CtoApplication.aggregate(countPipelineStages);
+  const totalAll = statusCountsAgg.reduce((acc, curr) => acc + curr.count, 0);
 
   const statusCounts = {
     PENDING: 0,

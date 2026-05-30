@@ -48,10 +48,13 @@ const addCtoApplicationRequest = async (req, res) => {
 
 const getAllCtoApplicationsRequest = async (req, res) => {
   try {
-    const { page, limit, status, from, to, search, employeeId } = req.query;
+    // FIXED: Extract employeeType from req.query
+    const { page, limit, status, from, to, search, employeeId, employeeType } =
+      req.query;
 
     const result = await getAllCtoApplicationsService(
-      { status, from, to, search, employeeId },
+      // FIXED: Pass employeeType into the filters object
+      { status, from, to, search, employeeId, employeeType },
       page,
       limit,
     );
@@ -70,13 +73,15 @@ const getAllCtoApplicationsRequest = async (req, res) => {
 const getCtoApplicationsByEmployeeRequest = async (req, res) => {
   try {
     const employeeId = req.params.employeeId || req.user.id;
-    const { page, limit, status, from, to, search } = req.query;
+    // FIXED: Extract employeeType from req.query
+    const { page, limit, status, from, to, search, employeeType } = req.query;
 
     const result = await getCtoApplicationsByEmployeeService(
       employeeId,
       page,
       limit,
-      { status, from, to, search },
+      // FIXED: Pass employeeType into the filters object
+      { status, from, to, search, employeeType },
     );
 
     res.status(200).json({

@@ -35,12 +35,14 @@ import {
   Info,
   FileDown,
   ArrowUp,
+  FileBadge, // Added for CSC Form 6 Icon
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
 import MemoList from "../ctoMemoModal";
 import { toast } from "react-toastify";
 import CtoApplicationPdfModal from "./ctoApplicationPDFModal";
+import OrganicApplicationPdfModal from "./organicApplicationPDFModal"; // ✅ New Import
 
 import { useAuth } from "../../../store/authStore";
 
@@ -182,8 +184,10 @@ const ApplicationActionMenu = ({
   onViewDetails,
   onViewMemos,
   onViewPdf,
+  onViewCscForm6, // ✅ Added Action Prop
   onCancel,
   cancelling,
+  isOrganicApp, // ✅ Auth Check Prop
   borderColor,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -280,8 +284,28 @@ const ApplicationActionMenu = ({
             }}
             type="button"
           >
-            <FileDown size={14} /> View PDF
+            <FileDown size={14} /> View General PDF
           </button>
+
+          {/* ✅ CSC Form 6 Conditional Menu Item */}
+          {isOrganicApp && (
+            <button
+              onClick={() => handle(onViewCscForm6)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+              type="button"
+            >
+              <FileBadge size={14} /> View CSC Form 6
+            </button>
+          )}
 
           <button
             disabled={!hasMemos}
@@ -332,9 +356,11 @@ const ApplicationCard = ({
   leftStripClassName,
   onViewDetails,
   onViewPdf,
+  onViewCscForm6, // ✅ Added Action Prop
   onViewMemos,
   onCancel,
   cancelling,
+  isOrganicApp, // ✅ Auth Check Prop
   borderColor,
 }) => {
   const canCancel =
@@ -359,8 +385,6 @@ const ApplicationCard = ({
   const coveredCount = Array.isArray(app?.inclusiveDates)
     ? app.inclusiveDates.length
     : 0;
-
-  const actionCols = canCancel ? "grid-cols-4" : "grid-cols-3";
 
   return (
     <div
@@ -453,11 +477,12 @@ const ApplicationCard = ({
           backgroundColor: "var(--app-surface)",
         }}
       >
-        <div className={`grid gap-2 ${actionCols}`}>
+        {/* ✅ Flex wrap ensures buttons don't get squished if there are many */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onViewMemos}
             disabled={!app?.memo || app.memo.length === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
             type="button"
             title="View Memos"
             style={{
@@ -472,7 +497,7 @@ const ApplicationCard = ({
 
           <button
             onClick={onViewDetails}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
             type="button"
             title="View Details"
             style={{
@@ -493,7 +518,7 @@ const ApplicationCard = ({
 
           <button
             onClick={onViewPdf}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
             type="button"
             title="View PDF"
             style={{
@@ -509,14 +534,38 @@ const ApplicationCard = ({
             }}
           >
             <FileDown className="w-4 h-4" />
-            PDF
+            Gen PDF
           </button>
+
+          {/* ✅ CSC Form 6 Conditional Mobile Button */}
+          {isOrganicApp && (
+            <button
+              onClick={onViewCscForm6}
+              className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+              type="button"
+              title="View CSC Form 6"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface)";
+              }}
+            >
+              <FileBadge className="w-4 h-4" />
+              CSC Form 6
+            </button>
+          )}
 
           {canCancel && (
             <button
               onClick={onCancel}
               disabled={cancelling}
-              className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+              className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
               type="button"
               title="Cancel"
               style={{
@@ -704,7 +753,7 @@ const MyCtoApplications = () => {
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
-  const isOrganic = user?.employeeType === "Organic";
+  const isUserOrganic = user?.employeeType === "Organic";
 
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
@@ -730,6 +779,7 @@ const MyCtoApplications = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [memoModal, setMemoModal] = useState({ isOpen: false, memos: [] });
   const [pdfApp, setPdfApp] = useState(null);
+  const [organicPdfApp, setOrganicPdfApp] = useState(null); // ✅ CSC Form 6 State
 
   const [statusFilter, setStatusFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -804,7 +854,7 @@ const MyCtoApplications = () => {
     placeholderData: (prev) => prev,
   });
 
-  // Unified Fetch Balances for everyone
+  // Unified Fetch Balances
   const {
     data: creditSummaryData,
     isLoading: isBalanceLoading,
@@ -998,7 +1048,7 @@ const MyCtoApplications = () => {
                 <button
                   onClick={() =>
                     navigate(
-                      isOrganic
+                      isUserOrganic
                         ? "/app/organic-apply/add"
                         : "/app/cto-apply/add",
                     )
@@ -1320,6 +1370,11 @@ const MyCtoApplications = () => {
                               cancelMutation.isPending &&
                               cancelMutation.variables === app._id;
 
+                            const isAppOrganic =
+                              app?.employeeType === "Organic" ||
+                              app?.category === "Organic" ||
+                              isUserOrganic;
+
                             return (
                               <ApplicationCard
                                 key={app._id}
@@ -1329,8 +1384,10 @@ const MyCtoApplications = () => {
                                   app.overallStatus,
                                 )}
                                 cancelling={cancelling}
+                                isOrganicApp={isAppOrganic}
                                 onViewDetails={() => setSelectedApp(app)}
                                 onViewPdf={() => setPdfApp(app)}
+                                onViewCscForm6={() => setOrganicPdfApp(app)}
                                 onViewMemos={() => openMemoModal(app.memo)}
                                 onCancel={() => openCancelModal(app)}
                               />
@@ -1370,6 +1427,11 @@ const MyCtoApplications = () => {
                               cancelMutation.isPending &&
                               cancelMutation.variables === app._id;
 
+                            const isAppOrganic =
+                              app?.employeeType === "Organic" ||
+                              app?.category === "Organic" ||
+                              isUserOrganic;
+
                             return (
                               <ApplicationCard
                                 key={app._id}
@@ -1379,8 +1441,10 @@ const MyCtoApplications = () => {
                                   app.overallStatus,
                                 )}
                                 cancelling={cancelling}
+                                isOrganicApp={isAppOrganic}
                                 onViewDetails={() => setSelectedApp(app)}
                                 onViewPdf={() => setPdfApp(app)}
+                                onViewCscForm6={() => setOrganicPdfApp(app)}
                                 onViewMemos={() => openMemoModal(app.memo)}
                                 onCancel={() => openCancelModal(app)}
                               />
@@ -1442,6 +1506,11 @@ const MyCtoApplications = () => {
                               const cancelling =
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
+
+                              const isAppOrganic =
+                                app?.employeeType === "Organic" ||
+                                app?.category === "Organic" ||
+                                isUserOrganic;
 
                               return (
                                 <tr
@@ -1519,8 +1588,12 @@ const MyCtoApplications = () => {
                                     <ApplicationActionMenu
                                       app={app}
                                       borderColor={borderColor}
+                                      isOrganicApp={isAppOrganic}
                                       onViewDetails={() => setSelectedApp(app)}
                                       onViewPdf={() => setPdfApp(app)}
+                                      onViewCscForm6={() =>
+                                        setOrganicPdfApp(app)
+                                      }
                                       onViewMemos={() =>
                                         openMemoModal(app.memo)
                                       }
@@ -1576,6 +1649,13 @@ const MyCtoApplications = () => {
           app={pdfApp}
           isOpen={!!pdfApp}
           onClose={() => setPdfApp(null)}
+        />
+
+        {/* ✅ Organic CSC Form 6 Modal */}
+        <OrganicApplicationPdfModal
+          app={organicPdfApp}
+          isOpen={!!organicPdfApp}
+          onClose={() => setOrganicPdfApp(null)}
         />
 
         {/* Details Modal */}
