@@ -37,7 +37,7 @@ import { buildApiUrl } from "../../../config/env";
 
 import CtoApplicationPdfModal from "../ctoApplicationComponents/ctoApplicationPDFModal";
 
-/* ------------------ Resolve theme (no tailwind dark class dependency) ------------------ */
+/* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -47,7 +47,6 @@ function resolveTheme(prefTheme) {
   return prefTheme === "dark" ? "dark" : "light";
 }
 
-/* ✅ Reactive resolved theme for system mode */
 function useResolvedTheme(prefTheme) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined")
@@ -80,7 +79,7 @@ function useResolvedTheme(prefTheme) {
 }
 
 /* =========================
-   Theme-aware icon chip styles (fixes "light-looking" icon pills in dark mode)
+   Theme-aware icon chip styles
 ========================= */
 function getIconChipStyle(kind, borderColor) {
   const map = {
@@ -124,11 +123,11 @@ function getOverallIconChipKind(overallStatus) {
   if (s === "APPROVED") return "green";
   if (s === "REJECTED") return "red";
   if (s === "CANCELLED") return "slate";
-  return "amber"; // pending/unknown
+  return "amber";
 }
 
 /* =========================
-   LOADING SKELETON (FULL SCREEN INSIDE CARD)
+   LOADING SKELETON
 ========================= */
 const CtoApplicationDetailsSkeleton = ({ borderColor, resolvedTheme }) => {
   const skeletonBase =
@@ -241,7 +240,6 @@ const CtoApplicationDetailsSkeleton = ({ borderColor, resolvedTheme }) => {
             </div>
           </div>
 
-          {/* rest of skeleton unchanged */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-w-0">
             <div className="lg:col-span-2 space-y-4 min-w-0">
               <section
@@ -484,7 +482,7 @@ function useIsXlUp() {
 }
 
 /* =========================
-   Status helpers (CANCELLED-aware) - theme-aware (icon pills + label pills)
+   Status helpers
 ========================= */
 const STATUS_META = {
   APPROVED: { label: "APPROVED", tone: "green" },
@@ -503,7 +501,7 @@ const getTonePillStyle = (tone, borderColor) => {
 };
 
 /* =========================
-   Timeline helpers (icons are fine; dot backgrounds are colored)
+   Timeline helpers
 ========================= */
 const StepDotIcon = ({ status }) => {
   const s = String(status || "").toUpperCase();
@@ -519,7 +517,6 @@ const StepDotClass = (status) => {
   if (s === "APPROVED") return "bg-emerald-500";
   if (s === "REJECTED") return "bg-red-500";
   if (s === "CANCELLED") return "bg-slate-400";
-  // ✅ neutral dot uses border/surface so it doesn't look “light blob” on dark
   return "bg-[color:var(--app-border)]";
 };
 
@@ -590,7 +587,6 @@ const TimelineCard = ({ approval, index, isLast }) => {
               {approval.approver?.firstName} {approval.approver?.lastName}
             </p>
 
-            {/* ✅ icon/text accent is theme-aware */}
             <p
               className="text-xs font-medium break-words"
               style={{ color: "var(--accent)" }}
@@ -642,7 +638,7 @@ const TimelineCard = ({ approval, index, isLast }) => {
 };
 
 /* =========================
-   Calendar helpers + component (unchanged)
+   Calendar helpers
 ========================= */
 const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -960,15 +956,15 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
   );
 };
 
+/* =========================
+   CTO APPLICATION DETAILS
+========================= */
 const CtoApplicationDetails = () => {
   const { admin } = useAuth();
   const { can } = usePermissions();
   const canManageApplication = can("cto.manage_application");
   const { id } = useParams();
-  const navigate = useNavigate(); // (kept if you use it elsewhere)
   const queryClient = useQueryClient();
-
-  const isXlUp = useIsXlUp();
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
@@ -986,16 +982,19 @@ const CtoApplicationDetails = () => {
   const [memoModal, setMemoModal] = useState({ isOpen: false, memos: [] });
   const [isPdfOpen, setIsPdfOpen] = useState(false);
 
+  // FIXED: Explicitly grab robust user ID check to prevent disabled states silently dropping
+  const currentUserId = admin?.id || admin?._id;
+
   const {
     data: application,
-    isLoading,
+    isPending, // FIXED: Replaced isLoading with isPending to handle disabled queries waiting for auth
     isError,
     error,
     isFetching,
   } = useQuery({
-    queryKey: ["ctoApplication", admin?.id, id],
+    queryKey: ["ctoApplication", currentUserId, id],
     queryFn: () => getCtoApplicationById(id),
-    enabled: !!admin?.id && !!id,
+    enabled: !!currentUserId && !!id,
   });
 
   const requestedDatesLabel = useMemo(() => {
@@ -1070,7 +1069,8 @@ const CtoApplicationDetails = () => {
     setIsPdfOpen(false);
   }, [application]);
 
-  if (isLoading)
+  // FIXED: Trigger skeleton while auth is loading OR while data is fetching without cached data
+  if (isPending || (isFetching && !application))
     return (
       <>
         <CtoApplicationDetailsSkeleton
@@ -1098,7 +1098,7 @@ const CtoApplicationDetails = () => {
         }}
       >
         <FileText className="h-10 w-10" style={{ color: "var(--app-muted)" }} />
-        <h3 className="font-semibold" style={{ color: "var(--app-text)" }}>
+        <h3 className="font-semibold mt-2" style={{ color: "var(--app-text)" }}>
           No Application Found
         </h3>
       </div>
@@ -1108,8 +1108,9 @@ const CtoApplicationDetails = () => {
     application.employee?.lastName?.[0] || ""
   }`;
 
+  // FIXED: Adjusted to use currentUserId for robustness
   const currentStep = application.approvals?.find(
-    (step) => String(step.approver?._id) === String(admin?.id),
+    (step) => String(step.approver?._id) === String(currentUserId),
   );
 
   const canApproveOrReject =
@@ -1167,7 +1168,6 @@ const CtoApplicationDetails = () => {
                 className="flex flex-wrap items-center gap-2 text-xs font-medium mt-0.5"
                 style={{ color: "var(--app-muted)" }}
               >
-                {/* ✅ ID pill now theme-aware */}
                 <span
                   className="px-1.5 py-0.5 rounded border"
                   style={{
@@ -1184,7 +1184,6 @@ const CtoApplicationDetails = () => {
                   {new Date(application.createdAt).toLocaleDateString()}
                 </span>
 
-                {/* ✅ Overall status pill now theme-aware */}
                 <span
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-bold"
                   style={overallPillStyle}
@@ -1300,7 +1299,6 @@ const CtoApplicationDetails = () => {
             </div>
           </div>
 
-          {/* ✅ Global Status icon chip now theme-aware */}
           <div
             className="border rounded-xl p-4 flex justify-between items-center text-center gap-4 min-w-0"
             style={{
@@ -1356,7 +1354,6 @@ const CtoApplicationDetails = () => {
               }}
             >
               <div className="flex items-center gap-3 mb-6">
-                {/* ✅ Purpose icon chip theme-aware */}
                 {(() => {
                   const chip = getIconChipStyle("accent", borderColor);
                   return (
@@ -1404,7 +1401,6 @@ const CtoApplicationDetails = () => {
               }}
             >
               <div className="flex items-center gap-3 mb-6">
-                {/* ✅ Timeline icon chip theme-aware */}
                 {(() => {
                   const chip = getIconChipStyle("green", borderColor);
                   return (
@@ -1541,7 +1537,6 @@ const CtoApplicationDetails = () => {
                 title="View Application PDF"
               >
                 <span className="inline-flex items-center gap-2 min-w-0">
-                  {/* ✅ PDF icon chip theme-aware red-ish */}
                   <span
                     className="h-8 w-8 rounded-lg flex items-center justify-center flex-none border"
                     style={{
@@ -1678,7 +1673,6 @@ const CtoApplicationDetails = () => {
           </aside>
         </div>
 
-        {/* MODALS (left as-is; if you want, I can theme these too) */}
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
@@ -1702,7 +1696,6 @@ const CtoApplicationDetails = () => {
           }}
         >
           <div className="p-2">
-            {/* You can theme modal chips too if needed */}
             <div className="mb-6 flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
               <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-slate-200 shadow-sm text-slate-400">
                 <Info size={16} />
@@ -1785,7 +1778,6 @@ const CtoApplicationDetails = () => {
         </Modal>
       </div>
 
-      {/* PDF MODAL */}
       <CtoApplicationPdfModal
         app={application}
         isOpen={isPdfOpen}

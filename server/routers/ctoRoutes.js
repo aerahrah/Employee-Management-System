@@ -35,6 +35,14 @@ const {
   cancelCtoApplicationRequest,
 } = require("../controllers/ctoApplicationController.js");
 
+// Organic Leaves Controllers
+const {
+  addOrganicLeaveRequest,
+  getAllOrganicLeavesRequest,
+  getOrganicLeavesByEmployeeRequest,
+  cancelOrganicLeaveRequest,
+} = require("../controllers/organicLeaveController.js");
+
 // --- AUTH HELPERS ---
 const requirePerm = (perm) => [authenticateToken, authorize(perm)];
 const authOnly = [authenticateToken];
@@ -50,17 +58,18 @@ router.post(
   addCtoCreditRequest,
 );
 
-router.patch(
-  "/credits/:creditId/rollback",
-  ...requirePerm("cto.credits_manage"),
-  rollbackCreditedRequest,
-);
-
 // View global credit records
 router.get(
   "/credits/all",
   ...requirePerm("cto.credits_view"),
   getAllCreditRequests,
+);
+
+// ✅ FIXED: Self-service credit views (MUST come before /:employeeId)
+router.get(
+  "/credits/my-credits",
+  ...requirePerm("cto.view_self"),
+  getEmployeeCredits,
 );
 
 router.get(
@@ -69,17 +78,16 @@ router.get(
   getEmployeeCredits,
 );
 
+router.patch(
+  "/credits/:creditId/rollback",
+  ...requirePerm("cto.credits_manage"),
+  rollbackCreditedRequest,
+);
+
 router.get(
   "/employee/:employeeId/details",
   ...requirePerm("cto.records_view"),
   getEmployeeDetails,
-);
-
-// Self-service credit views
-router.get(
-  "/credits/my-credits",
-  ...requirePerm("cto.view_self"),
-  getEmployeeCredits,
 );
 
 /* =========================================
@@ -100,6 +108,13 @@ router.get(
   getAllCtoApplicationsRequest,
 );
 
+// ✅ FIXED: Self-service application views (MUST come before /employee/:employeeId)
+router.get(
+  "/applications/my-application",
+  ...requirePerm("cto.view_self"),
+  getCtoApplicationsByEmployeeRequest,
+);
+
 // Admin View Specific Employee Applications
 router.get(
   "/applications/employee/:employeeId",
@@ -107,21 +122,54 @@ router.get(
   getCtoApplicationsByEmployeeRequest,
 );
 
-// Self-service application views & actions
-router.get(
-  "/applications/my-application",
-  ...requirePerm("cto.view_self"),
-  getCtoApplicationsByEmployeeRequest,
-);
-
+// ✅ FIXED: Updated to :applicationId to match service structure and frontend API
 router.patch(
-  "/applications/:id/cancel",
+  "/applications/:applicationId/cancel",
   ...requirePerm("cto.view_self"),
   cancelCtoApplicationRequest,
 );
 
 /* =========================================
-   APPROVER FLOW
+   ORGANIC LEAVES (WELLNESS, ETC.)
+========================================= */
+
+// Apply for Organic Leave
+router.post(
+  "/organic-applications/apply",
+  ...requirePerm("organic_leaves.create"),
+  addOrganicLeaveRequest,
+);
+
+// Admin View All Organic Applications
+router.get(
+  "/organic-applications/all",
+  ...requirePerm("organic_leaves.applications_view"),
+  getAllOrganicLeavesRequest,
+);
+
+// ✅ FIXED: Self-service organic application views (MUST come before /employee/:employeeId)
+router.get(
+  "/organic-applications/my-application",
+  ...requirePerm("organic_leaves.view_self"),
+  getOrganicLeavesByEmployeeRequest,
+);
+
+// Admin View Specific Employee Organic Applications
+router.get(
+  "/organic-applications/employee/:employeeId",
+  ...requirePerm("organic_leaves.applications_view"),
+  getOrganicLeavesByEmployeeRequest,
+);
+
+// ✅ FIXED: Updated to :applicationId
+router.patch(
+  "/organic-applications/:applicationId/cancel",
+  ...requirePerm("organic_leaves.view_self"),
+  cancelOrganicLeaveRequest,
+);
+
+/* =========================================
+   APPROVER FLOW (CTO)
 ========================================= */
 // Kept as authOnly because these rely on the controller verifying
 // if req.user._id matches the application's assigned supervisor/HR.
@@ -140,8 +188,9 @@ router.get(
   getCtoApplicationsForApprover,
 );
 
+// ✅ FIXED: Updated to :applicationId to prevent generic 'id' clashing
 router.get(
-  "/applications/approvers/my-approvals/:id",
+  "/applications/approvers/my-approvals/:applicationId",
   ...requirePerm("cto.view_application"),
   getCtoApplicationById,
 );

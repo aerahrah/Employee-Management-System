@@ -2,11 +2,14 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { StatusBadge } from "../../statusUtils";
+
+// Consolidated API Imports - Unified for both Organic and JO CTO
 import {
   fetchMyCtoApplications,
   fetchMyCreditRequests,
   cancelCtoApplicationRequest,
 } from "../../../api/cto";
+
 import Modal from "../../modal";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import Breadcrumbs from "../../breadCrumbs";
@@ -695,10 +698,13 @@ const tabTone = {
 
 const MyCtoApplications = () => {
   const queryClient = useQueryClient();
-  const navigate = useNavigate(); // ✅ Initialize useNavigate hook
+  const navigate = useNavigate();
 
+  const user = useAuth((s) => s.admin);
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
+
+  const isOrganic = user?.employeeType === "Organic";
 
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
@@ -780,28 +786,36 @@ const MyCtoApplications = () => {
     return () => clearTimeout(searchTimeout.current);
   }, [searchInput]);
 
+  const appQueryKey = "ctoApplications";
+  const balanceQueryKey = "myCtoBalanceHours";
+
+  // Unified Fetch Applications
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["ctoApplications", page, limit, statusFilter, searchFilter],
-    queryFn: () =>
-      fetchMyCtoApplications({
+    queryKey: [appQueryKey, page, limit, statusFilter, searchFilter],
+    queryFn: () => {
+      const payload = {
         page,
         limit,
         status: statusFilter || undefined,
         search: searchFilter || undefined,
-      }),
+      };
+      return fetchMyCtoApplications(payload);
+    },
     placeholderData: (prev) => prev,
   });
 
+  // Unified Fetch Balances for everyone
   const {
     data: creditSummaryData,
     isLoading: isBalanceLoading,
     refetch: refetchBalance,
   } = useQuery({
-    queryKey: ["myCtoBalanceHours"],
+    queryKey: [balanceQueryKey],
     queryFn: () => fetchMyCreditRequests({ page: 1, limit: 1 }),
     staleTime: 1000 * 60,
   });
 
+  // Unified Cancel Application Mutation
   const cancelMutation = useMutation({
     mutationFn: (applicationId) => cancelCtoApplicationRequest(applicationId),
     onSuccess: (payload) => {
@@ -814,11 +828,11 @@ const MyCtoApplications = () => {
 
       closeCancelModal();
 
-      queryClient.invalidateQueries({ queryKey: ["ctoApplications"] });
-      queryClient.invalidateQueries({ queryKey: ["myCtoBalanceHours"] });
+      queryClient.invalidateQueries({ queryKey: [appQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [balanceQueryKey] });
 
-      queryClient.refetchQueries({ queryKey: ["ctoApplications"] });
-      queryClient.refetchQueries({ queryKey: ["myCtoBalanceHours"] });
+      queryClient.refetchQueries({ queryKey: [appQueryKey] });
+      queryClient.refetchQueries({ queryKey: [balanceQueryKey] });
 
       refetch();
       refetchBalance();
@@ -969,7 +983,7 @@ const MyCtoApplications = () => {
                   className="block text-sm mt-1 max-w-2xl"
                   style={{ color: "var(--app-muted)" }}
                 >
-                  Browse your Compensatory Time-off history, track status
+                  Browse your Compensatory Time-Off history, track status
                   updates, and file new requests.
                 </p>
               </div>
@@ -982,7 +996,13 @@ const MyCtoApplications = () => {
                 />
 
                 <button
-                  onClick={() => navigate("/app/cto-apply/add")}
+                  onClick={() =>
+                    navigate(
+                      isOrganic
+                        ? "/app/organic-apply/add"
+                        : "/app/cto-apply/add",
+                    )
+                  }
                   className="group relative inline-flex items-center gap-2 justify-center rounded-lg min-w-42 md:py-3.5 text-sm font-semibold shadow-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full"
                   type="button"
                   style={{
@@ -1563,7 +1583,7 @@ const MyCtoApplications = () => {
           <Modal
             isOpen={!!selectedApp}
             onClose={() => setSelectedApp(null)}
-            title="CTO Application Details"
+            title="Application Details"
             maxWidth="max-w-5xl"
           >
             <CtoApplicationDetails app={selectedApp} loading={!selectedApp} />
@@ -1574,7 +1594,7 @@ const MyCtoApplications = () => {
         <Modal
           isOpen={cancelModal.isOpen}
           onClose={closeCancelModal}
-          title="Cancel CTO Application"
+          title="Cancel Application"
           maxWidth="max-w-lg"
           preventCloseWhenBusy={true}
           isBusy={cancelMutation.isPending}
@@ -1650,7 +1670,7 @@ const MyCtoApplications = () => {
                 className="text-lg font-semibold"
                 style={{ color: "var(--app-text)" }}
               >
-                Are you sure you want to cancel this CTO application?
+                Are you sure you want to cancel this application?
               </h2>
               <p className="text-sm mt-2" style={{ color: "var(--app-muted)" }}>
                 This will stop the approval workflow and update your balances

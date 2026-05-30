@@ -91,11 +91,12 @@ export const fetchEmployeeCredits = async (employeeId, params = {}) => {
 };
 
 /* =========================
-   APPLICATIONS
+   CTO APPLICATIONS
 ========================= */
 
 export const addApplicationRequest = async (payload) => {
   try {
+    console.log(payload);
     const res = await API.post("/cto/applications/apply", payload, {
       withCredentials: true,
     });
@@ -138,10 +139,6 @@ export const fetchEmployeeApplications = async (employeeId, params = {}) => {
   }
 };
 
-/**
- * ✅ Cancel CTO application
- * Matches backend route: PATCH /cto/applications/:id/cancel
- */
 export const cancelCtoApplicationRequest = async (applicationId) => {
   try {
     const res = await API.patch(
@@ -154,6 +151,78 @@ export const cancelCtoApplicationRequest = async (applicationId) => {
     safeError(err, "Failed to cancel CTO application");
   }
 };
+
+/* =========================
+   ORGANIC APPLICATIONS (WELLNESS, ETC.)
+========================= */
+
+export const addOrganicApplicationRequest = async (payload) => {
+  try {
+    // Assuming your router is mounted at /cto in your main Express app
+    const res = await API.post("/cto/organic-applications/apply", payload, {
+      withCredentials: true,
+    });
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to submit Organic/Wellness application");
+  }
+};
+
+export const fetchMyOrganicApplications = async (params = {}) => {
+  try {
+    const res = await API.get(
+      "/cto/organic-applications/my-application",
+      withCreds(params),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch my Organic/Wellness applications");
+  }
+};
+
+export const fetchAllOrganicApplications = async (params = {}) => {
+  try {
+    const res = await API.get(
+      "/cto/organic-applications/all",
+      withCreds(params),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch all Organic/Wellness applications");
+  }
+};
+
+export const fetchEmployeeOrganicApplications = async (
+  employeeId,
+  params = {},
+) => {
+  try {
+    const res = await API.get(
+      `/cto/organic-applications/employee/${employeeId}`,
+      withCreds(params),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch employee Organic/Wellness applications");
+  }
+};
+
+export const cancelOrganicApplicationRequest = async (applicationId) => {
+  try {
+    const res = await API.patch(
+      `/cto/organic-applications/${applicationId}/cancel`,
+      {},
+      { withCredentials: true },
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to cancel Organic/Wellness application");
+  }
+};
+
+/* =========================
+   APPROVALS (CTO)
+========================= */
 
 export const approveApplicationRequest = async (applicationId) => {
   try {
@@ -195,6 +264,7 @@ export const fetchMyCtoApplicationsApprovals = async (params = {}) => {
 
 export const getCtoApplicationById = async (id) => {
   try {
+    console.log(id);
     const res = await API.get(`cto/applications/approvers/my-approvals/${id}`, {
       withCredentials: true,
     });
@@ -204,10 +274,6 @@ export const getCtoApplicationById = async (id) => {
   }
 };
 
-/**
- * This endpoint seems identical to getCtoApplicationById in your code.
- * If it actually returns a count, keep it. Otherwise, you can delete it.
- */
 export const getCtoApplicationPendingCount = async (id) => {
   try {
     const res = await API.get(`cto/applications/approvers/my-approvals/${id}`, {

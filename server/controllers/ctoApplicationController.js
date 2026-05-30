@@ -10,10 +10,15 @@ const addCtoApplicationRequest = async (req, res) => {
     const {
       requestedHours,
       reason,
-      routeId, // new
-      approvers, // flexible array
+      routeId,
+      approvers,
       inclusiveDates,
       memos,
+      // NEW: Merged schema fields
+      employeeType,
+      commutation,
+      certificationOfLeaveCredits,
+      actionDetails,
     } = req.body;
 
     const userId = req.user.id;
@@ -26,6 +31,10 @@ const addCtoApplicationRequest = async (req, res) => {
       approvers,
       inclusiveDates,
       memos,
+      employeeType,
+      commutation,
+      certificationOfLeaveCredits,
+      actionDetails,
     });
 
     res.status(201).json({

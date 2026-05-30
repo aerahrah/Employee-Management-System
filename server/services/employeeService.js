@@ -279,7 +279,7 @@ const createEmployeeService = async (employeeData = {}) => {
 
   await employee.save();
 
-  const frontendUrl = process.env.FRONTEND_URL || "https://cto.dictr2.cloud";
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
   if (employee.email) {
     const enabled = await canSend(EMAIL_KEYS.EMPLOYEE_WELCOME);
@@ -384,14 +384,14 @@ const getEmployeeByIdService = async (id) => {
   if (!employee) throw httpError(`Employee not found`, 404);
   return employee;
 };
-
 const signInEmployeeService = async (username, password) => {
   const safeUsername = String(username).trim();
   const safePassword = String(password); // Prevent NoSQL Injection Object `{ $ne: null }`
 
   const employee = await Employee.findOne({ username: safeUsername })
     .select("+password +loginAttempts +lockUntil")
-    .populate("role");
+    .populate("role")
+    .populate("designation");
 
   if (!employee) throw httpError("Invalid username or password", 401);
 
@@ -424,11 +424,19 @@ const signInEmployeeService = async (username, password) => {
     throw httpError("Server misconfigured: JWT_SECRET is missing", 500);
   }
 
+  // ✅ THE FIX IS HERE:
+  // Check the actual field where "Organic" is saved (checking both common field names just in case)
+  const employeeType =
+    employee.employeeType === "Organic" || employee.contractType === "Organic"
+      ? "Organic"
+      : "JO";
+
   const tokenPayload = {
     id: employee._id,
     username: employee.username,
     designation: employee.designation,
     role: employee.role,
+    employeeType: employeeType, // Now correctly maps to Organic or JO
   };
 
   const sessionSettings = await getSessionSettings();
@@ -452,7 +460,6 @@ const signInEmployeeService = async (username, password) => {
 
   const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, options);
 
-  // ✅ NEW: Calculate exact session expiration
   const sessionExpiresAt = enabled ? Date.now() + minutes * 60 * 1000 : null;
 
   const responsePayload = {
@@ -463,11 +470,9 @@ const signInEmployeeService = async (username, password) => {
       theme: employee.preferences?.theme ?? "system",
       accent: employee.preferences?.accent ?? "blue",
     },
-    // ✅ NEW: Include the timer for the React frontend
     sessionExpiresAt,
   };
 
-  // ✅ NEW: Return minutes and enabled so the Controller can set the HttpOnly Cookie maxAge
   return { token, payload: responsePayload, minutes, enabled };
 };
 

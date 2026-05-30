@@ -26,7 +26,6 @@ import AuditLogTable from "./pages/auditPage";
 /* CTO Components */
 import CtoDashboard from "./components/ctoComponents/ctoDashboard";
 import CtoCredits from "./components/ctoComponents/ctoCredits";
-// ✅ IMPORT THE NEW CTO CREDIT FORM
 import AddCtoCreditForm from "./components/ctoComponents/ctoCreditComponents/forms/addCtoCreditForm";
 import CtoApplication from "./components/ctoComponents/ctoApplication";
 import MyCtoCredits from "./components/ctoComponents/myCtoCredits";
@@ -48,6 +47,9 @@ import AllWellnessApplicationsHistory from "./components/wellnessComponents/well
 import WellnessCreditHistory from "./components/wellnessComponents/wellnessCreditComponents/recentWellnessCreditHistory";
 import AddWellnessCreditForm from "./components/wellnessComponents/wellnessCreditComponents/forms/addWellnessCreditForm";
 import AddWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addWellnessApplicationForm";
+
+/* Organic Leave Components */
+import AddOrganicLeaveApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addOrganicLeaveForm";
 
 import AddEmployeeForm from "./components/employeeDashboard/forms/addEmployeeForm";
 import EmployeeInformation from "./components/employeeDashboard/employeeInformation";
@@ -252,6 +254,18 @@ function App() {
             />
           </Route>
 
+          {/* Organic Leaves Self Service Form */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="organic_leaves.create" />
+            }
+          >
+            <Route
+              path="organic-apply/add"
+              element={<AddOrganicLeaveApplicationForm />}
+            />
+          </Route>
+
           {/* ===================== */}
           {/* RESTRICTED HUBS (Admin & Settings) */}
           {/* ===================== */}
@@ -311,7 +325,6 @@ function App() {
             element={<ProtectedRoute requiredPermission="cto.credits_view" />}
           >
             <Route path="cto-credit" element={<CtoCredits />} />
-            {/* ✅ ADDED THE SEPARATE ROUTE FOR ADDING CTO CREDITS */}
             <Route path="cto-credit/add" element={<AddCtoCreditForm />} />
           </Route>
 

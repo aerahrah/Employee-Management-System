@@ -113,7 +113,6 @@ async function getEmployeeCreditTotals(employeeId) {
       totalCreditedHours: totalsAgg?.totalCreditedHours ?? 0,
     };
   } catch (e) {
-    // Fail gracefully on aggregation errors to preserve the dashboard load
     console.error("[Dashboard] Error fetching credit totals:", e);
     return null;
   }
@@ -177,7 +176,10 @@ async function getPersonalCtoSummary(employeeId) {
   const recentRequests = await CtoApplication.find({ employee: employeeId })
     .sort({ createdAt: -1 })
     .limit(5)
-    .select("requestedHours overallStatus inclusiveDates reason createdAt")
+    // ✅ ADDED: employeeType and commutation to the payload
+    .select(
+      "requestedHours overallStatus inclusiveDates reason createdAt employeeType commutation",
+    )
     .lean();
 
   const totals = creditTotals || {
@@ -214,8 +216,6 @@ async function getSupervisorSummary(employeeId) {
   assertObjectId(employeeId, "Employee ID");
   const myCtoSummary = await getPersonalCtoSummary(employeeId);
 
-  // Fetch only CTO applications routed to this specific approver
-  // Added .lean() to prevent memory bloat since we iterate over this data
   const approvalSteps = await ApprovalStep.find({ approver: employeeId })
     .populate({
       path: "ctoApplication",
@@ -279,6 +279,9 @@ async function getSupervisorSummary(employeeId) {
       id: app._id,
       employeeId: app.employee._id,
       employeeName: `${app.employee.firstName} ${app.employee.lastName}`,
+      // ✅ ADDED: Exposed employeeType and commutation for the supervisor dashboard
+      employeeType: app.employeeType,
+      commutation: app.commutation,
       requestedHours: app.requestedHours,
       inclusiveDates:
         app.inclusiveDates ||
@@ -313,6 +316,9 @@ async function getHrSummary(hrId) {
     totalCreditedCount,
     totalRolledBackCount,
     totalPendingRequests,
+    // ✅ ADDED: Split the pending count by type for HR metrics
+    pendingOrganicRequests,
+    pendingJoRequests,
   ] = await Promise.all([
     CtoCredit.find()
       .sort({ createdAt: -1 })
@@ -325,6 +331,14 @@ async function getHrSummary(hrId) {
     CtoCredit.countDocuments({ status: CTO_STATUS.CREDITED }),
     CtoCredit.countDocuments({ status: CTO_STATUS.ROLLEDBACK }),
     CtoApplication.countDocuments({ overallStatus: CTO_STATUS.PENDING }),
+    CtoApplication.countDocuments({
+      overallStatus: CTO_STATUS.PENDING,
+      employeeType: "Organic",
+    }),
+    CtoApplication.countDocuments({
+      overallStatus: CTO_STATUS.PENDING,
+      employeeType: { $in: ["Job Order", "Contractual"] },
+    }),
   ]);
 
   return {
@@ -333,6 +347,8 @@ async function getHrSummary(hrId) {
     totalCreditedCount,
     totalRolledBackCount,
     totalPendingRequests,
+    pendingOrganicRequests, // Now available for HR UI breakdowns
+    pendingJoRequests, // Now available for HR UI breakdowns
   };
 }
 
@@ -340,38 +356,63 @@ async function getAdminSummary(adminId) {
   assertObjectId(adminId, "Admin ID");
   const hrData = await getHrSummary(adminId);
 
-  const [totalRequests, approvedRequests, rejectedRequests, creditAgg] =
-    await Promise.all([
-      CtoApplication.countDocuments(),
-      CtoApplication.countDocuments({ overallStatus: CTO_STATUS.APPROVED }),
-      CtoApplication.countDocuments({ overallStatus: CTO_STATUS.REJECTED }),
-      CtoCredit.aggregate([
-        { $unwind: "$employees" },
-        {
-          $group: {
-            _id: null,
-            totalCredited: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$status", CTO_STATUS.CREDITED] },
-                  "$employees.creditedHours",
-                  0,
-                ],
-              },
+  const [
+    totalRequests,
+    approvedRequests,
+    rejectedRequests,
+    creditAgg,
+    requestsByTypeAgg,
+  ] = await Promise.all([
+    CtoApplication.countDocuments(),
+    CtoApplication.countDocuments({ overallStatus: CTO_STATUS.APPROVED }),
+    CtoApplication.countDocuments({ overallStatus: CTO_STATUS.REJECTED }),
+    CtoCredit.aggregate([
+      { $unwind: "$employees" },
+      {
+        $group: {
+          _id: null,
+          totalCredited: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", CTO_STATUS.CREDITED] },
+                "$employees.creditedHours",
+                0,
+              ],
             },
-            totalRolledBack: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$status", CTO_STATUS.ROLLEDBACK] },
-                  "$employees.creditedHours",
-                  0,
-                ],
-              },
+          },
+          totalRolledBack: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", CTO_STATUS.ROLLEDBACK] },
+                "$employees.creditedHours",
+                0,
+              ],
             },
           },
         },
-      ]),
-    ]);
+      },
+    ]),
+    // ✅ ADDED: Gives Admin a macro view of Organic vs JO usage overall
+    CtoApplication.aggregate([
+      {
+        $group: {
+          _id: "$employeeType",
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+  ]);
+
+  // Format the request breakdown for the frontend
+  const requestTypeBreakdown = {
+    Organic: 0,
+    JobOrder: 0,
+  };
+  requestsByTypeAgg.forEach((item) => {
+    if (item._id === "Organic") requestTypeBreakdown.Organic = item.count;
+    else if (item._id === "Job Order" || item._id === "Contractual")
+      requestTypeBreakdown.JobOrder += item.count;
+  });
 
   return {
     ...hrData,
@@ -380,6 +421,7 @@ async function getAdminSummary(adminId) {
     rejectedRequests,
     totalCredited: creditAgg[0]?.totalCredited || 0,
     rolledBack: creditAgg[0]?.totalRolledBack || 0,
+    requestTypeBreakdown, // Now available for Admin UI charts
   };
 }
 

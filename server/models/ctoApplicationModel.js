@@ -1,17 +1,25 @@
 const mongoose = require("mongoose");
 
-const ctoApplicationSchema = new mongoose.Schema(
+const CtoApplicationSchema = new mongoose.Schema(
   {
+    // =========================================
+    // BASE FIELDS (Required for everyone)
+    // =========================================
     employee: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
       required: true,
-      index: true, // Speeds up queries when searching by employee
+      index: true,
+    },
+    employeeType: {
+      type: String,
+      enum: ["Organic", "Job Order", "Contractual", "Others"], // Adjust based on your system
+      required: true,
     },
     requestedHours: {
       type: Number,
       required: true,
-      min: [1, "Requested hours must be at least 1"], // Adjust minimum as per your business logic
+      min: [1, "Requested hours must be at least 1"],
       max: [300, "Requested hours exceed maximum logical limit"],
     },
     inclusiveDates: {
@@ -28,7 +36,7 @@ const ctoApplicationSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      maxlength: [1000, "Reason cannot exceed 1000 characters"], // Prevents payload overload
+      maxlength: [1000, "Reason cannot exceed 1000 characters"],
     },
     memo: [
       {
@@ -75,13 +83,53 @@ const ctoApplicationSchema = new mongoose.Schema(
       fileType: {
         type: String,
         trim: true,
-        // STRICT ALLOWLIST: Only allow specific safe file types
         enum: {
           values: ["application/pdf", "image/jpeg", "image/png"],
           message: "{VALUE} is not an allowed file type",
         },
       },
       uploadedAt: { type: Date, default: Date.now },
+    },
+
+    // =========================================
+    // ORGANIC-SPECIFIC FIELDS (Conditionally Required)
+    // =========================================
+
+    // Derived from Section 6.D
+    commutation: {
+      type: String,
+      enum: ["Requested", "Not Requested"],
+      default: "Not Requested",
+      required: function () {
+        return this.employeeType === "Organic";
+      },
+    },
+
+    // Derived from Section 7.A (Usually populated by HR later)
+    certificationOfLeaveCredits: {
+      asOfDate: { type: Date },
+      vacationLeave: {
+        totalEarned: { type: Number, default: 0 },
+        lessThisApplication: { type: Number, default: 0 },
+        balance: { type: Number, default: 0 },
+      },
+      sickLeave: {
+        totalEarned: { type: Number, default: 0 },
+        lessThisApplication: { type: Number, default: 0 },
+        balance: { type: Number, default: 0 },
+      },
+      certifiedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Employee",
+      },
+    },
+
+    // Derived from Section 7.C & 7.D
+    actionDetails: {
+      approvedDaysWithPay: { type: Number },
+      approvedDaysWithoutPay: { type: Number },
+      approvedOthersSpecify: { type: String, trim: true },
+      disapprovedDueTo: { type: String, trim: true },
     },
   },
   {
@@ -90,4 +138,4 @@ const ctoApplicationSchema = new mongoose.Schema(
   },
 );
 
-module.exports = mongoose.model("CtoApplication", ctoApplicationSchema);
+module.exports = mongoose.model("CtoApplication", CtoApplicationSchema);

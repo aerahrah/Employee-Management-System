@@ -115,7 +115,7 @@ const employeeSchema = new mongoose.Schema(
     // ✅ Added employeeType here
     employeeType: {
       type: String,
-      enum: ["Job Order", "Organic"],
+      enum: ["JO", "Organic"],
       required: true,
     },
 

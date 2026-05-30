@@ -1,4 +1,3 @@
-// services/ctoApplication.service.js
 const mongoose = require("mongoose");
 const CtoApplication = require("../models/ctoApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
@@ -34,21 +33,14 @@ function assertObjectId(id, label = "ID") {
   }
 }
 
-/**
- * Strips null bytes, limits length, and escapes regex characters
- * to prevent ReDoS (Regular Expression Denial of Service).
- */
 function sanitizeSearch(str, limit = 100) {
   return String(str || "")
     .replace(/\0/g, "")
     .trim()
     .slice(0, limit)
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // Escape Regex chars
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Strips null bytes and strictly caps text inputs to prevent DB bloat.
- */
 function sanitizeText(str, limit = 1000) {
   return String(str || "")
     .replace(/\0/g, "")
@@ -56,9 +48,6 @@ function sanitizeText(str, limit = 1000) {
     .slice(0, limit);
 }
 
-/**
- * Strictly parses numbers to prevent NoSQL object injection (e.g., passing { $gte: 0 }).
- */
 function strictNumber(val, fallback = 0) {
   const parsed = Number(val);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -208,6 +197,10 @@ const addCtoApplicationService = async ({
   approvers,
   inclusiveDates,
   memos,
+  employeeType,
+  commutation,
+  certificationOfLeaveCredits,
+  actionDetails,
 }) => {
   assertObjectId(userId, "User ID");
 
@@ -219,6 +212,19 @@ const addCtoApplicationService = async ({
       "Requested hours (>0), reason, and inclusive dates are required.",
       400,
     );
+  }
+
+  if (!employeeType) {
+    throw createServiceError("Employee type is required.", 400);
+  }
+
+  if (employeeType === "Organic") {
+    if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
+      throw createServiceError(
+        "Commutation is required and must be either 'Requested' or 'Not Requested' for Organic employees.",
+        400,
+      );
+    }
   }
 
   let finalApprovers = [];
@@ -301,18 +307,16 @@ const addCtoApplicationService = async ({
       );
     }
 
-    // Update locally for the array payload
     empCredit.reservedHours =
       (empCredit.reservedHours || 0) + input.appliedHours;
     empCredit.remainingHours = empCredit.remainingHours - input.appliedHours;
     empCredit.status = empCredit.status || "ACTIVE";
 
-    // Atomic update in the database to prevent race conditions
     const updateResult = await CtoCredit.updateOne(
       {
         _id: credit._id,
         "employees.employee": employee._id,
-        "employees.remainingHours": { $gte: input.appliedHours }, // Security: Concurrency check
+        "employees.remainingHours": { $gte: input.appliedHours },
       },
       { $set: { "employees.$": empCredit } },
     );
@@ -340,14 +344,26 @@ const addCtoApplicationService = async ({
     );
   }
 
-  const newApplication = new CtoApplication({
+  const applicationPayload = {
     employee: employee._id,
+    employeeType,
     requestedHours: strictReqHours,
-    reason: safeReason, // Sanitized to 1000 chars
+    reason: safeReason,
     inclusiveDates,
     memo: memoUsage,
     overallStatus: "PENDING",
-  });
+  };
+
+  if (employeeType === "Organic") {
+    applicationPayload.commutation = commutation;
+  }
+
+  if (certificationOfLeaveCredits)
+    applicationPayload.certificationOfLeaveCredits =
+      certificationOfLeaveCredits;
+  if (actionDetails) applicationPayload.actionDetails = actionDetails;
+
+  const newApplication = new CtoApplication(applicationPayload);
 
   await newApplication.save();
 
@@ -367,7 +383,6 @@ const addCtoApplicationService = async ({
 
   const populatedApp = await populateApplicationById(newApplication._id);
 
-  // Notify approvers
   try {
     await NotificationService.notifyApproversOnCtoSubmission({
       approverIds: finalApprovers,
@@ -381,7 +396,6 @@ const addCtoApplicationService = async ({
     );
   }
 
-  // Optional: notify the employee too so they see a bell item after applying
   try {
     await NotificationService.notifyEmployeeOnCtoSubmissionCreated({
       employee,
@@ -394,7 +408,6 @@ const addCtoApplicationService = async ({
     );
   }
 
-  // Email to first approver
   try {
     const firstApproval = approvalSteps.find((a) => a.level === 1);
     const approverUser = await Employee.findById(firstApproval.approver)
@@ -503,6 +516,11 @@ const getAllCtoApplicationsService = async (
     query.employee = filters.employeeId;
   }
 
+  // NEW: Filter by employee type (Organic vs JO)
+  if (filters.employeeType) {
+    query.employeeType = filters.employeeType;
+  }
+
   if (filters.status)
     query.overallStatus = String(filters.status).toUpperCase();
 
@@ -524,7 +542,7 @@ const getAllCtoApplicationsService = async (
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
-        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt",
+        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation",
       )
       .populate({
         path: "approvals",
@@ -547,6 +565,7 @@ const getAllCtoApplicationsService = async (
     const approvals = app.approvals || [];
     return {
       ...app,
+      category: app.employeeType, // NEW: Exposes 'category' for frontend tables
       approver1: approvals[0]?.approver || null,
       approver2: approvals[1]?.approver || null,
       approver3: approvals[2]?.approver || null,
@@ -602,6 +621,13 @@ const getCtoApplicationsByEmployeeService = async (
   const skip = (page - 1) * limit;
 
   const pipeline = [{ $match: { employee: employeeObjectId } }];
+
+  // NEW: Filter by employeeType in aggregation pipeline
+  if (filters.employeeType) {
+    pipeline.push({
+      $match: { employeeType: filters.employeeType },
+    });
+  }
 
   if (filters.status) {
     pipeline.push({
@@ -733,6 +759,9 @@ const getCtoApplicationsByEmployeeService = async (
   let applications = await CtoApplication.aggregate(pipeline);
 
   applications = applications.map((app) => {
+    // NEW: Also map the category here just to be safe
+    app.category = app.employeeType;
+
     if (app.memo && Array.isArray(app.memo)) {
       const memoMap = (app.memoDetails || []).reduce((acc, md) => {
         if (md && md._id) acc[md._id.toString()] = md;
