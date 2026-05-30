@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumbs from "../breadCrumbs";
@@ -12,12 +12,30 @@ import {
   Info,
   Loader2,
   AlertCircle,
+  PenTool,
+  Upload,
 } from "lucide-react";
-import { getMyProfile, updateMyProfile } from "../../api/employee";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
 
-/* ------------------ Resolve theme (same basis as CTO Credit History) ------------------ */
+// ✅ Import buildApiUrl to construct the existing signature image path
+import { buildApiUrl } from "../../config/env";
+
+// ✅ Import your API calls
+// IMPORTANT: Make sure to add `uploadMySignature` to your api/employee.js file:
+// export const uploadMySignature = async (file) => {
+//   const fd = new FormData();
+//   fd.append("signature", file);
+//   const res = await API.post("/employee/my-profile/signature", fd, { headers: { "Content-Type": "multipart/form-data" } });
+//   return res.data;
+// };
+import {
+  getMyProfile,
+  updateMyProfile,
+  uploadMySignature,
+} from "../../api/employee";
+
+/* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -52,7 +70,7 @@ const Section = ({ title, children, className = "", borderColor }) => (
         </h3>
       </div>
     )}
-    <div className="px-6 py-3">{children}</div>
+    <div className="px-6 py-5">{children}</div>
   </div>
 );
 
@@ -500,6 +518,8 @@ const UpdateProfile = () => {
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
 
+  const fileInputRef = useRef(null);
+
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
       ? "rgba(255,255,255,0.07)"
@@ -519,14 +539,7 @@ const UpdateProfile = () => {
     };
   }, [resolvedTheme]);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["myProfile"],
-    queryFn: getMyProfile,
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const profile = data?.data ?? data ?? null;
-
+  // States for Profile Data
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -535,6 +548,18 @@ const UpdateProfile = () => {
     address: { street: "", city: "", province: "" },
     emergencyContact: { name: "", phone: "", relation: "" },
   });
+
+  // States for Signature Upload
+  const [signatureFile, setSignatureFile] = useState(null);
+  const [signaturePreview, setSignaturePreview] = useState(null);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["myProfile"],
+    queryFn: getMyProfile,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const profile = data?.data ?? data ?? null;
 
   useEffect(() => {
     if (!profile) return;
@@ -554,17 +579,63 @@ const UpdateProfile = () => {
         relation: profile.emergencyContact?.relation || "",
       },
     });
+
+    // If backend returns a signature path, construct the preview URL
+    if (profile.signature) {
+      setSignaturePreview(buildApiUrl(profile.signature));
+    }
   }, [profile]);
 
-  const mutation = useMutation({
+  // Handle File Selection
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("File size must be less than 2MB");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/jpg"].includes(file.type)) {
+      toast.error("Invalid file type. Only JPEG and PNG are allowed.");
+      return;
+    }
+
+    setSignatureFile(file);
+    setSignaturePreview(URL.createObjectURL(file));
+  };
+
+  // Profile JSON Mutation
+  const profileMutation = useMutation({
     mutationFn: updateMyProfile,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["myProfile"] });
-      toast.success("Profile updated successfully");
-      navigate("/app/my-profile");
+      if (signatureFile) {
+        // If a new signature was selected, upload it now
+        signatureMutation.mutate(signatureFile);
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+        toast.success("Profile updated successfully");
+        navigate("/app/my-profile");
+      }
     },
     onError: (err) => {
       toast.error(err?.response?.data?.error || "Failed to update profile");
+    },
+  });
+
+  // Signature File Mutation
+  const signatureMutation = useMutation({
+    mutationFn: uploadMySignature,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+      toast.success("Profile and signature updated successfully");
+      navigate("/app/my-profile");
+    },
+    onError: (err) => {
+      toast.error(
+        err?.response?.data?.error ||
+          "Profile saved, but signature upload failed",
+      );
+      navigate("/app/my-profile");
     },
   });
 
@@ -582,9 +653,11 @@ const UpdateProfile = () => {
     }
   };
 
+  const isBusy = profileMutation.isPending || signatureMutation.isPending;
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    mutation.mutate(formData);
+    profileMutation.mutate(formData);
   };
 
   if (isLoading) {
@@ -601,6 +674,9 @@ const UpdateProfile = () => {
       />
     );
   }
+
+  const isOrganic =
+    profile?.employeeType === "Organic" || profile?.contractType === "Organic";
 
   return (
     <div
@@ -643,11 +719,11 @@ const UpdateProfile = () => {
               <ActionButton
                 type="submit"
                 variant="primary"
-                icon={mutation.isPending ? Loader2 : Save}
+                icon={isBusy ? Loader2 : Save}
                 borderColor={borderColor}
-                disabled={mutation.isPending}
+                disabled={isBusy}
               >
-                {mutation.isPending ? (
+                {isBusy ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Saving...
@@ -675,6 +751,97 @@ const UpdateProfile = () => {
           </div>
 
           <div className="lg:col-span-8 space-y-6">
+            {/* ✅ NEW DIGITAL SIGNATURE SECTION */}
+            {isOrganic && (
+              <Section title="Digital Signature" borderColor={borderColor}>
+                <div className="flex flex-col md:flex-row gap-6 items-start">
+                  <div className="w-full md:w-1/3 flex flex-col items-center gap-3">
+                    <div
+                      className="w-full h-32 border-2 border-dashed rounded-xl flex items-center justify-center overflow-hidden transition-colors"
+                      style={{
+                        backgroundColor: "var(--app-surface-2)",
+                        borderColor: borderColor,
+                      }}
+                    >
+                      {signaturePreview ? (
+                        <img
+                          src={signaturePreview}
+                          alt="Signature Preview"
+                          className="max-w-full max-h-full object-contain p-2"
+                        />
+                      ) : (
+                        <div
+                          className="text-center"
+                          style={{ color: "var(--app-muted)" }}
+                        >
+                          <PenTool className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <span className="text-xs">No signature</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="file"
+                      accept="image/jpeg, image/png, image/jpg"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+
+                    <ActionButton
+                      variant="secondary"
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      borderColor={borderColor}
+                      className="w-full"
+                    >
+                      <Upload className="w-4 h-4" />
+                      {signaturePreview ? "Change Image" : "Select Image"}
+                    </ActionButton>
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <h4
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      Signature Requirements
+                    </h4>
+                    <ul
+                      className="text-xs space-y-1.5 list-disc list-inside ml-2"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      <li>Use a clear, white background if possible.</li>
+                      <li>
+                        Format must be{" "}
+                        <span
+                          className="font-semibold"
+                          style={{ color: "var(--app-text)" }}
+                        >
+                          JPEG or PNG
+                        </span>
+                        .
+                      </li>
+                      <li>
+                        File size must be strictly under{" "}
+                        <span
+                          className="font-semibold"
+                          style={{ color: "var(--app-text)" }}
+                        >
+                          2MB
+                        </span>
+                        .
+                      </li>
+                      <li>
+                        This signature will be securely attached to your
+                        generated PDF forms (e.g. CSC Form 6).
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </Section>
+            )}
+
             <Section title="General Information" borderColor={borderColor}>
               <p
                 className="text-xs -mt-1 mb-4 transition-colors duration-300 ease-out"

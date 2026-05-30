@@ -331,6 +331,21 @@ const approveCtoApplicationService = async ({
   assertObjectId(safeApproverId, "Approver ID");
   assertObjectId(safeAppId, "Application ID");
 
+  // Fetch approver early to validate signature before beginning transaction
+  const approver = await Employee.findById(safeApproverId)
+    .select("username firstName lastName email signature")
+    .lean();
+
+  if (!approver) {
+    throw createServiceError("Approver profile not found.", 404);
+  }
+  if (!approver.signature) {
+    throw createServiceError(
+      "Action requires an e-signature. Please upload a signature in your profile.",
+      400,
+    );
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -366,10 +381,19 @@ const approveCtoApplicationService = async ({
         400,
       );
 
-    // Update approval step securely via $set
+    // Update approval step securely via $set, snapshotting the signature
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
-      { $set: { status: CTO_STATUS.APPROVED, reviewedAt: new Date() } },
+      {
+        $set: {
+          status: CTO_STATUS.APPROVED,
+          reviewedAt: new Date(),
+          approverSignature: {
+            signatureUrl: approver.signature,
+            signedAt: new Date(),
+          },
+        },
+      },
       { session, runValidators: true },
     );
 
@@ -458,10 +482,6 @@ const approveCtoApplicationService = async ({
     session.endSession();
 
     // Background Logging and Notifications (Post-Transaction)
-    const approver = await Employee.findById(safeApproverId)
-      .select("username firstName lastName")
-      .lean();
-
     const auditBody = {
       approverId: safeApproverId,
       applicationId: safeAppId,
@@ -565,6 +585,21 @@ const rejectCtoApplicationService = async ({
 
   const safeRemarks = sanitizeString(remarks, 1000) || "No remarks provided";
 
+  // Fetch approver early to validate signature before beginning transaction
+  const approver = await Employee.findById(safeApproverId)
+    .select("username firstName lastName email signature")
+    .lean();
+
+  if (!approver) {
+    throw createServiceError("Approver profile not found.", 404);
+  }
+  if (!approver.signature) {
+    throw createServiceError(
+      "Action requires an e-signature. Please upload a signature in your profile.",
+      400,
+    );
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -638,7 +673,7 @@ const rejectCtoApplicationService = async ({
       }
     }
 
-    // Update current step to rejected securely via $set
+    // Update current step to rejected securely via $set, snapshotting the signature
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
@@ -646,6 +681,10 @@ const rejectCtoApplicationService = async ({
           status: CTO_STATUS.REJECTED,
           remarks: safeRemarks,
           reviewedAt: new Date(),
+          approverSignature: {
+            signatureUrl: approver.signature,
+            signedAt: new Date(),
+          },
         },
       },
       { session, runValidators: true },
@@ -678,10 +717,6 @@ const rejectCtoApplicationService = async ({
     session.endSession();
 
     // Background Logging and Notifications (Post-Transaction)
-    const approver = await Employee.findById(safeApproverId)
-      .select("username firstName lastName")
-      .lean();
-
     const auditBody = {
       approverId: safeApproverId,
       applicationId: safeAppId,

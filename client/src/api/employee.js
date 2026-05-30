@@ -1,3 +1,4 @@
+// src/api/employee.js
 import API from "./api";
 
 export const addEmployee = async (credentials) => {
@@ -48,13 +49,29 @@ export const updateMyProfile = async (updateData) => {
   return res.data;
 };
 
+// ==========================================
+// Signature Upload
+// ==========================================
+export const uploadMySignature = async (file) => {
+  const fd = new FormData();
+  fd.append("signature", file);
+
+  const res = await API.post("/employee/my-profile/signature", fd, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    withCredentials: true,
+  });
+  return res.data;
+};
+
 export const resetMyPassword = async (updateData) => {
   const res = await API.put(`/employee/my-profile/reset-password`, updateData);
   return res.data;
 };
 
 // ==========================================
-// NEW: Wellness Balance Endpoints
+// Wellness Balance Endpoints
 // ==========================================
 
 export const getEmployeeWellnessBalanceById = async (id) => {

@@ -158,7 +158,6 @@ export const cancelCtoApplicationRequest = async (applicationId) => {
 
 export const addOrganicApplicationRequest = async (payload) => {
   try {
-    // Assuming your router is mounted at /cto in your main Express app
     const res = await API.post("/cto/organic-applications/apply", payload, {
       withCredentials: true,
     });

@@ -11,6 +11,7 @@ const {
   updateProfile,
   resetPassword,
   getEmployeeWellnessBalanceService,
+  uploadSignatureService, // ✅ NEW: Import the new service
 } = require("../services/employeeService");
 
 function sendError(res, err) {
@@ -93,7 +94,6 @@ const getEmployeeById = async (req, res) => {
   }
 };
 
-// ✅ UPDATED: Added path: "/" to fix the login loop
 const signInEmployee = async (req, res) => {
   try {
     const { token, payload } = await signInEmployeeService(
@@ -101,30 +101,27 @@ const signInEmployee = async (req, res) => {
       req.body.password,
     );
 
-    // Set the HttpOnly cookie
     res.cookie("token", token, {
-      httpOnly: true, // Prevents JavaScript from accessing the cookie
-      secure: process.env.NODE_ENV === "production", // Requires HTTPS in prod
-      sameSite: "lax", // Prevents CSRF attacks
-      maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds (adjust as needed)
-      path: "/", // ✅ CRITICAL: Tells the browser to use this cookie for the entire app
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
     });
 
-    // Send only the admin payload back to the frontend
     return res.json({ message: "Login successful", admin: payload });
   } catch (err) {
     return res.status(err.statusCode || 401).json({ message: err.message });
   }
 };
 
-// ✅ UPDATED: Added path: "/" so the browser knows exactly which cookie to delete
 const logoutEmployee = async (req, res) => {
   try {
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/", // ✅ CRITICAL: Must match the path used when setting the cookie
+      path: "/",
     });
     return res.status(200).json({ message: "Logged out successfully" });
   } catch (err) {
@@ -207,8 +204,35 @@ const updateMyProfile = async (req, res) => {
     const employeeId = req.user?.id;
     if (!employeeId) return res.status(401).json({ error: "Unauthorized" });
 
+    // Handles standard text fields (address, emergency contact, etc.)
     const updatedEmployee = await updateProfile(employeeId, req.body);
     return res.json(updatedEmployee);
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
+
+// ✅ NEW: Dedicated signature upload controller
+const uploadSignature = async (req, res) => {
+  try {
+    const employeeId = req.user?.id;
+    if (!employeeId) return res.status(401).json({ error: "Unauthorized" });
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No signature file provided" });
+    }
+
+    const signaturePath = req.file.path.replace(/\\/g, "/");
+    const updatedEmployee = await uploadSignatureService(
+      employeeId,
+      signaturePath,
+    );
+
+    return res.json({
+      success: true,
+      message: "Signature uploaded successfully",
+      data: updatedEmployee,
+    });
   } catch (err) {
     return sendError(res, err);
   }
@@ -267,6 +291,7 @@ module.exports = {
   getMyCtoMemos,
   getMyProfile,
   updateMyProfile,
+  uploadSignature,
   resetMyPassword,
   getEmployeeWellnessBalanceById,
   getMyWellnessBalance,

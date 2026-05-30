@@ -4,8 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { addApplicationRequest, fetchMyCtoMemos } from "../../../../api/cto";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
+import { getMyProfile } from "../../../../api/employee"; // Ensure this path matches your directory structure
 import { useAuth } from "../../../../store/authStore";
-import { AlertCircle, X, UserCheck } from "lucide-react";
+import { AlertCircle, X, UserCheck, PenTool, Loader2 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import Breadcrumbs from "../../../breadCrumbs";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -216,6 +217,16 @@ const AddOrganicCtoApplicationForm = () => {
     };
   }, []);
 
+  // Fetch live profile to check for signature
+  const { data: profileData, isLoading: isProfileLoading } = useQuery({
+    queryKey: ["myProfile"],
+    queryFn: getMyProfile,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
+  // Evaluate signature availability (fallback to store data just in case)
+  const hasSignature = Boolean(profileData?.signature || admin?.signature);
+
   const {
     data: workingDaysRes,
     isLoading: workingDaysLoading,
@@ -285,6 +296,7 @@ const AddOrganicCtoApplicationForm = () => {
   });
 
   const isBusy = mutation.isPending || successLatchUI;
+  const isFormDisabled = !hasSignature || isProfileLoading || isBusy;
 
   const myRoute = useMemo(() => {
     if (!routesResponse || !Array.isArray(routesResponse)) return null;
@@ -480,6 +492,7 @@ const AddOrganicCtoApplicationForm = () => {
   };
 
   const handleDateRemove = (date) => {
+    if (isFormDisabled) return;
     clearBanner();
     setFormData((prev) => ({
       ...prev,
@@ -575,7 +588,8 @@ const AddOrganicCtoApplicationForm = () => {
       successLatchRef.current ||
       submitInFlightRef.current ||
       mutation.isPending ||
-      successLatchUI
+      successLatchUI ||
+      !hasSignature
     )
       return;
     submitInFlightRef.current = true;
@@ -629,7 +643,7 @@ const AddOrganicCtoApplicationForm = () => {
     }
   };
 
-  const dateDisabled = !formData.requestedHours;
+  const dateDisabled = !formData.requestedHours || isFormDisabled;
 
   return (
     <div
@@ -666,6 +680,39 @@ const AddOrganicCtoApplicationForm = () => {
             className="flex flex-col"
           >
             <div className="px-6 py-4">
+              {/* Missing Signature Warning Block */}
+              {isProfileLoading ? (
+                <div className="mb-6 p-4 bg-gray-50 border-l-4 border-gray-300 rounded flex items-center gap-3 shadow-sm">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Checking signature configuration...
+                  </span>
+                </div>
+              ) : !hasSignature ? (
+                <div className="mb-6 p-4 bg-orange-50 border-l-4 border-orange-500 rounded flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-3 text-orange-800">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <div>
+                      <h4 className="font-bold text-sm">
+                        E-Signature Required
+                      </h4>
+                      <p className="text-xs">
+                        You do not currently have a digital signature
+                        configured. A signature is required to file a leave
+                        application.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/app/my-profile")}
+                    className="flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded shadow transition-colors"
+                  >
+                    <PenTool size={14} /> Upload Signature
+                  </button>
+                </div>
+              ) : null}
+
               <Banner
                 tone={banner.tone}
                 message={banner.message}
@@ -709,7 +756,9 @@ const AddOrganicCtoApplicationForm = () => {
               </div>
 
               {/* DETAILS OF APPLICATION */}
-              <div className="border border-black">
+              <div
+                className={`border border-black ${isFormDisabled ? "opacity-60 pointer-events-none" : ""}`}
+              >
                 <div className="bg-gray-200 border-b border-black text-center font-bold py-1.5 uppercase text-sm tracking-widest">
                   6. Details of Application
                 </div>
@@ -751,8 +800,8 @@ const AddOrganicCtoApplicationForm = () => {
                         min={1}
                         step={1}
                         max={300}
-                        disabled={isBusy}
-                        className="border-b-2 border-black w-32 text-center outline-none bg-transparent font-bold text-lg mb-1"
+                        disabled={isFormDisabled}
+                        className="border-b-2 border-black w-32 text-center outline-none bg-transparent font-bold text-lg mb-1 disabled:opacity-50"
                       />
                       <span className="text-[10px] text-gray-500 uppercase">
                         Hours
@@ -773,7 +822,9 @@ const AddOrganicCtoApplicationForm = () => {
                           onInput={handleDateInput}
                           onChange={handleDateCommit}
                           disabled={dateDisabled}
-                          className={`border outline-none p-1.5 text-xs bg-transparent w-full ${dateError ? "border-red-500" : "border-gray-400"}`}
+                          className={`border outline-none p-1.5 text-xs bg-transparent w-full disabled:bg-gray-100 disabled:opacity-50 ${
+                            dateError ? "border-red-500" : "border-gray-400"
+                          }`}
                         />
                       </div>
 
@@ -797,8 +848,9 @@ const AddOrganicCtoApplicationForm = () => {
                               {date}
                               <button
                                 type="button"
+                                disabled={isFormDisabled}
                                 onClick={() => handleDateRemove(date)}
-                                className="text-red-500 hover:text-red-700"
+                                className="text-red-500 hover:text-red-700 disabled:opacity-50"
                               >
                                 <X size={12} />
                               </button>
@@ -816,26 +868,30 @@ const AddOrganicCtoApplicationForm = () => {
                         6.D Commutation
                       </h3>
                       <div className="space-y-2">
-                        <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <label
+                          className={`flex items-center gap-2 text-xs ${!isFormDisabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+                        >
                           <input
                             type="radio"
                             name="commutation"
                             value="Not Requested"
                             checked={formData.commutation === "Not Requested"}
                             onChange={handleChange}
-                            disabled={isBusy}
+                            disabled={isFormDisabled}
                             className="accent-black"
                           />
                           Not Requested
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <label
+                          className={`flex items-center gap-2 text-xs ${!isFormDisabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+                        >
                           <input
                             type="radio"
                             name="commutation"
                             value="Requested"
                             checked={formData.commutation === "Requested"}
                             onChange={handleChange}
-                            disabled={isBusy}
+                            disabled={isFormDisabled}
                             className="accent-black"
                           />
                           Requested
@@ -851,7 +907,8 @@ const AddOrganicCtoApplicationForm = () => {
                         <button
                           type="button"
                           onClick={() => setIsMemoModalOpen(true)}
-                          className="text-[10px] border border-blue-700 text-blue-700 px-2 py-1 hover:bg-blue-50"
+                          disabled={isFormDisabled}
+                          className="text-[10px] border border-blue-700 text-blue-700 px-2 py-1 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-transparent"
                         >
                           Select Memos
                         </button>
@@ -890,8 +947,8 @@ const AddOrganicCtoApplicationForm = () => {
                     onChange={handleChange}
                     rows="2"
                     maxLength={MAX_REASON_LEN}
-                    disabled={isBusy}
-                    className="w-full border border-gray-400 p-2 text-xs outline-none resize-none bg-transparent"
+                    disabled={isFormDisabled}
+                    className="w-full border border-gray-400 p-2 text-xs outline-none resize-none bg-transparent disabled:opacity-50 disabled:bg-gray-50"
                     placeholder="Enter justification for leave..."
                   />
                 </div>
@@ -938,7 +995,7 @@ const AddOrganicCtoApplicationForm = () => {
             </div>
 
             {/* Sticky Submit Footer */}
-            <div className="border-t border-gray-300 px-6 py-4 flex flex-row items-center justify-end gap-3 sticky bottom-0 bg-white">
+            <div className="border-t border-gray-300 px-6 py-4 flex flex-row items-center justify-end gap-3 sticky bottom-0 bg-white z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <button
                 type="button"
                 disabled={mutation.isPending}
@@ -950,19 +1007,23 @@ const AddOrganicCtoApplicationForm = () => {
               <button
                 type="submit"
                 disabled={
-                  isBusy ||
+                  isFormDisabled ||
                   (workingDaysLoading && !workingDaysIsError) ||
                   !hasValidApprovalRoute
                 }
-                className="px-8 py-2 rounded font-semibold text-sm disabled:opacity-70 text-white bg-blue-600 hover:bg-blue-700"
+                className="px-8 py-2 rounded font-semibold text-sm disabled:opacity-70 disabled:cursor-not-allowed text-white bg-blue-600 hover:bg-blue-700 transition-colors"
               >
-                {workingDaysLoading
-                  ? "Loading..."
-                  : mutation.isPending
-                    ? "Submitting..."
-                    : successLatchUI
-                      ? "Submitted"
-                      : "Submit CTO Application"}
+                {isProfileLoading
+                  ? "Checking Status..."
+                  : !hasSignature
+                    ? "Signature Required"
+                    : workingDaysLoading
+                      ? "Loading..."
+                      : mutation.isPending
+                        ? "Submitting..."
+                        : successLatchUI
+                          ? "Submitted"
+                          : "Submit CTO Application"}
               </button>
             </div>
           </form>

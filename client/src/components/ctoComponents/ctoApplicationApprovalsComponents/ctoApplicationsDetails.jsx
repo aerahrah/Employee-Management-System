@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  FileBadge,
+  PenTool,
 } from "lucide-react";
 import { StatusIcon, StatusBadge } from "../../statusUtils";
 import { useAuth } from "../../../store/authStore";
@@ -28,6 +30,7 @@ import {
   rejectApplicationRequest,
   getCtoApplicationById,
 } from "../../../api/cto";
+import { getMyProfile } from "../../../api/employee";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { useNavigate, useParams } from "react-router-dom";
@@ -36,6 +39,7 @@ import MemoList from "../ctoMemoModal";
 import { buildApiUrl } from "../../../config/env";
 
 import CtoApplicationPdfModal from "../ctoApplicationComponents/ctoApplicationPDFModal";
+import OrganicApplicationPdfModal from "../ctoApplicationComponents/organicApplicationPDFModal";
 
 /* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
@@ -632,6 +636,28 @@ const TimelineCard = ({ approval, index, isLast }) => {
             </p>
           </div>
         )}
+
+        {approval.approverSignature?.signatureUrl && (
+          <div
+            className="mt-4 pt-4 border-t border-dashed"
+            style={{ borderColor: "var(--app-border)" }}
+          >
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">
+              E-Signature
+            </p>
+            <img
+              src={buildApiUrl(approval.approverSignature.signatureUrl)}
+              alt="Approver Signature"
+              className="h-12 object-contain"
+            />
+            {approval.approverSignature?.signedAt && (
+              <p className="text-[10px] text-slate-500 mt-1">
+                Signed on:{" "}
+                {new Date(approval.approverSignature.signedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -965,6 +991,7 @@ const CtoApplicationDetails = () => {
   const canManageApplication = can("cto.manage_application");
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
@@ -981,13 +1008,21 @@ const CtoApplicationDetails = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [memoModal, setMemoModal] = useState({ isOpen: false, memos: [] });
   const [isPdfOpen, setIsPdfOpen] = useState(false);
+  const [isOrganicPdfOpen, setIsOrganicPdfOpen] = useState(false);
 
-  // FIXED: Explicitly grab robust user ID check to prevent disabled states silently dropping
   const currentUserId = admin?.id || admin?._id;
+
+  const { data: profileData, isLoading: isProfileLoading } = useQuery({
+    queryKey: ["myProfile"],
+    queryFn: getMyProfile,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const hasSignature = Boolean(profileData?.signature || admin?.signature);
 
   const {
     data: application,
-    isPending, // FIXED: Replaced isLoading with isPending to handle disabled queries waiting for auth
+    isPending,
     isError,
     error,
     isFetching,
@@ -996,6 +1031,10 @@ const CtoApplicationDetails = () => {
     queryFn: () => getCtoApplicationById(id),
     enabled: !!currentUserId && !!id,
   });
+
+  const isOrganicApp =
+    application?.employeeType === "Organic" ||
+    application?.category === "Organic";
 
   const requestedDatesLabel = useMemo(() => {
     const dates = application?.inclusiveDates || [];
@@ -1067,9 +1106,9 @@ const CtoApplicationDetails = () => {
     setIsProcessed(false);
     setRemarks("");
     setIsPdfOpen(false);
+    setIsOrganicPdfOpen(false);
   }, [application]);
 
-  // FIXED: Trigger skeleton while auth is loading OR while data is fetching without cached data
   if (isPending || (isFetching && !application))
     return (
       <>
@@ -1108,7 +1147,6 @@ const CtoApplicationDetails = () => {
     application.employee?.lastName?.[0] || ""
   }`;
 
-  // FIXED: Adjusted to use currentUserId for robustness
   const currentStep = application.approvals?.find(
     (step) => String(step.approver?._id) === String(currentUserId),
   );
@@ -1203,7 +1241,26 @@ const CtoApplicationDetails = () => {
         {/* ACTION BUTTONS */}
         <div className="flex flex-row items-center gap-2 sm:gap-3 pt-1 bg-transparent rounded-xl w-full md:w-auto">
           {canApproveOrReject ? (
-            canManageApplication && (
+            canManageApplication &&
+            (isProfileLoading ? (
+              <span
+                className="text-sm font-medium px-4 py-2"
+                style={{ color: "var(--app-muted)" }}
+              >
+                Checking status...
+              </span>
+            ) : !hasSignature ? (
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border"
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.1)",
+                  borderColor: "rgba(239,68,68,0.2)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={14} /> Signature Required
+              </div>
+            ) : (
               <>
                 <button
                   onClick={() => {
@@ -1248,7 +1305,7 @@ const CtoApplicationDetails = () => {
                     : "Approve Request"}
                 </button>
               </>
-            )
+            ))
           ) : (
             <div
               className="px-4 py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold border w-full sm:w-auto"
@@ -1266,6 +1323,29 @@ const CtoApplicationDetails = () => {
 
       {/* CONTENT */}
       <div className="flex h-full flex-1 min-h-0 overflow-y-auto app-scrollbar flex-col gap-4 px-3 sm:px-4 py-2">
+        {/* Missing Signature Banner */}
+        {canApproveOrReject && !isProfileLoading && !hasSignature && (
+          <div className="mb-2 p-4 bg-orange-50 border-l-4 border-orange-500 rounded flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3 text-orange-800">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm">E-Signature Required</h4>
+                <p className="text-xs">
+                  You do not currently have a digital signature configured. A
+                  signature is required to process leave applications.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/app/my-profile")}
+              className="flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded shadow transition-colors"
+            >
+              <PenTool size={14} /> Upload Signature
+            </button>
+          </div>
+        )}
+
         {/* QUICK STATS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
           <div
@@ -1534,7 +1614,7 @@ const CtoApplicationDetails = () => {
                   backgroundColor: "var(--app-surface)",
                   color: "var(--app-text)",
                 }}
-                title="View Application PDF"
+                title="View General PDF"
               >
                 <span className="inline-flex items-center gap-2 min-w-0">
                   <span
@@ -1547,7 +1627,7 @@ const CtoApplicationDetails = () => {
                   >
                     <FileText size={16} />
                   </span>
-                  <span className="truncate">Application Form</span>
+                  <span className="truncate">General Form</span>
                 </span>
 
                 <span
@@ -1561,6 +1641,45 @@ const CtoApplicationDetails = () => {
                   PDF
                 </span>
               </button>
+
+              {isOrganicApp && (
+                <button
+                  type="button"
+                  onClick={() => setIsOrganicPdfOpen(true)}
+                  className="mt-2 w-full inline-flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold hover:bg-[color:var(--app-surface-2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 transition"
+                  style={{
+                    borderColor: borderColor,
+                    backgroundColor: "var(--app-surface)",
+                    color: "var(--app-text)",
+                  }}
+                  title="View CSC Form 6"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <span
+                      className="h-8 w-8 rounded-lg flex items-center justify-center flex-none border"
+                      style={{
+                        backgroundColor: "rgba(59,130,246,0.12)",
+                        color: "#3b82f6",
+                        borderColor: "rgba(59,130,246,0.20)",
+                      }}
+                    >
+                      <FileBadge size={16} />
+                    </span>
+                    <span className="truncate">CSC Form 6</span>
+                  </span>
+
+                  <span
+                    className="text-[9px] font-bold px-2 py-1 rounded-lg flex-none border"
+                    style={{
+                      color: "var(--app-muted)",
+                      borderColor: "var(--app-border)",
+                      backgroundColor: "var(--app-surface-2)",
+                    }}
+                  >
+                    PDF
+                  </span>
+                </button>
+              )}
 
               <div className="mt-5 md:mt-7 flex items-center justify-between gap-3">
                 <h4
@@ -1782,6 +1901,12 @@ const CtoApplicationDetails = () => {
         app={application}
         isOpen={isPdfOpen}
         onClose={() => setIsPdfOpen(false)}
+      />
+
+      <OrganicApplicationPdfModal
+        app={application}
+        isOpen={isOrganicPdfOpen}
+        onClose={() => setIsOrganicPdfOpen(false)}
       />
     </div>
   );

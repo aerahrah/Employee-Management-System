@@ -95,6 +95,14 @@ const CtoApplicationSchema = new mongoose.Schema(
     // ORGANIC-SPECIFIC FIELDS (Conditionally Required)
     // =========================================
 
+    // Snapshot of the applicant's digital signature at the time of submission
+    applicantSignatureUrl: {
+      type: String,
+      required: function () {
+        return this.employeeType === "Organic";
+      },
+    },
+
     // Derived from Section 6.D
     commutation: {
       type: String,

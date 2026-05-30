@@ -104,6 +104,12 @@ app.use(
   express.static(path.join(process.cwd(), "uploads", "cto_memos")),
 );
 
+// ✅ NEW: Added static path for signatures so they can be viewed/rendered in PDFs
+app.use(
+  "/uploads/signatures",
+  express.static(path.join(process.cwd(), "uploads", "signatures")),
+);
+
 /* ======================================================
    CORS
 ====================================================== */

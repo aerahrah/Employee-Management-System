@@ -77,6 +77,7 @@ const getCtoApplicationById = async (req, res, next) => {
     console.log("Raw ID received:", applicationId);
     console.log("Type:", typeof applicationId);
     console.log("Length:", applicationId ? applicationId.length : "N/A");
+
     const application = await getCtoApplicationByIdService(applicationId);
 
     return res.status(200).json({

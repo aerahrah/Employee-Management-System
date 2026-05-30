@@ -119,6 +119,13 @@ const employeeSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ✅ Added signature field for organic personnel
+    signature: {
+      type: String,
+      trim: true,
+      default: null, // Intended to store a file path, URL, or base64 string
+    },
+
     balances: {
       vlHours: {
         type: Number,

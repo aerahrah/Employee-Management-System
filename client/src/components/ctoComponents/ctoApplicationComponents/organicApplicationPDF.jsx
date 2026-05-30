@@ -64,6 +64,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#eee",
     marginRight: 10,
   },
+  headerTextWrapper: {
+    flex: 1,
+  },
+  headerTextSmall: {
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+  },
+  headerTextMain: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#003366", // Approximate DICT blue
+  },
   stampBox: {
     width: 100,
     height: 35,
@@ -211,6 +223,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   sigLine: {
+    position: "relative",
     borderBottomWidth: 1,
     borderBottomColor: "#000",
     width: "80%",
@@ -233,6 +246,13 @@ const styles = StyleSheet.create({
     bottom: 12,
     textAlign: "right",
   },
+  applicantSignature: {
+    height: 35,
+    width: 120,
+    objectFit: "contain",
+    position: "absolute",
+    bottom: 2, // Seats the image right above the underline
+  },
 });
 
 /* =========================
@@ -252,7 +272,7 @@ const CheckboxItem = ({ label, law, checked }) => (
 /* =========================
    Main Component
 ========================= */
-export default function OrganicApplicationPdf({ app, logoSrc }) {
+export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
   // Safe extraction of employee details
   const emp = app?.employee || {};
   const office = emp.officeDivision || emp.department || "ADMIN AND FINANCE";
@@ -275,6 +295,9 @@ export default function OrganicApplicationPdf({ app, logoSrc }) {
   const isCommutationReq = app?.commutation === "Requested";
   const isCommutationNotReq =
     app?.commutation === "Not Requested" || !isCommutationReq;
+
+  // Final Signature Source
+  const finalSignatureSrc = signatureSrc || emp.signature || null;
 
   return (
     <Document title={`Leave Application - ${lastName}`}>
@@ -642,7 +665,14 @@ export default function OrganicApplicationPdf({ app, logoSrc }) {
 
               <View style={[styles.sigBlock, { marginTop: 10 }]}>
                 <View style={styles.sigLine}>
-                  <Text style={styles.sigName}></Text>
+                  {finalSignatureSrc ? (
+                    <Image
+                      src={finalSignatureSrc}
+                      style={styles.applicantSignature}
+                    />
+                  ) : (
+                    <Text style={styles.sigName}></Text>
+                  )}
                 </View>
                 <Text style={styles.sigRole}>(Signature of Applicant)</Text>
                 {/* Fake digital sig text as seen in image */}

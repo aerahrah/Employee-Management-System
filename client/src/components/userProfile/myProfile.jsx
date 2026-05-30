@@ -14,10 +14,12 @@ import {
   Edit3,
   KeyRound,
   AlertCircle,
+  PenTool, // ✅ Added for signature placeholder
 } from "lucide-react";
 import { getMyProfile } from "../../api/employee";
 import { useAuth } from "../../store/authStore";
-import { usePermissions } from "../../hooks/usePermissions"; // ✅ Imported permissions hook
+import { usePermissions } from "../../hooks/usePermissions";
+import { buildApiUrl } from "../../config/env"; // ✅ Imported to build image URL
 
 /* ------------------ Resolve theme (same basis as CTO Credit History) ------------------ */
 function resolveTheme(prefTheme) {
@@ -609,6 +611,13 @@ const MyProfile = () => {
   const profile = data?.data ?? data ?? {};
   const projectName = profile.project?.name || "";
 
+  // ✅ Check if employee is Organic to display signature
+  const isOrganic =
+    profile?.employeeType === "Organic" || profile?.contractType === "Organic";
+  const signaturePreview = profile?.signature
+    ? buildApiUrl(profile.signature)
+    : null;
+
   return (
     <div
       className="min-h-screen px-1 py-2 transition-colors duration-300 ease-out"
@@ -670,6 +679,56 @@ const MyProfile = () => {
           </div>
 
           <div className="lg:col-span-8 space-y-6">
+            {/* ✅ NEW DIGITAL SIGNATURE DISPLAY (View-Only) */}
+            {isOrganic && (
+              <Section title="Digital Signature" borderColor={borderColor}>
+                <div className="flex flex-col md:flex-row gap-6 items-start">
+                  <div className="w-full md:w-1/3 flex flex-col items-center gap-3">
+                    <div
+                      className="w-full h-32 border-2 border-dashed rounded-xl flex items-center justify-center overflow-hidden transition-colors"
+                      style={{
+                        backgroundColor: "var(--app-surface-2)",
+                        borderColor: borderColor,
+                      }}
+                    >
+                      {signaturePreview ? (
+                        <img
+                          src={signaturePreview}
+                          alt="Signature Preview"
+                          className="max-w-full max-h-full object-contain p-2"
+                        />
+                      ) : (
+                        <div
+                          className="text-center"
+                          style={{ color: "var(--app-muted)" }}
+                        >
+                          <PenTool className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <span className="text-xs">No signature</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 space-y-2 py-2">
+                    <h4
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      Your E-Signature
+                    </h4>
+                    <p
+                      className="text-xs leading-relaxed"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      This signature is securely attached to your generated PDF
+                      forms (e.g., CSC Form 6). To update or change your
+                      signature, click the "Edit Profile" button above.
+                    </p>
+                  </div>
+                </div>
+              </Section>
+            )}
+
             <Section title="Employment Details" borderColor={borderColor}>
               <div className="space-y-1">
                 <InfoRow

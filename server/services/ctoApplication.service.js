@@ -75,9 +75,14 @@ const populateApplicationById = async (applicationId) => {
   assertObjectId(applicationId, "Application ID");
 
   const app = await CtoApplication.findById(applicationId)
-    .populate("employee", "firstName lastName position email employeeId")
+    // ✅ Make sure signature is retrieved for the PDF Generator!
+    .populate(
+      "employee",
+      "firstName lastName position email employeeId signature",
+    )
     .populate({
       path: "approvals",
+      // approverSignature is inherently fetched here because we didn't restrict the ApprovalStep fields
       populate: {
         path: "approver",
         select: "firstName lastName position email",
@@ -218,11 +223,29 @@ const addCtoApplicationService = async ({
     throw createServiceError("Employee type is required.", 400);
   }
 
-  if (employeeType === "Organic") {
+  const employee = await Employee.findById(userId).lean();
+  if (!employee) {
+    throw createServiceError("Employee not found.", 404);
+  }
+
+  const isOrganic =
+    employee.employeeType === "Organic" ||
+    employee.contractType === "Organic" ||
+    employeeType === "Organic";
+
+  // ✅ ENFORCE RULE: Organic employees MUST have a signature before applying
+  if (isOrganic) {
     if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
       throw createServiceError(
         "Commutation is required and must be either 'Requested' or 'Not Requested' for Organic employees.",
         400,
+      );
+    }
+
+    if (!employee.signature) {
+      throw createServiceError(
+        "A digital signature is required to process CSC Form 6. Please upload your signature in your profile before applying.",
+        403, // Forbidden/Requirement not met
       );
     }
   }
@@ -257,11 +280,6 @@ const addCtoApplicationService = async ({
     assertObjectId(m.memoId, "Memo ID");
     return { ...m, appliedHours: hours };
   });
-
-  const employee = await Employee.findById(userId).lean();
-  if (!employee) {
-    throw createServiceError("Employee not found.", 404);
-  }
 
   const memoIds = sanitizedMemos.map((m) => m.memoId);
   const credits = await CtoCredit.find({
@@ -354,8 +372,10 @@ const addCtoApplicationService = async ({
     overallStatus: "PENDING",
   };
 
-  if (employeeType === "Organic") {
+  if (isOrganic) {
     applicationPayload.commutation = commutation;
+    // ✅ Snapshot the signature into the application exactly as it exists now
+    applicationPayload.applicantSignatureUrl = employee.signature;
   }
 
   if (certificationOfLeaveCredits)
@@ -546,17 +566,20 @@ const getAllCtoApplicationsService = async (
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
-        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation",
+        // ✅ Make sure applicantSignatureUrl is selected from CtoApplication
+        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl",
       )
       .populate({
         path: "approvals",
         options: { sort: { level: 1 } },
+        // approverSignature is inherently fetched here because we didn't restrict the ApprovalStep fields
         populate: {
           path: "approver",
           select: "firstName lastName position _id",
         },
       })
-      .populate("employee", "firstName lastName position _id")
+      // ✅ Also grab the fallback signature from the employee if available
+      .populate("employee", "firstName lastName position _id signature")
       .populate("memo.memoId", "memoNo uploadedMemo totalHours appliedHours")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -723,6 +746,7 @@ const getCtoApplicationsByEmployeeService = async (
             status: 1,
             reviewedAt: 1,
             remarks: 1,
+            approverSignature: 1, // ✅ Added to project the signature out of the aggregation!
             approver: {
               _id: "$approver._id",
               firstName: "$approver.firstName",
@@ -757,6 +781,8 @@ const getCtoApplicationsByEmployeeService = async (
         firstName: "$employeeDoc.firstName",
         lastName: "$employeeDoc.lastName",
         position: "$employeeDoc.position",
+        // ✅ Add signature from the employee lookup
+        signature: "$employeeDoc.signature",
       },
     },
   });

@@ -657,6 +657,26 @@ const updateProfile = async (employeeId, updateData = {}) => {
   return updatedEmployee;
 };
 
+const uploadSignatureService = async (employeeId, signaturePath) => {
+  if (!mongoose.isValidObjectId(employeeId)) {
+    throw httpError("Invalid Employee ID", 400);
+  }
+
+  const employee = await Employee.findByIdAndUpdate(
+    employeeId,
+    { $set: { signature: signaturePath } },
+    { new: true, runValidators: true },
+  )
+    .select("-password -loginAttempts -lockUntil -__v")
+    .lean();
+
+  if (!employee) {
+    throw httpError("Employee not found", 404);
+  }
+
+  return employee;
+};
+
 const resetPassword = async (employeeId, oldPassword, newPassword) => {
   if (!mongoose.isValidObjectId(employeeId))
     throw httpError("Invalid Employee ID", 400);
@@ -711,4 +731,5 @@ module.exports = {
   signInEmployeeService,
   getEmployeeCtoMemos,
   getEmployeeWellnessBalanceService,
+  uploadSignatureService,
 };
