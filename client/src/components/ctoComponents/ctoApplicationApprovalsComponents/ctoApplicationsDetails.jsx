@@ -639,17 +639,9 @@ const TimelineCard = ({ approval, index, isLast }) => {
 
         {approval.approverSignature?.signatureUrl && (
           <div
-            className="mt-4 pt-4 border-t border-dashed"
+            className="mt-4 border-t border-dashed"
             style={{ borderColor: "var(--app-border)" }}
           >
-            <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">
-              E-Signature
-            </p>
-            <img
-              src={buildApiUrl(approval.approverSignature.signatureUrl)}
-              alt="Approver Signature"
-              className="h-12 object-contain"
-            />
             {approval.approverSignature?.signedAt && (
               <p className="text-[10px] text-slate-500 mt-1">
                 Signed on:{" "}

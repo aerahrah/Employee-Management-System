@@ -47,6 +47,8 @@ import AllWellnessApplicationsHistory from "./components/wellnessComponents/well
 import WellnessCreditHistory from "./components/wellnessComponents/wellnessCreditComponents/recentWellnessCreditHistory";
 import AddWellnessCreditForm from "./components/wellnessComponents/wellnessCreditComponents/forms/addWellnessCreditForm";
 import AddWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addWellnessApplicationForm";
+// ✅ Imported Organic Wellness Form
+import AddOrganicWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addOrganicWellnessApplicationForm";
 
 /* Organic Leave Components */
 import AddOrganicLeaveApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addOrganicLeaveForm";
@@ -252,6 +254,10 @@ function App() {
               path="wellness-apply/add"
               element={<AddWellnessApplicationForm />}
             />
+            <Route
+              path="wellness-apply/organic"
+              element={<AddOrganicWellnessApplicationForm />}
+            />
           </Route>
 
           {/* Organic Leaves Self Service Form */}
@@ -261,7 +267,7 @@ function App() {
             }
           >
             <Route
-              path="organic-apply/add"
+              path="cto-apply/organic"
               element={<AddOrganicLeaveApplicationForm />}
             />
           </Route>

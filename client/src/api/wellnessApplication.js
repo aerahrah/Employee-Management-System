@@ -47,6 +47,7 @@ export const fetchMyWellnessApplications = async (params = {}) => {
       "/wellness/applications/my-application",
       withCreds(params),
     );
+
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch your Wellness Leave applications");
@@ -62,6 +63,7 @@ export const fetchEmployeeWellnessApplications = async (
       `/wellness/applications/employee/${employeeId}`,
       withCreds(params),
     );
+
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch employee's Wellness Leave applications");
@@ -115,6 +117,7 @@ export const getWellnessApplicationById = async (id) => {
       `/wellness/applications/approvers/my-approvals/${id}`,
       withCreds(),
     );
+    console.log(res);
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave application details");

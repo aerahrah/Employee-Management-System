@@ -109,10 +109,15 @@ const getWellnessApplicationsForApproverService = async (
   const approvalSteps = await ApprovalStep.find({ approver: approverId })
     .populate({
       path: "wellnessApplication",
+      // ✅ Included ALL CSC Form 6 fields so approvers can render the organic PDF
+      select:
+        "employee approvals overallStatus inclusiveDates totalDays reason createdAt employeeType commutation applicantSignatureUrl certificationOfLeaveCredits actionDetails",
       populate: [
-        { path: "employee", select: "firstName lastName position" },
+        { path: "employee", select: "firstName lastName position signature" },
         {
           path: "approvals",
+          // ✅ Added role and approverSignature
+          select: "approver status level role approverSignature",
           populate: {
             path: "approver",
             select: "firstName lastName position _id",
@@ -120,7 +125,8 @@ const getWellnessApplicationsForApproverService = async (
         },
       ],
     })
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 
   const appMap = new Map();
   for (const step of approvalSteps) {
@@ -231,12 +237,17 @@ const getWellnessApplicationByIdService = async (wellnessApplicationId) => {
   const application = await WellnessApplication.findById(wellnessApplicationId)
     .populate({
       path: "employee",
-      select: "firstName lastName position department",
+      select: "firstName lastName position department signature employeeId",
     })
     .populate({
       path: "approvals",
-      populate: { path: "approver", select: "firstName lastName position" },
-    });
+      select: "-__v", // ✅ Ensure role and approverSignature flow through
+      populate: {
+        path: "approver",
+        select: "firstName lastName position email",
+      },
+    })
+    .lean();
 
   if (!application) throw httpError("Wellness Application not found", 404);
 
@@ -253,6 +264,21 @@ const approveWellnessApplicationService = async ({
 }) => {
   assertObjectId(approverId, "approverId");
   assertObjectId(applicationId, "applicationId");
+
+  // ✅ Fetch approver early to validate signature before beginning transaction
+  const approver = await Employee.findById(approverId)
+    .select("username firstName lastName email signature")
+    .lean();
+
+  if (!approver) {
+    throw httpError("Approver profile not found.", 404);
+  }
+  if (!approver.signature) {
+    throw httpError(
+      "Action requires an e-signature. Please upload a signature in your profile.",
+      400,
+    );
+  }
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -285,10 +311,18 @@ const approveWellnessApplicationService = async ({
         400,
       );
 
+    // ✅ Update approval step securely, snapshotting the signature
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
-      { status: "APPROVED", reviewedAt: new Date() },
-      { session },
+      {
+        status: "APPROVED",
+        reviewedAt: new Date(),
+        approverSignature: {
+          signatureUrl: approver.signature,
+          signedAt: new Date(),
+        },
+      },
+      { session, runValidators: true },
     );
 
     const updatedSteps = await ApprovalStep.find({
@@ -311,10 +345,6 @@ const approveWellnessApplicationService = async ({
 
     await session.commitTransaction();
     session.endSession();
-
-    const approver = await Employee.findById(approverId)
-      .select("username firstName lastName")
-      .lean();
 
     const auditBody = {
       approverId,
@@ -408,6 +438,21 @@ const rejectWellnessApplicationService = async ({
   assertObjectId(approverId, "approverId");
   assertObjectId(applicationId, "applicationId");
 
+  // ✅ Fetch approver early to validate signature before beginning transaction
+  const approver = await Employee.findById(approverId)
+    .select("username firstName lastName email signature")
+    .lean();
+
+  if (!approver) {
+    throw httpError("Approver profile not found.", 404);
+  }
+  if (!approver.signature) {
+    throw httpError(
+      "Action requires an e-signature. Please upload a signature in your profile.",
+      400,
+    );
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -451,14 +496,19 @@ const rejectWellnessApplicationService = async ({
       { session },
     );
 
+    // ✅ Update approval step securely, snapshotting the signature
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
         status: "REJECTED",
         remarks: remarks || "No remarks provided",
         reviewedAt: new Date(),
+        approverSignature: {
+          signatureUrl: approver.signature,
+          signedAt: new Date(),
+        },
       },
-      { session },
+      { session, runValidators: true },
     );
 
     const futureStepIds = (application.approvals || [])
@@ -485,10 +535,6 @@ const rejectWellnessApplicationService = async ({
 
     await session.commitTransaction();
     session.endSession();
-
-    const approver = await Employee.findById(approverId)
-      .select("username firstName lastName")
-      .lean();
 
     const auditBody = {
       approverId,

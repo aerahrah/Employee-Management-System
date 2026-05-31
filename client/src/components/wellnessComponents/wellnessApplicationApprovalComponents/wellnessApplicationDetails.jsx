@@ -14,6 +14,9 @@ import {
   ChevronRight,
   RotateCcw,
   BadgeCheck,
+  PenTool,
+  Clock,
+  FileBadge, // Added FileBadge
 } from "lucide-react";
 import { StatusIcon, StatusBadge } from "../../statusUtils";
 import { useAuth } from "../../../store/authStore";
@@ -25,10 +28,15 @@ import {
   rejectWellnessApplicationRequest,
   getWellnessApplicationById,
 } from "../../../api/wellnessApplication";
+import { getMyProfile } from "../../../api/employee";
+import { buildApiUrl } from "../../../config/env";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+
+// Added Wellness PDF Modal import
+import WellnessApplicationPdfModal from "../wellnessApplicationComponents/wellnessApplicationPDFModal";
 
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
@@ -261,13 +269,17 @@ const TimelineCard = ({ approval, index, isLast }) => {
         />
       )}
       <div
-        className={`relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none ${StepDotClass(status)}`}
+        className={`relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md transition-transform hover:scale-110 flex-none ${StepDotClass(
+          status,
+        )}`}
         style={{ borderColor: "var(--app-surface)" }}
+        title={status}
       >
         <StepDotIcon status={status} />
       </div>
+
       <div
-        className={`flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 ${isPending ? "opacity-90" : ""}`}
+        className={`flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all ${isPending ? "opacity-90" : ""}`}
         style={{
           backgroundColor: "var(--app-surface)",
           borderColor: "var(--app-border)",
@@ -298,9 +310,10 @@ const TimelineCard = ({ approval, index, isLast }) => {
             <StatusBadge status={status} size="sm" />
           </div>
         </div>
+
         {isCancelled && !approval?.remarks ? (
           <div
-            className="mt-4 rounded-xl text-xs flex items-start gap-2 border p-3"
+            className="mt-4 rounded-xl text-xs flex items-start gap-2 min-w-0 border p-3"
             style={{
               backgroundColor: "rgba(148,163,184,0.14)",
               borderColor: "rgba(148,163,184,0.22)",
@@ -308,15 +321,16 @@ const TimelineCard = ({ approval, index, isLast }) => {
             }}
           >
             <Ban size={14} className="shrink-0 mt-0.5" />
-            <p>
+            <p className="break-words">
               <strong>Auto-cancelled:</strong> A previous approver rejected this
               request.
             </p>
           </div>
         ) : null}
+
         {approval?.remarks && String(approval.remarks).trim() !== "" && (
           <div
-            className="mt-4 rounded-xl p-3 text-xs leading-relaxed border flex items-start gap-2"
+            className="mt-4 rounded-xl p-3 text-xs leading-relaxed border flex items-start gap-2 min-w-0"
             style={{
               backgroundColor: noteStyle.bg,
               borderColor: noteStyle.br,
@@ -324,9 +338,24 @@ const TimelineCard = ({ approval, index, isLast }) => {
             }}
           >
             <AlertCircle size={14} className="shrink-0 mt-0.5" />
-            <p>
+            <p className="break-words">
               <strong>Note:</strong> {approval.remarks}
             </p>
+          </div>
+        )}
+
+        {/* Display the signature if available */}
+        {approval.approverSignature?.signatureUrl && (
+          <div
+            className="mt-4  border-t border-dashed"
+            style={{ borderColor: "var(--app-border)" }}
+          >
+            {approval.approverSignature?.signedAt && (
+              <p className="text-[10px] text-slate-500 mt-1">
+                Signed on:{" "}
+                {new Date(approval.approverSignature.signedAt).toLocaleString()}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -526,11 +555,17 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
   );
 };
 
+const STATUS_META = {
+  APPROVED: { label: "APPROVED", tone: "green" },
+  REJECTED: { label: "REJECTED", tone: "red" },
+  PENDING: { label: "PENDING", tone: "amber" },
+  CANCELLED: { label: "CANCELLED", tone: "slate" },
+};
+
 const WellnessApplicationDetails = () => {
   const { admin } = useAuth();
-
-  // ✅ Extract admin ID safely
   const adminId = admin?.id || admin?._id;
+  const navigate = useNavigate();
 
   const { can } = usePermissions();
   const canManageApplication = can("wellness.manage_application");
@@ -551,6 +586,16 @@ const WellnessApplicationDetails = () => {
   const [remarks, setRemarks] = useState("");
   const [modalType, setModalType] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCsc6PdfOpen, setIsCsc6PdfOpen] = useState(false); // Added PDF Modal state
+
+  // Fetch current user's profile to check for signature
+  const { data: profileData, isLoading: isProfileLoading } = useQuery({
+    queryKey: ["myProfile"],
+    queryFn: getMyProfile,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const hasSignature = Boolean(profileData?.signature || admin?.signature);
 
   // Fetch the data
   const {
@@ -561,11 +606,9 @@ const WellnessApplicationDetails = () => {
   } = useQuery({
     queryKey: ["wellnessApplication", adminId, id],
     queryFn: () => getWellnessApplicationById(id),
-    // ✅ Ensure query only runs if both adminId and application id exist
     enabled: !!adminId && !!id,
   });
 
-  // ✅ Safely unwrap nested `data` object from API response
   const application = rawData?.data || rawData;
 
   const requestedDatesLabel = useMemo(() => {
@@ -661,7 +704,6 @@ const WellnessApplicationDetails = () => {
 
   const initials = `${application.employee?.firstName?.[0] || ""}${application.employee?.lastName?.[0] || ""}`;
 
-  // ✅ Match approver against properly checked adminId
   const currentStep = application.approvals?.find(
     (step) => String(step.approver?._id || step.approver) === String(adminId),
   );
@@ -683,6 +725,11 @@ const WellnessApplicationDetails = () => {
     getOverallIconChipKind(application.overallStatus),
     borderColor,
   );
+
+  const isOrganicApp =
+    application.employeeType === "Organic" ||
+    application.category === "Organic" ||
+    application.employee?.employeeType === "Organic";
 
   return (
     <div
@@ -728,53 +775,107 @@ const WellnessApplicationDetails = () => {
               >
                 ID: {application.employee?.employeeId || "N/A"}
               </span>
+
+              <span
+                className="px-1.5 py-0.5 rounded border uppercase"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  color: "var(--app-text)",
+                  borderColor: "var(--app-border)",
+                }}
+              >
+                {application.employeeType || "Organic"}
+              </span>
+
+              {/* Added Date Submitted here */}
+              <span className="flex items-center gap-1">
+                <Clock size={12} />{" "}
+                {new Date(application.createdAt).toLocaleDateString()}
+              </span>
+
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-bold"
                 style={overallPillStyle}
+                title="Overall Status"
               >
+                {String(application.overallStatus || "").toUpperCase() ===
+                "CANCELLED" ? (
+                  <Ban size={12} />
+                ) : null}
                 {application.overallStatus}
               </span>
             </div>
           </div>
         </div>
 
+        {/* Dynamic Action Buttons enforcing Signatures */}
         <div className="flex flex-row items-center gap-2 sm:gap-3 w-full md:w-auto">
           {canApproveOrReject ? (
-            canManageApplication && (
+            canManageApplication &&
+            (isProfileLoading ? (
+              <span
+                className="text-sm font-medium px-4 py-2"
+                style={{ color: "var(--app-muted)" }}
+              >
+                Checking status...
+              </span>
+            ) : !hasSignature ? (
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border"
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.1)",
+                  borderColor: "rgba(239,68,68,0.2)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={14} /> Signature Required
+              </div>
+            ) : (
               <>
                 <button
                   onClick={() => {
                     setModalType("reject");
                     setIsModalOpen(true);
                   }}
-                  className="w-full sm:w-auto px-4 py-2 rounded-lg font-semibold border"
+                  className="w-full sm:w-auto flex-1 md:flex-none px-4 py-2 rounded-lg font-semibold"
                   style={{
                     backgroundColor: "var(--app-surface-2)",
                     color: "var(--app-text)",
-                    borderColor,
+                    border: `1px solid ${borderColor}`,
                   }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.filter = "brightness(0.98)")
+                  }
+                  onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
                 >
                   Reject
                 </button>
+
                 <button
                   onClick={() => {
                     setModalType("approve");
                     setIsModalOpen(true);
                   }}
                   disabled={approveMutation.isPending}
-                  className="w-full sm:w-auto rounded-lg px-4 py-2 font-medium"
+                  className="w-full sm:w-auto rounded-lg px-4 py-2 transition shadow-sm font-medium flex items-center justify-center gap-2"
                   style={{
                     backgroundColor: "var(--accent)",
+                    border: "1px solid var(--accent)",
                     color: "#fff",
                     opacity: approveMutation.isPending ? 0.8 : 1,
                   }}
+                  onMouseEnter={(e) => {
+                    if (approveMutation.isPending) return;
+                    e.currentTarget.style.filter = "brightness(0.95)";
+                  }}
+                  onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
                 >
                   {approveMutation.isPending
                     ? "Processing..."
                     : "Approve Leave"}
                 </button>
               </>
-            )
+            ))
           ) : (
             <div
               className="px-4 py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold border"
@@ -791,6 +892,29 @@ const WellnessApplicationDetails = () => {
       </header>
 
       <div className="flex h-full flex-1 min-h-0 overflow-y-auto app-scrollbar flex-col gap-4 px-3 sm:px-4 py-2">
+        {/* Warning if the pending approver lacks a signature */}
+        {canApproveOrReject && !isProfileLoading && !hasSignature && (
+          <div className="mb-2 p-4 bg-orange-50 border-l-4 border-orange-500 rounded flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3 text-orange-800">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm">E-Signature Required</h4>
+                <p className="text-xs">
+                  You do not currently have a digital signature configured. A
+                  signature is required to process leave applications.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/app/my-profile")}
+              className="flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded shadow transition-colors"
+            >
+              <PenTool size={14} /> Upload Signature
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
           <div
             className="md:col-span-2 rounded-xl p-4 sm:p-6 text-white flex gap-3 justify-between items-center relative overflow-hidden min-w-0"
@@ -874,19 +998,46 @@ const WellnessApplicationDetails = () => {
                   className="text-xs font-bold uppercase tracking-widest"
                   style={{ color: "var(--app-muted)" }}
                 >
-                  Purpose of Leave
+                  Leave Details
                 </h3>
               </div>
-              <p
-                className="leading-relaxed italic p-4 rounded-2xl border break-words"
-                style={{
-                  color: "var(--app-text)",
-                  backgroundColor: "var(--app-surface-2)",
-                  borderColor: borderColor,
-                }}
-              >
-                "{application.reason || "No specific reason provided."}"
-              </p>
+              <div className="space-y-4">
+                <div>
+                  <p
+                    className="text-[10px] font-bold uppercase mb-1"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Purpose / Reason
+                  </p>
+                  <p
+                    className="leading-relaxed italic p-4 rounded-2xl border break-words"
+                    style={{
+                      color: "var(--app-text)",
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                    }}
+                  >
+                    "{application.reason || "No specific reason provided."}"
+                  </p>
+                </div>
+
+                {isOrganicApp && (
+                  <div className="px-2">
+                    <p
+                      className="text-[10px] font-bold uppercase mb-1"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Commutation Status
+                    </p>
+                    <p
+                      className="font-semibold text-sm"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      {application.commutation || "Not Requested"}
+                    </p>
+                  </div>
+                )}
+              </div>
             </section>
 
             <section
@@ -949,7 +1100,7 @@ const WellnessApplicationDetails = () => {
                           className="font-bold text-sm"
                           style={{ color: "#16a34a" }}
                         >
-                          Leave Fully Approved
+                          Application Fully Approved
                         </p>
                       </div>
                     </div>
@@ -981,6 +1132,63 @@ const WellnessApplicationDetails = () => {
 
           <aside className="space-y-4 min-w-0">
             <RequestedDatesCalendar dates={application?.inclusiveDates || []} />
+
+            {/* Added Documents Section */}
+            {isOrganicApp && (
+              <div
+                className="border rounded-xl p-2 sm:p-3 shadow-sm min-w-0"
+                style={{
+                  backgroundColor: "var(--app-surface)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <h4
+                    className="text-xs font-bold uppercase tracking-widest"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Documents
+                  </h4>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCsc6PdfOpen(true)}
+                  className="w-full inline-flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold hover:bg-[color:var(--app-surface-2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 transition"
+                  style={{
+                    borderColor: borderColor,
+                    backgroundColor: "var(--app-surface)",
+                    color: "var(--app-text)",
+                  }}
+                  title="View CSC Form 6"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <span
+                      className="h-8 w-8 rounded-lg flex items-center justify-center flex-none border"
+                      style={{
+                        backgroundColor: "rgba(59,130,246,0.12)",
+                        color: "#3b82f6",
+                        borderColor: "rgba(59,130,246,0.20)",
+                      }}
+                    >
+                      <FileBadge size={16} />
+                    </span>
+                    <span className="truncate">CSC Form 6</span>
+                  </span>
+
+                  <span
+                    className="text-[9px] font-bold px-2 py-1 rounded-lg flex-none border"
+                    style={{
+                      color: "var(--app-muted)",
+                      borderColor: "var(--app-border)",
+                      backgroundColor: "var(--app-surface-2)",
+                    }}
+                  >
+                    PDF
+                  </span>
+                </button>
+              </div>
+            )}
           </aside>
         </div>
 
@@ -1048,16 +1256,16 @@ const WellnessApplicationDetails = () => {
             )}
           </div>
         </Modal>
+
+        {/* Added PDF Modal Component */}
+        <WellnessApplicationPdfModal
+          app={application}
+          isOpen={isCsc6PdfOpen}
+          onClose={() => setIsCsc6PdfOpen(false)}
+        />
       </div>
     </div>
   );
-};
-
-const STATUS_META = {
-  APPROVED: { label: "APPROVED", tone: "green" },
-  REJECTED: { label: "REJECTED", tone: "red" },
-  PENDING: { label: "PENDING", tone: "amber" },
-  CANCELLED: { label: "CANCELLED", tone: "slate" },
 };
 
 export default WellnessApplicationDetails;

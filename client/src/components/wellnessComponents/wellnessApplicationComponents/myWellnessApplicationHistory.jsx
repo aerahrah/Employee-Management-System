@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom"; // ✅ Imported useNavigate
+import { useNavigate } from "react-router-dom";
 import { StatusBadge } from "../../statusUtils";
 import {
   fetchMyWellnessApplications,
@@ -29,9 +29,14 @@ import {
   XCircle,
   Ban,
   AlertCircle,
+  FileBadge,
 } from "lucide-react";
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
+
+// ✅ Import your Modals & Details
+import WellnessApplicationPdfModal from "./wellnessApplicationPDFModal";
+import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
 
 const pageSizeOptions = [20, 50, 100];
 
@@ -108,9 +113,11 @@ const tabTone = {
 const ApplicationActionMenu = ({
   app,
   onViewDetails,
+  onViewOrganicForm,
   onCancel,
   cancelling,
   borderColor,
+  isOrganicApp, // ✅ Auth Check Prop
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -190,6 +197,26 @@ const ApplicationActionMenu = ({
             <Eye size={14} /> View Details
           </button>
 
+          {/* Organic PDF Button */}
+          {isOrganicApp && (
+            <button
+              onClick={() => handle(onViewOrganicForm)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(59,130,246,0.12)";
+                e.currentTarget.style.color = "#3b82f6";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+              type="button"
+            >
+              <FileBadge size={14} /> CSC Form 6
+            </button>
+          )}
+
           <button
             disabled={!canCancel || cancelling}
             onClick={() => handle(onCancel)}
@@ -230,15 +257,21 @@ const ApplicationCard = ({
   app,
   leftStripClassName,
   onViewDetails,
+  onViewOrganicForm,
   onCancel,
   cancelling,
   borderColor,
+  isOrganicApp, // ✅ Auth Check Prop
 }) => {
   const canCancel =
     String(app?.overallStatus || "").toUpperCase() === "PENDING";
 
   const coveredDatesLabel = formatCoveredDates(app?.inclusiveDates);
-  const actionCols = canCancel ? "grid-cols-2" : "grid-cols-1";
+
+  let colCount = 1;
+  if (canCancel) colCount++;
+  if (isOrganicApp) colCount++;
+  const actionCols = `grid-cols-${colCount}`;
 
   return (
     <div
@@ -346,6 +379,29 @@ const ApplicationCard = ({
             <Eye className="w-4 h-4" />
             Details
           </button>
+
+          {isOrganicApp && (
+            <button
+              onClick={onViewOrganicForm}
+              className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+              type="button"
+              title="CSC Form 6"
+              style={{
+                backgroundColor: "rgba(59,130,246,0.12)",
+                borderColor: "rgba(59,130,246,0.20)",
+                color: "#3b82f6",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(59,130,246,0.20)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(59,130,246,0.12)";
+              }}
+            >
+              <FileBadge className="w-4 h-4" />
+              CSC Form 6
+            </button>
+          )}
 
           {canCancel && (
             <button
@@ -508,12 +564,15 @@ const CompactPagination = ({
 ========================= */
 const MyWellnessApplications = () => {
   const queryClient = useQueryClient();
-  const navigate = useNavigate(); // ✅ Hook for navigation
+  const navigate = useNavigate();
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
-  const user = useAuth((s) => s.user);
+  const user = useAuth((s) => s.admin);
   const { can } = usePermissions();
   const resolvedTheme = useResolvedTheme(prefTheme);
+
+  // ✅ Determine if current logged in user is Organic (for routing the 'File Leave' button)
+  const isUserOrganic = user?.employeeType === "Organic";
 
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
@@ -537,6 +596,7 @@ const MyWellnessApplications = () => {
   }, [resolvedTheme]);
 
   const [selectedApp, setSelectedApp] = useState(null);
+  const [organicPdfApp, setOrganicPdfApp] = useState(null); // State for Organic PDF Modal
   const [statusFilter, setStatusFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
@@ -603,7 +663,8 @@ const MyWellnessApplications = () => {
       userId,
     ],
     queryFn: () =>
-      fetchMyWellnessApplications(userId, {
+      fetchMyWellnessApplications({
+        employeeId: userId,
         page,
         limit,
         status: statusFilter || undefined,
@@ -749,8 +810,15 @@ const MyWellnessApplications = () => {
 
               {can("wellness.manage_self") && (
                 <div className="w-full md:w-auto flex flex-row items-stretch md:items-center gap-3 rounded-xl">
+                  {/* Conditionally Route to Organic or Standard Form */}
                   <button
-                    onClick={() => navigate("/app/wellness-apply/add")}
+                    onClick={() =>
+                      navigate(
+                        isUserOrganic
+                          ? "/app/wellness-apply/organic"
+                          : "/app/wellness-apply/add",
+                      )
+                    }
                     className="group relative inline-flex items-center gap-2 justify-center rounded-lg min-w-42 md:py-3.5 px-6 py-3 text-sm font-semibold shadow-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full"
                     type="button"
                     style={{
@@ -1062,6 +1130,11 @@ const MyWellnessApplications = () => {
                               cancelMutation.isPending &&
                               cancelMutation.variables === app._id;
 
+                            // ✅ Fixed: strictly checking application profile, not user
+                            const isAppOrganic =
+                              app?.employeeType === "Organic" ||
+                              app?.category === "Organic";
+
                             return (
                               <ApplicationCard
                                 key={app._id}
@@ -1071,7 +1144,9 @@ const MyWellnessApplications = () => {
                                   app.overallStatus,
                                 )}
                                 cancelling={cancelling}
+                                isOrganicApp={isAppOrganic}
                                 onViewDetails={() => setSelectedApp(app)}
+                                onViewOrganicForm={() => setOrganicPdfApp(app)}
                                 onCancel={() => openCancelModal(app)}
                               />
                             );
@@ -1123,6 +1198,11 @@ const MyWellnessApplications = () => {
                               const cancelling =
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
+
+                              // ✅ Fixed: strictly checking application profile, not user
+                              const isAppOrganic =
+                                app?.employeeType === "Organic" ||
+                                app?.category === "Organic";
 
                               return (
                                 <tr
@@ -1196,7 +1276,11 @@ const MyWellnessApplications = () => {
                                     <ApplicationActionMenu
                                       app={app}
                                       borderColor={borderColor}
+                                      isOrganicApp={isAppOrganic}
                                       onViewDetails={() => setSelectedApp(app)}
+                                      onViewOrganicForm={() =>
+                                        setOrganicPdfApp(app)
+                                      }
                                       onCancel={() => openCancelModal(app)}
                                       cancelling={cancelling}
                                     />
@@ -1252,9 +1336,20 @@ const MyWellnessApplications = () => {
             title="Wellness Leave Details"
             maxWidth="max-w-5xl"
           >
-            <WellnessApplicationDetails app={selectedApp} />
+            {typeof WellnessApplicationDetails !== "undefined" ? (
+              <WellnessApplicationDetails app={selectedApp} />
+            ) : (
+              <div className="p-4 text-center">Details view not available.</div>
+            )}
           </Modal>
         )}
+
+        {/* ✅ Organic PDF Modal */}
+        <WellnessApplicationPdfModal
+          app={organicPdfApp}
+          isOpen={!!organicPdfApp}
+          onClose={() => setOrganicPdfApp(null)}
+        />
 
         {/* Cancel Confirm Modal */}
         <Modal

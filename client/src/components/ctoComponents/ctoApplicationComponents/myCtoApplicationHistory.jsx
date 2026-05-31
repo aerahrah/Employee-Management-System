@@ -1049,7 +1049,7 @@ const MyCtoApplications = () => {
                   onClick={() =>
                     navigate(
                       isUserOrganic
-                        ? "/app/organic-apply/add"
+                        ? "/app/cto-apply/organic"
                         : "/app/cto-apply/add",
                     )
                   }

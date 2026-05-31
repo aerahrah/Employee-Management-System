@@ -1,26 +1,33 @@
+const mongoose = require("mongoose");
 const WellnessApplication = require("../models/wellnessApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
-const mongoose = require("mongoose");
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const NotificationService = require("./notificationService");
+const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 
 /* =========================
    Helpers
 ========================= */
 
 const populateApplicationById = async (applicationId, session = null) => {
-  return WellnessApplication.findById(applicationId)
-    .populate("employee", "firstName lastName position email employeeId")
-    .populate({
-      path: "approvals",
-      populate: {
-        path: "approver",
-        select: "firstName lastName position email",
-      },
-      options: { sort: { level: 1 } },
-    })
-    .session(session);
+  return (
+    WellnessApplication.findById(applicationId)
+      // ✅ Include signature for the PDF Generator (Needed for Organic CSC Form 6)
+      .populate(
+        "employee",
+        "firstName lastName position email employeeId signature",
+      )
+      .populate({
+        path: "approvals",
+        populate: {
+          path: "approver",
+          select: "firstName lastName position email",
+        },
+        options: { sort: { level: 1 } },
+      })
+      .session(session)
+  );
 };
 
 const cancelApprovalSteps = async (
@@ -97,7 +104,11 @@ const addWellnessApplicationService = async ({
   reason,
   routeId,
   approvers,
-  req, // ✅ Passed for future Audit Logging
+  employeeType, // Dynamic: "Organic" or "Job Order"
+  commutation,
+  certificationOfLeaveCredits,
+  actionDetails,
+  req, // Passed for future Audit Logging
 }) => {
   if (
     !inclusiveDates ||
@@ -113,17 +124,70 @@ const addWellnessApplicationService = async ({
 
   const totalDays = inclusiveDates.length;
 
+  const employee = await Employee.findById(userId).lean();
+  if (!employee) {
+    throw Object.assign(new Error("Employee not found."), { status: 404 });
+  }
+
+  // ✅ Determine final employee type (fallback to DB value if not provided in payload)
+  const finalEmployeeType = employeeType || employee.employeeType || "Organic";
+  const isOrganic = finalEmployeeType === "Organic";
+
+  // ✅ ENFORCE CSC FORM 6 RULES ONLY FOR ORGANIC EMPLOYEES
+  if (isOrganic) {
+    if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
+      throw Object.assign(
+        new Error(
+          "Commutation is required and must be either 'Requested' or 'Not Requested' for Organic employees.",
+        ),
+        { status: 400 },
+      );
+    }
+
+    if (!employee.signature) {
+      throw Object.assign(
+        new Error(
+          "A digital signature is required to process CSC Form 6. Please upload your signature in your profile before applying.",
+        ),
+        { status: 403 },
+      );
+    }
+  }
+
   let finalApprovers = [];
   if (routeId) {
     finalApprovers = await resolveApproversFromRoute(routeId);
   } else if (approvers && Array.isArray(approvers)) {
-    finalApprovers = approvers.filter(Boolean);
+    // ✅ Safely parse the incoming custom approvers for ID and Role
+    finalApprovers = approvers
+      .map((a) => {
+        if (a && a.approver && mongoose.isValidObjectId(a.approver)) {
+          return { approver: a.approver, role: a.role };
+        }
+        return { approver: a, role: undefined }; // Fallback caught by validation below
+      })
+      .filter((a) => mongoose.isValidObjectId(a.approver));
   }
 
   if (!finalApprovers || finalApprovers.length === 0) {
-    throw Object.assign(new Error("At least one approver is required."), {
-      status: 400,
-    });
+    throw Object.assign(
+      new Error(
+        "At least one valid approver is required (via route template or custom selection).",
+      ),
+      { status: 400 },
+    );
+  }
+
+  // ✅ Validate Roles strictly before proceeding
+  for (const fa of finalApprovers) {
+    if (!fa.role || !APPROVAL_ROLE_VALUES.includes(fa.role)) {
+      throw Object.assign(
+        new Error(
+          `Invalid or missing approval role for approver ID ${fa.approver}. Role must be one of: ${APPROVAL_ROLE_VALUES.join(", ")}`,
+        ),
+        { status: 400 },
+      );
+    }
   }
 
   // ✅ Wrap in transaction to prevent balance desyncs
@@ -131,11 +195,6 @@ const addWellnessApplicationService = async ({
   session.startTransaction();
 
   try {
-    const employee = await Employee.findById(userId).session(session);
-    if (!employee) {
-      throw Object.assign(new Error("Employee not found."), { status: 404 });
-    }
-
     // Deduct from wellnessDays directly
     if ((employee.balances.wellnessDays || 0) < totalDays) {
       throw Object.assign(
@@ -155,28 +214,49 @@ const addWellnessApplicationService = async ({
 
     if (!updatedEmployee) {
       throw Object.assign(
-        new Error("Failed to deduct Wellness Leave balance. Please try again."),
+        new Error(
+          "Failed to deduct Wellness Leave balance. Please try again. Possible concurrency conflict.",
+        ),
         { status: 400 },
       );
     }
 
-    const newApplication = new WellnessApplication({
+    // ✅ Base Application Payload
+    const applicationPayload = {
       employee: employee._id,
+      employeeType: finalEmployeeType, // Saves whether they are Organic or Job Order
       inclusiveDates,
       totalDays,
       reason,
       overallStatus: "PENDING",
-    });
+    };
 
+    // ✅ Append CSC Form 6 specific data ONLY if Organic
+    if (isOrganic) {
+      applicationPayload.commutation = commutation;
+      applicationPayload.applicantSignatureUrl = employee.signature;
+
+      if (certificationOfLeaveCredits) {
+        applicationPayload.certificationOfLeaveCredits =
+          certificationOfLeaveCredits;
+      }
+      if (actionDetails) {
+        applicationPayload.actionDetails = actionDetails;
+      }
+    }
+
+    const newApplication = new WellnessApplication(applicationPayload);
     await newApplication.save({ session });
 
+    // ✅ Inject the role into the ApprovalStep
     const approvalSteps = await Promise.all(
-      finalApprovers.map((approverId, index) =>
+      finalApprovers.map((approverObj, index) =>
         ApprovalStep.create(
           [
             {
               level: index + 1,
-              approver: approverId,
+              approver: approverObj.approver,
+              role: approverObj.role,
               status: "PENDING",
               wellnessApplication: newApplication._id,
             },
@@ -251,7 +331,11 @@ const getAllWellnessApplicationsService = async (
 
   // ✅ Fetch applications with deep populated approvals mapping to frontend requirements
   const applications = await WellnessApplication.find(query)
-    .populate("employee", "firstName lastName position email employeeId")
+    // ✅ Ensure signature is returned if present
+    .populate(
+      "employee",
+      "firstName lastName position email employeeId signature",
+    )
     .populate({
       path: "approvals",
       populate: {
@@ -377,6 +461,8 @@ const getWellnessApplicationsByEmployeeService = async (
             status: 1,
             reviewedAt: 1,
             remarks: 1,
+            role: 1, // ✅ Added role projection!
+            approverSignature: 1, // ✅ Added signature projection!
             approver: {
               _id: "$approver._id",
               firstName: "$approver.firstName",
@@ -412,6 +498,7 @@ const getWellnessApplicationsByEmployeeService = async (
         firstName: "$employeeDoc.firstName",
         lastName: "$employeeDoc.lastName",
         position: "$employeeDoc.position",
+        signature: "$employeeDoc.signature", // ✅ Fallback signature included
       },
     },
   });
@@ -481,7 +568,7 @@ const getWellnessApplicationsByEmployeeService = async (
 const cancelWellnessApplicationService = async ({
   userId,
   applicationId,
-  req, // ✅ Passed for future Audit Logging
+  req, // Passed for future Audit Logging
 }) => {
   // ✅ Wrap in transaction to prevent balance desyncs
   const session = await mongoose.startSession();
