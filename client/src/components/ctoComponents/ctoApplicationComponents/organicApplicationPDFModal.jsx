@@ -6,7 +6,6 @@ import OrganicApplicationPdf from "./organicApplicationPDF"; // Your PDF layout 
 const OrganicApplicationPdfModal = ({ app, isOpen, onClose }) => {
   if (!isOpen || !app) return null;
 
-  console.log(app);
   return (
     <Modal
       isOpen={isOpen}
@@ -18,7 +17,8 @@ const OrganicApplicationPdfModal = ({ app, isOpen, onClose }) => {
         <PDFViewer width="100%" height="100%" className="border-none">
           <OrganicApplicationPdf
             app={app}
-            logoSrc="/public/logo_dict.png" // Adjust logo path if needed
+            // ✅ FIX 1: Removed "/public". Files in the public folder are served at the root.
+            logoSrc="/public/logo_dict.png"
           />
         </PDFViewer>
       </div>

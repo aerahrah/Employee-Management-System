@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import {
   fetchAllApprovalRoutes,
   upsertMyApprovalRoute,
+  fetchApprovalRoles, // ✅ Added dynamic fetch for roles
 } from "../../../api/approvalRoute";
 import { fetchApprovers } from "../../../api/cto";
 import {
@@ -492,20 +493,6 @@ const StepCard = ({
 };
 
 /* =========================
-   Settings Definition
-========================= */
-const APPROVER_ROLES = [
-  { id: "po_initial", label: "Provincial Officer Initial" },
-  { id: "po_optional", label: "Provincial Officer (Optional)" },
-  { id: "tod_chief", label: "TOD Chief Signature" },
-  { id: "afd_initial", label: "AFD Chief Initial" },
-  { id: "afd_chief", label: "AFD Chief Signature" },
-  { id: "ard_initial", label: "ARD Initial" },
-  { id: "rd_signature", label: "Regional Director Signature" },
-  { id: "other", label: "Other / Custom" },
-];
-
-/* =========================
    Main Page Component
 ========================= */
 export default function ApprovalRoutesList() {
@@ -601,6 +588,26 @@ export default function ApprovalRoutesList() {
       }));
   }, [approversRaw]);
 
+  // ✅ Fetch Roles dynamically from backend
+  const { data: rolesRaw, isLoading: rolesLoading } = useQuery({
+    queryKey: ["approvalRoles"],
+    queryFn: fetchApprovalRoles,
+  });
+
+  const normalizedRoles = useMemo(() => {
+    const list = Array.isArray(rolesRaw?.data)
+      ? rolesRaw.data
+      : Array.isArray(rolesRaw)
+        ? rolesRaw
+        : [];
+
+    return list.map((r) => ({
+      id: r.id || r.value || r.name || r,
+      label: r.label || r.name || r.value || r.id || String(r),
+      desc: r.description || r.desc || "Assigned approval role.",
+    }));
+  }, [rolesRaw]);
+
   const mutation = useMutation({
     mutationFn: (payload) => upsertMyApprovalRoute(payload),
     onSuccess: () => {
@@ -652,22 +659,23 @@ export default function ApprovalRoutesList() {
     const q = searchInput.toLowerCase().trim();
     if (!q) return steps;
     return steps.filter((step) => {
-      // FIXED: Ensure step.approver is compared as a string
       const approver = approverOptions.find(
         (o) => o.value === String(step.approver),
       );
-      const role = APPROVER_ROLES.find((r) => r.id === step.role);
+      // ✅ Used normalizedRoles instead of hardcoded APPROVER_ROLES
+      const role = normalizedRoles.find((r) => r.id === step.role);
       const hay = `${approver?.label} ${role?.label}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [steps, searchInput, approverOptions]);
+  }, [steps, searchInput, approverOptions, normalizedRoles]);
 
   const activeApproversCount = useMemo(() => {
     return steps.filter((s) => s.isEnabled !== false).length;
   }, [steps]);
 
   const isBusy = mutation.isPending;
-  const isLoading = routesLoading || approversLoading;
+  // ✅ Included rolesLoading in overall loading state
+  const isLoading = routesLoading || approversLoading || rolesLoading;
 
   return (
     <div
@@ -905,11 +913,11 @@ export default function ApprovalRoutesList() {
                           <SkeletonRow key={i} theme={resolvedTheme} />
                         ))
                       : filteredSteps.map((step, i) => {
-                          // FIXED: Ensure step.approver is compared as a string
                           const selectedApprover = approverOptions.find(
                             (o) => String(o.value) === String(step.approver),
                           );
-                          const roleObj = APPROVER_ROLES.find(
+                          // ✅ Used normalizedRoles instead of hardcoded APPROVER_ROLES
+                          const roleObj = normalizedRoles.find(
                             (r) => r.id === step.role,
                           );
                           const rowBg =

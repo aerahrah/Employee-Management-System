@@ -6,12 +6,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   fetchAllApprovalRoutes,
   upsertMyApprovalRoute,
+  // ✅ IMPORTANT: Make sure to export this function from your API file
+  fetchApprovalRoles,
 } from "../../../api/approvalRoute";
 import { fetchApprovers } from "../../../api/cto";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { FileSignature, Route as RouteIcon, ArrowLeft } from "lucide-react";
-// ✅ IMPORT `components` from react-select
 import Select, { components } from "react-select";
 
 import Breadcrumbs from "../../breadCrumbs";
@@ -57,49 +58,6 @@ function useResolvedTheme(prefTheme) {
   return theme;
 }
 
-const APPROVER_ROLES = [
-  {
-    id: "po_initial",
-    label: "Provincial Officer Initial",
-    desc: "First check by the Provincial Head.",
-  },
-  {
-    id: "po_optional",
-    label: "Provincial Officer (Optional)",
-    desc: "Second PO check (only if needed).",
-  },
-  {
-    id: "tod_chief",
-    label: "TOD Chief Signature",
-    desc: "Main signature for Technical operations.",
-  },
-  {
-    id: "afd_initial",
-    label: "AFD Chief Initial",
-    desc: "Review by the Administrative Chief.",
-  },
-  {
-    id: "afd_chief",
-    label: "AFD Chief Signature",
-    desc: "Main signature for Finance/Admin operations.",
-  },
-  {
-    id: "ard_initial",
-    label: "ARD Initial",
-    desc: "Final Review by the Assistant Regional Director.",
-  },
-  {
-    id: "rd_signature",
-    label: "Regional Director Signature",
-    desc: "Final approval by the Regional Director.",
-  },
-  {
-    id: "other",
-    label: "Other / Custom",
-    desc: "Custom assignment for ad-hoc signatures.",
-  },
-];
-
 // ✅ Custom Input component to enforce maxLength on the react-select search bar
 const CustomInput = (props) => {
   return <components.Input {...props} maxLength={100} />;
@@ -140,16 +98,44 @@ const ApprovalRouteStepForm = () => {
   // Form State
   const [modalData, setModalData] = useState({
     approver: "",
-    role: "po_initial",
+    role: "", // Will be defaulted to the first fetched role
   });
 
   // Submit lock to prevent double-clicks
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch Routes
   const { data: routes = [], isLoading: routesLoading } = useQuery({
     queryKey: ["approvalRoutes"],
     queryFn: fetchAllApprovalRoutes,
   });
+
+  // Fetch Approvers
+  const { data: approversRaw = [], isLoading: approversLoading } = useQuery({
+    queryKey: ["approvers"],
+    queryFn: fetchApprovers,
+  });
+
+  // ✅ NEW: Fetch Dynamic Roles
+  const { data: rolesRaw, isLoading: rolesLoading } = useQuery({
+    queryKey: ["approvalRoles"],
+    queryFn: fetchApprovalRoles,
+  });
+
+  // Safely map dynamic roles from backend
+  const normalizedRoles = useMemo(() => {
+    const list = Array.isArray(rolesRaw?.data)
+      ? rolesRaw.data
+      : Array.isArray(rolesRaw)
+        ? rolesRaw
+        : [];
+
+    return list.map((r) => ({
+      id: r.value || r.id || r.name || r, // Handles object or simple string array
+      label: r.label || r.name || r.value || r.id || String(r),
+      desc: r.description || r.desc || "Assigned approval role.",
+    }));
+  }, [rolesRaw]);
 
   // Calculate the current active steps for this user
   const myRoute = useMemo(() => {
@@ -163,33 +149,30 @@ const ApprovalRouteStepForm = () => {
     return myRoute.steps.map((s) => ({
       id: Math.random().toString(36).substr(2, 9),
       level: s.level,
-      // FIXED: Strictly cast to String to allow reliable lookups against the URL param
       approver: String(s.approver?._id || s.approver),
       role: s.role || "",
       isEnabled: s.isEnabled !== false,
     }));
   }, [myRoute]);
 
-  // Populate form if we are editing an existing step
+  // Populate form if we are editing an existing step, OR default the role if new
   useEffect(() => {
     if (isEditing && steps.length > 0) {
       const stepToEdit = steps.find((s) => s.approver === approverId);
       if (stepToEdit) {
         setModalData({
           approver: stepToEdit.approver,
-          role: stepToEdit.role || "other",
+          role: stepToEdit.role || "",
         });
       }
+    } else if (!isEditing && normalizedRoles.length > 0 && !modalData.role) {
+      // Default to the first available dynamic role
+      setModalData((p) => ({ ...p, role: normalizedRoles[0].id }));
     }
-  }, [isEditing, approverId, steps]);
-
-  const { data: approversRaw = [], isLoading: approversLoading } = useQuery({
-    queryKey: ["approvers"],
-    queryFn: fetchApprovers,
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, approverId, steps.length, normalizedRoles.length]);
 
   const approverOptions = useMemo(() => {
-    // FIXED: Safely unwrap deeply nested data payloads returned by Axios/Backend
     const list = Array.isArray(approversRaw?.data?.data)
       ? approversRaw.data.data
       : Array.isArray(approversRaw?.data)
@@ -259,7 +242,6 @@ const ApprovalRouteStepForm = () => {
     rawSteps.map((s, i) => ({ ...s, level: i + 1 }));
 
   const handleSave = (createAnother = false) => {
-    // Prevent double clicking by applying a strict local lock
     if (isSubmitting || mutation.isPending) return;
     setIsSubmitting(true);
 
@@ -275,12 +257,25 @@ const ApprovalRouteStepForm = () => {
       return;
     }
 
-    const isDuplicate = steps.some(
+    const isDuplicateApprover = steps.some(
       (s) => s.approver === modalData.approver && s.approver !== approverId,
     );
 
-    if (isDuplicate) {
+    if (isDuplicateApprover) {
       toast.error("This approver is already assigned to another step.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // ✅ Enforce Role Uniqueness: Check if the role is already used in this workflow by someone else
+    const isDuplicateRole = steps.some(
+      (s) => s.role === modalData.role && s.approver !== approverId,
+    );
+
+    if (isDuplicateRole) {
+      toast.error(
+        "This role is already assigned to another step. Each role can only be used once.",
+      );
       setIsSubmitting(false);
       return;
     }
@@ -326,7 +321,7 @@ const ApprovalRouteStepForm = () => {
           // Reset form to stay on the page and create a new one
           setModalData({
             approver: "",
-            role: "po_initial",
+            role: normalizedRoles.length > 0 ? normalizedRoles[0].id : "",
           });
           setIsSubmitting(false);
         } else {
@@ -353,7 +348,7 @@ const ApprovalRouteStepForm = () => {
     return steps.length + 1;
   }, [isEditing, steps, approverId]);
 
-  if (routesLoading || approversLoading) {
+  if (routesLoading || approversLoading || rolesLoading) {
     return (
       <div
         className="w-full h-full p-8"
@@ -467,7 +462,7 @@ const ApprovalRouteStepForm = () => {
                     Approver <span className="text-red-500">*</span>
                   </label>
                   <Select
-                    components={{ Input: CustomInput }} // ✅ ADDED CUSTOM INPUT HERE
+                    components={{ Input: CustomInput }}
                     options={approverOptions}
                     value={
                       approverOptions.find(
@@ -505,62 +500,87 @@ const ApprovalRouteStepForm = () => {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {APPROVER_ROLES.map((role) => {
-                  const isSelected = modalData.role === role.id;
-                  return (
-                    <div
-                      key={role.id}
-                      onClick={() => {
-                        if (isBusy) return;
-                        setModalData((p) => ({ ...p, role: role.id }));
-                      }}
-                      className={`flex gap-3 p-3.5 rounded-xl border transition-all ${isBusy ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
-                      style={{
-                        backgroundColor: isSelected
-                          ? "var(--accent-soft)"
-                          : "var(--app-surface-2)",
-                        borderColor: isSelected ? "var(--accent)" : borderColor,
-                      }}
-                    >
-                      <div className="pt-0.5">
-                        <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                            isSelected
-                              ? "border-[color:var(--accent)]"
-                              : "border-[color:var(--app-muted)]"
-                          }`}
-                        >
-                          {isSelected && (
-                            <div
-                              className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: "var(--accent)" }}
-                            />
-                          )}
+              {normalizedRoles.length === 0 ? (
+                <div
+                  className="p-4 rounded-xl border text-center text-sm font-medium"
+                  style={{
+                    borderColor,
+                    color: "var(--app-muted)",
+                    backgroundColor: "var(--app-surface-2)",
+                  }}
+                >
+                  No roles available from the server.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {normalizedRoles.map((role) => {
+                    const isSelected = modalData.role === role.id;
+
+                    // Disable the role option visually if it is already taken by another step
+                    const isRoleTaken = steps.some(
+                      (s) => s.role === role.id && s.approver !== approverId,
+                    );
+
+                    return (
+                      <div
+                        key={role.id}
+                        onClick={() => {
+                          if (isBusy || isRoleTaken) return;
+                          setModalData((p) => ({ ...p, role: role.id }));
+                        }}
+                        className={`flex gap-3 p-3.5 rounded-xl border transition-all ${
+                          isBusy || isRoleTaken
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer"
+                        }`}
+                        style={{
+                          backgroundColor: isSelected
+                            ? "var(--accent-soft)"
+                            : "var(--app-surface-2)",
+                          borderColor: isSelected
+                            ? "var(--accent)"
+                            : borderColor,
+                        }}
+                      >
+                        <div className="pt-0.5">
+                          <div
+                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "border-[color:var(--accent)]"
+                                : "border-[color:var(--app-muted)]"
+                            }`}
+                          >
+                            {isSelected && (
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: "var(--accent)" }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p
+                            className="text-sm font-bold"
+                            style={{
+                              color: isSelected
+                                ? "var(--accent)"
+                                : "var(--app-text)",
+                            }}
+                          >
+                            {role.label} {isRoleTaken && "(Already Assigned)"}
+                          </p>
+                          <p
+                            className="text-[11px] mt-1 leading-relaxed"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            {role.desc}
+                          </p>
                         </div>
                       </div>
-                      <div>
-                        <p
-                          className="text-sm font-bold"
-                          style={{
-                            color: isSelected
-                              ? "var(--accent)"
-                              : "var(--app-text)",
-                          }}
-                        >
-                          {role.label}
-                        </p>
-                        <p
-                          className="text-[11px] mt-1 leading-relaxed"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          {role.desc}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

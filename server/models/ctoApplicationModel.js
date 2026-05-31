@@ -13,7 +13,7 @@ const CtoApplicationSchema = new mongoose.Schema(
     },
     employeeType: {
       type: String,
-      enum: ["Organic", "Job Order", "Contractual", "Others"], // Adjust based on your system
+      enum: ["Organic", "Job Order"],
       required: true,
     },
     requestedHours: {

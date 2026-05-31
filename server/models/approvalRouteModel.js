@@ -1,4 +1,6 @@
+// models/approvalRouteModel.js
 const mongoose = require("mongoose");
+const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 
 const approvalRouteSchema = new mongoose.Schema(
   {
@@ -40,7 +42,11 @@ const approvalRouteSchema = new mongoose.Schema(
         },
         role: {
           type: String,
-          default: "",
+          enum: {
+            values: APPROVAL_ROLE_VALUES,
+            message: "{VALUE} is not a valid approval role",
+          },
+          required: true, // Making this required since it now relies on a strict enum
         },
         notes: {
           type: String,

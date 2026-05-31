@@ -1,4 +1,6 @@
+// models/approvalStepModel.js
 const mongoose = require("mongoose");
+const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 
 const approvalStepSchema = new mongoose.Schema(
   {
@@ -10,6 +12,15 @@ const approvalStepSchema = new mongoose.Schema(
     approver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
+      required: true,
+    },
+
+    role: {
+      type: String,
+      enum: {
+        values: APPROVAL_ROLE_VALUES,
+        message: "{VALUE} is not a valid approval role",
+      },
       required: true,
     },
 

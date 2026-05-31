@@ -1,5 +1,6 @@
 // controllers/approvalRouteController.js
 const {
+  getApprovalRolesService,
   getAllApprovalRoutesService,
   getApprovalRouteByIdService,
   createApprovalRouteService,
@@ -12,6 +13,16 @@ function sendError(res, err) {
   const status = err.statusCode || err.status || 500;
   return res.status(status).json({ message: err.message || "Server error" });
 }
+
+// GET /api/approval-routes/roles
+const getApprovalRoles = async (req, res) => {
+  try {
+    const roles = await getApprovalRolesService();
+    return res.json({ success: true, count: roles.length, data: roles });
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
 
 // GET /api/approval-routes
 const getAllApprovalRoutes = async (req, res) => {
@@ -134,6 +145,7 @@ const upsertMyApprovalRoute = async (req, res) => {
 };
 
 module.exports = {
+  getApprovalRoles,
   getAllApprovalRoutes,
   getApprovalRouteById,
   createApprovalRoute,

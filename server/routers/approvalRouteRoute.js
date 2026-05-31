@@ -6,6 +6,7 @@ const {
 } = require("../middlewares/authMiddleware");
 
 const {
+  getApprovalRoles,
   getAllApprovalRoutes,
   getApprovalRouteById,
   createApprovalRoute,
@@ -21,8 +22,12 @@ const requirePerm = (perm) => [authenticateToken, authorize(perm)];
 const authOnly = [authenticateToken];
 
 // =============================
-// SELF-SERVICE
+// UTILITY & SELF-SERVICE
 // =============================
+
+// ✅ Fetch dynamic roles from the backend constants
+// MUST be defined before /:id routes to prevent parameter collisions
+router.get("/roles", ...authOnly, getApprovalRoles);
 
 // User updating their own specific approval route
 // MUST be defined before /:id routes to prevent parameter collisions

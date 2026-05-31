@@ -11,10 +11,10 @@ const addCtoApplicationRequest = async (req, res) => {
       requestedHours,
       reason,
       routeId,
-      approvers,
+      approvers, // Ensure frontend sends [{ approver: id, role: "string" }] if custom
       inclusiveDates,
       memos,
-      // NEW: Merged schema fields
+      // Merged schema fields
       employeeType,
       commutation,
       certificationOfLeaveCredits,
@@ -48,12 +48,10 @@ const addCtoApplicationRequest = async (req, res) => {
 
 const getAllCtoApplicationsRequest = async (req, res) => {
   try {
-    // FIXED: Extract employeeType from req.query
     const { page, limit, status, from, to, search, employeeId, employeeType } =
       req.query;
 
     const result = await getAllCtoApplicationsService(
-      // FIXED: Pass employeeType into the filters object
       { status, from, to, search, employeeId, employeeType },
       page,
       limit,
@@ -73,14 +71,12 @@ const getAllCtoApplicationsRequest = async (req, res) => {
 const getCtoApplicationsByEmployeeRequest = async (req, res) => {
   try {
     const employeeId = req.params.employeeId || req.user.id;
-    // FIXED: Extract employeeType from req.query
     const { page, limit, status, from, to, search, employeeType } = req.query;
 
     const result = await getCtoApplicationsByEmployeeService(
       employeeId,
       page,
       limit,
-      // FIXED: Pass employeeType into the filters object
       { status, from, to, search, employeeType },
     );
 
@@ -96,7 +92,7 @@ const getCtoApplicationsByEmployeeRequest = async (req, res) => {
 };
 
 /**
- * ✅ Cancel CTO application (employee-initiated)
+ * Cancel CTO application (employee-initiated)
  * Route suggestion: PATCH /cto/applications/:id/cancel
  */
 const cancelCtoApplicationRequest = async (req, res) => {

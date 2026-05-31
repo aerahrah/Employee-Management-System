@@ -8,6 +8,9 @@ import {
   Image,
 } from "@react-pdf/renderer";
 
+// ✅ FIX 2: Import your buildApiUrl utility so the PDF can construct absolute URLs for the signatures
+import { buildApiUrl } from "../../../config/env";
+
 /* =========================
    Helpers
 ========================= */
@@ -33,6 +36,13 @@ function formatInclusiveDates(dates) {
   if (sorted.length === 1) return fmtDateLong(sorted[0]);
 
   return `${fmtDateLong(sorted[0])} to ${fmtDateLong(sorted[sorted.length - 1])}`;
+}
+
+// ✅ Safe URL Wrapper to prevent Buffer errors on relative signature paths
+function safeImageUrl(url) {
+  if (!url) return null;
+  // If it's already an absolute HTTP URL, return it. Otherwise, prepend backend URL.
+  return url.startsWith("http") ? url : buildApiUrl(url);
 }
 
 /* =========================
@@ -63,18 +73,6 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: "#eee",
     marginRight: 10,
-  },
-  headerTextWrapper: {
-    flex: 1,
-  },
-  headerTextSmall: {
-    fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-  },
-  headerTextMain: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    color: "#003366", // Approximate DICT blue
   },
   stampBox: {
     width: 100,
@@ -111,9 +109,6 @@ const styles = StyleSheet.create({
   },
 
   /* --- Cell Padding & Text --- */
-  cell: {
-    padding: 3,
-  },
   labelTitle: {
     fontSize: 8,
     fontFamily: "Helvetica",
@@ -234,10 +229,12 @@ const styles = StyleSheet.create({
   sigName: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
+    paddingHorizontal: 2,
   },
   sigRole: {
     fontSize: 8,
     marginTop: 2,
+    textAlign: "center",
   },
   digitalSigInfo: {
     fontSize: 5,
@@ -251,7 +248,21 @@ const styles = StyleSheet.create({
     width: 120,
     objectFit: "contain",
     position: "absolute",
-    bottom: 2, // Seats the image right above the underline
+    bottom: 2,
+  },
+  approverSignatureAbove: {
+    height: 35,
+    width: 120,
+    objectFit: "contain",
+    position: "absolute",
+    bottom: 12,
+  },
+  approverInitialBeside: {
+    height: 20,
+    width: 40,
+    objectFit: "contain",
+    marginRight: 4,
+    marginBottom: -2,
   },
 });
 
@@ -269,11 +280,85 @@ const CheckboxItem = ({ label, law, checked }) => (
   </View>
 );
 
+const SlotSignatures = ({
+  approvals,
+  fallbackName,
+  fallbackRole,
+  marginTop = 15,
+}) => {
+  if (!approvals || approvals.length === 0) {
+    return (
+      <View style={[styles.sigBlock, { marginTop }]}>
+        <View style={styles.sigLine}>
+          <Text style={styles.sigName}>{fallbackName}</Text>
+        </View>
+        <Text style={styles.sigRole}>{fallbackRole}</Text>
+      </View>
+    );
+  }
+
+  const mainApprover =
+    approvals.find((a) => a.role?.toLowerCase().includes("signature")) ||
+    approvals[approvals.length - 1];
+
+  const otherApprovers = approvals.filter((a) => a._id !== mainApprover._id);
+  const isMainInitial = mainApprover.role?.toLowerCase().includes("initial");
+
+  const mainName = mainApprover.approver
+    ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
+    : fallbackName;
+
+  const mainRole = mainApprover.approver?.position || fallbackRole;
+
+  // ✅ FIX: Ensure absolute URLs
+  const rawMainSigUrl =
+    mainApprover.status === "APPROVED"
+      ? mainApprover.approverSignature?.signatureUrl
+      : null;
+  const mainSigUrl = safeImageUrl(rawMainSigUrl);
+
+  return (
+    <View style={[styles.sigBlock, { marginTop }]}>
+      <View style={styles.sigLine}>
+        {!isMainInitial && mainSigUrl && (
+          <Image src={mainSigUrl} style={styles.approverSignatureAbove} />
+        )}
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+        >
+          {otherApprovers.map((appr, idx) => {
+            const rawUrl =
+              appr.status === "APPROVED"
+                ? appr.approverSignature?.signatureUrl
+                : null;
+            const url = safeImageUrl(rawUrl); // ✅ Ensure absolute URL
+            if (!url) return null;
+            return (
+              <Image key={idx} src={url} style={styles.approverInitialBeside} />
+            );
+          })}
+
+          {isMainInitial && mainSigUrl && (
+            <Image src={mainSigUrl} style={styles.approverInitialBeside} />
+          )}
+
+          <Text style={styles.sigName}>{mainName}</Text>
+        </View>
+      </View>
+      <Text style={styles.sigRole}>{mainRole}</Text>
+    </View>
+  );
+};
+
 /* =========================
    Main Component
 ========================= */
 export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
-  // Safe extraction of employee details
   const emp = app?.employee || {};
   const office = emp.officeDivision || emp.department || "ADMIN AND FINANCE";
   const lastName = emp.lastName || "";
@@ -284,20 +369,37 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
   const position = emp.position || "";
   const salary = emp.salary ? `₱${Number(emp.salary).toLocaleString()}` : "";
 
-  // Leave Type logic mapping
   const leaveType = app?.type || "Others";
-
-  // Dates & Duration
   const daysApplied = app?.totalDays || app?.requestedDays || 1;
   const inclusiveDates = formatInclusiveDates(app?.inclusiveDates || []);
 
-  // Commutation
   const isCommutationReq = app?.commutation === "Requested";
   const isCommutationNotReq =
     app?.commutation === "Not Requested" || !isCommutationReq;
 
-  // Final Signature Source
-  const finalSignatureSrc = signatureSrc || emp.signature || null;
+  // ✅ FIX: Process the final signature URL to ensure it is absolute
+  const rawFinalSignatureSrc =
+    app?.applicantSignatureUrl || signatureSrc || emp.signature || null;
+  const finalSignatureSrc = safeImageUrl(rawFinalSignatureSrc);
+
+  const hrmoApprovals = [];
+  const recommendingApprovals = [];
+  const finalApprovals = [];
+
+  (app?.approvals || []).forEach((a) => {
+    const r = (a.role || "").toLowerCase();
+    if (r.includes("hrmo")) {
+      hrmoApprovals.push(a);
+    } else if (
+      r.includes("rd") ||
+      r.includes("regional director") ||
+      r.includes("ard")
+    ) {
+      finalApprovals.push(a);
+    } else {
+      recommendingApprovals.push(a);
+    }
+  });
 
   return (
     <Document title={`Leave Application - ${lastName}`}>
@@ -312,7 +414,7 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                   height: 45,
                   width: 250,
                   objectFit: "contain",
-                  objectPosition: "left", // Force image to left-align inside its container
+                  objectPosition: "left",
                 }}
               />
             ) : (
@@ -663,6 +765,7 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 <CheckboxItem label="Requested" checked={isCommutationReq} />
               </View>
 
+              {/* Applicant Signature */}
               <View style={[styles.sigBlock, { marginTop: 10 }]}>
                 <View style={styles.sigLine}>
                   {finalSignatureSrc ? (
@@ -675,7 +778,6 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                   )}
                 </View>
                 <Text style={styles.sigRole}>(Signature of Applicant)</Text>
-                {/* Fake digital sig text as seen in image */}
                 {app?.overallStatus === "APPROVED" && (
                   <View style={styles.digitalSigInfo}>
                     <Text>Digitally signed by {lastName}</Text>
@@ -695,6 +797,7 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
 
           {/* Row 5: 7A and 7B */}
           <View style={styles.row}>
+            {/* 7.A - HRMO Signature Block */}
             <View style={[styles.colRightBorder, { width: "50%", padding: 4 }]}>
               <Text style={styles.labelTitle}>
                 7.A CERTIFICATION OF LEAVE CREDITS
@@ -767,14 +870,16 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 </View>
               </View>
 
-              <View style={styles.sigBlock}>
-                <View style={styles.sigLine}>
-                  <Text style={styles.sigName}>JAYFER T. AMMASI</Text>
-                </View>
-                <Text style={styles.sigRole}>HRMO II</Text>
-              </View>
+              {/* Dynamic 7A Approvers */}
+              <SlotSignatures
+                approvals={hrmoApprovals}
+                fallbackName="JAYFER T. AMMASI"
+                fallbackRole="HRMO II"
+                marginTop={15}
+              />
             </View>
 
+            {/* 7.B - Recommending Signatures Block */}
             <View style={{ width: "50%", padding: 4 }}>
               <Text style={styles.labelTitle}>7.B RECOMMENDATION</Text>
               <View style={{ paddingLeft: 10, marginTop: 4 }}>
@@ -807,14 +912,13 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 ></View>
               </View>
 
-              <View style={[styles.sigBlock, { marginTop: 25 }]}>
-                <View style={styles.sigLine}>
-                  <Text style={styles.sigName}>MINA FLOR T. VILLAFUERTE</Text>
-                </View>
-                <Text style={styles.sigRole}>
-                  Chief, Admin and Finance Division
-                </Text>
-              </View>
+              {/* Dynamic 7B Approvers */}
+              <SlotSignatures
+                approvals={recommendingApprovals}
+                fallbackName="MINA FLOR T. VILLAFUERTE"
+                fallbackRole="Chief, Admin and Finance Division"
+                marginTop={25}
+              />
             </View>
           </View>
 
@@ -889,21 +993,14 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
             </View>
           </View>
 
-          {/* Bottom Final Signature */}
-          <View
-            style={{
-              padding: 10,
-              alignItems: "center",
-              marginTop: 10,
-              marginBottom: 10,
-            }}
-          >
-            <View style={[styles.sigLine, { width: "50%" }]}>
-              <Text style={styles.sigName}>
-                Engr. PINKY T. JIMENEZ, PECE, Ph.D.
-              </Text>
-            </View>
-            <Text style={styles.sigRole}>Regional Director</Text>
+          {/* Bottom Final Signature (7C/7D Approvers) */}
+          <View style={{ padding: 10, marginBottom: 10 }}>
+            <SlotSignatures
+              approvals={finalApprovals}
+              fallbackName="Engr. PINKY T. JIMENEZ, PECE, Ph.D."
+              fallbackRole="Regional Director"
+              marginTop={10}
+            />
           </View>
         </View>
       </Page>

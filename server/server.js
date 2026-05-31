@@ -97,23 +97,12 @@ app.use((req, res, next) => {
 app.use(mongoSanitize());
 
 /* ======================================================
-   STATIC FILES
+   CORS CONFIGURATION
+   (Moved ABOVE Static Files so we can use it on uploads)
 ====================================================== */
-app.use(
-  "/uploads/cto_memos",
-  express.static(path.join(process.cwd(), "uploads", "cto_memos")),
-);
-
-// ✅ NEW: Added static path for signatures so they can be viewed/rendered in PDFs
-app.use(
-  "/uploads/signatures",
-  express.static(path.join(process.cwd(), "uploads", "signatures")),
-);
-
-/* ======================================================
-   CORS
-====================================================== */
-const allowedOrigins = "http://localhost:3000"
+const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:5173"
+)
   .split(",")
   .map((o) => o.trim().replace(/^"(.+)"$/, "$1"))
   .filter(Boolean);
@@ -144,10 +133,26 @@ const corsOptions =
         exposedHeaders: ["Content-Disposition", "Content-Length"],
       };
 
+// Apply Global CORS
 app.use(cors(corsOptions));
 
 // ✅ Express 5 safe wildcard
 app.options(/.*/, cors(corsOptions));
+
+/* ======================================================
+   STATIC FILES
+====================================================== */
+app.use(
+  "/uploads/cto_memos",
+  cors(corsOptions), // ✅ FIX: Allows React-PDF to fetch memos cross-origin
+  express.static(path.join(process.cwd(), "uploads", "cto_memos")),
+);
+
+app.use(
+  "/uploads/signatures",
+  cors(corsOptions), // ✅ FIX: Allows React-PDF to fetch signatures cross-origin
+  express.static(path.join(process.cwd(), "uploads", "signatures")),
+);
 
 /* ======================================================
    REQUEST LOGGER (MORGAN)

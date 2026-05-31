@@ -203,7 +203,8 @@ const getCtoApplicationsForApproverService = async (
         { path: "employee", select: "firstName lastName position" },
         {
           path: "approvals",
-          select: "approver status level",
+          // ✅ Added `role` and `approverSignature` to the select projection!
+          select: "approver status level role approverSignature",
           populate: {
             path: "approver",
             select: "firstName lastName position _id",
@@ -305,7 +306,7 @@ const getCtoApplicationByIdService = async (ctoApplicationId) => {
     })
     .populate({
       path: "approvals",
-      select: "-__v",
+      select: "-__v", // -__v ensures we don't accidentally drop role or approverSignature
       populate: {
         path: "approver",
         select: "firstName lastName position email",

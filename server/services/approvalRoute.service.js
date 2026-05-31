@@ -2,6 +2,10 @@
 const mongoose = require("mongoose");
 const ApprovalRoute = require("../models/approvalRouteModel");
 const Employee = require("../models/employeeModel");
+const {
+  APPROVAL_ROLES,
+  APPROVAL_ROLE_DESCRIPTIONS,
+} = require("../constants/approvalRoles");
 
 /* ─── helpers ─────────────────────────────────────── */
 function httpError(message, statusCode = 400) {
@@ -25,6 +29,16 @@ const POPULATE_CREATED_BY = {
   path: "createdBy",
   select: "firstName lastName position",
 };
+
+/* ─── GET ROLES ──────────────────────────────────── */
+async function getApprovalRolesService() {
+  // Transforms the constant object into an array for the frontend
+  return Object.values(APPROVAL_ROLES).map((role) => ({
+    id: role,
+    label: role,
+    description: APPROVAL_ROLE_DESCRIPTIONS[role] || "Assigned approval role.",
+  }));
+}
 
 /* ─── GET ALL (public + own private) ────────────── */
 async function getAllApprovalRoutesService({ requesterId }) {
@@ -54,7 +68,8 @@ async function getApprovalRouteByIdService({ id, requesterId }) {
   if (!route) throw httpError("Approval route not found.", 404);
 
   // Only allow viewing if public or owned by requester
-  const isOwner = String(route.createdBy?._id || route.createdBy) === String(requesterId);
+  const isOwner =
+    String(route.createdBy?._id || route.createdBy) === String(requesterId);
   if (!route.isPublic && !isOwner) {
     throw httpError("Access denied.", 403);
   }
@@ -96,6 +111,15 @@ async function createApprovalRouteService({ data, createdBy }) {
   const approverIds = sortedSteps.map((s) => String(s.approver));
   if (new Set(approverIds).size !== approverIds.length) {
     throw httpError("Each step must have a unique approver.", 400);
+  }
+
+  // ✅ NEW: All roles must be distinct (a role can only be assigned once per workflow)
+  const assignedRoles = sortedSteps.map((s) => s.role).filter(Boolean);
+  if (new Set(assignedRoles).size !== assignedRoles.length) {
+    throw httpError(
+      "Each approval role can only be assigned once per workflow.",
+      400,
+    );
   }
 
   // Verify all approvers exist
@@ -142,7 +166,8 @@ async function updateApprovalRouteService({ id, data, requesterId, isAdmin }) {
   const { name, description, isPublic, steps } = data || {};
 
   if (name !== undefined) {
-    if (!String(name).trim()) throw httpError("Route name cannot be empty.", 400);
+    if (!String(name).trim())
+      throw httpError("Route name cannot be empty.", 400);
     route.name = String(name).trim();
   }
 
@@ -179,6 +204,15 @@ async function updateApprovalRouteService({ id, data, requesterId, isAdmin }) {
       throw httpError("Each step must have a unique approver.", 400);
     }
 
+    // ✅ NEW: All roles must be distinct (a role can only be assigned once per workflow)
+    const assignedRoles = sortedSteps.map((s) => s.role).filter(Boolean);
+    if (new Set(assignedRoles).size !== assignedRoles.length) {
+      throw httpError(
+        "Each approval role can only be assigned once per workflow.",
+        400,
+      );
+    }
+
     const found = await Employee.countDocuments({ _id: { $in: approverIds } });
     if (found !== approverIds.length) {
       throw httpError("One or more approvers not found.", 404);
@@ -193,7 +227,10 @@ async function updateApprovalRouteService({ id, data, requesterId, isAdmin }) {
     }));
   }
 
-  console.log("[UPDATE ROUTE] Saving route with steps:", JSON.stringify(route.steps, null, 2));
+  console.log(
+    "[UPDATE ROUTE] Saving route with steps:",
+    JSON.stringify(route.steps, null, 2),
+  );
   await route.save();
   console.log("[UPDATE ROUTE] Save successful");
 
@@ -230,10 +267,14 @@ async function resolveApproversFromRoute(routeId) {
     throw httpError("Approval route has no steps configured.", 400);
   }
 
+  // ✅ FIXED: Now returns an array of objects { approver, role } instead of just strings
   return route.steps
     .filter((s) => s.isEnabled !== false)
     .sort((a, b) => a.level - b.level)
-    .map((s) => String(s.approver));
+    .map((s) => ({
+      approver: String(s.approver),
+      role: s.role || "",
+    }));
 }
 
 /* ─── UPSERT (create-or-update for personal routes) ── */
@@ -269,10 +310,21 @@ async function upsertMyApprovalRouteService({ data, requesterId }) {
     throw httpError("One or more approvers not found.", 404);
   }
 
+  // ✅ NEW: All roles must be distinct (a role can only be assigned once per workflow)
+  const assignedRoles = normalizedSteps.map((s) => s.role).filter(Boolean);
+  if (new Set(assignedRoles).size !== assignedRoles.length) {
+    throw httpError(
+      "Each approval role can only be assigned once per workflow.",
+      400,
+    );
+  }
+
   const routeName = name || "Personal Workflow";
 
   // Clean up any duplicates caused by the previous race condition bug
-  const userRoutes = await ApprovalRoute.find({ createdBy: requesterId }).sort({ createdAt: -1 });
+  const userRoutes = await ApprovalRoute.find({ createdBy: requesterId }).sort({
+    createdAt: -1,
+  });
   let targetRouteId;
 
   if (userRoutes.length > 0) {
@@ -294,7 +346,7 @@ async function upsertMyApprovalRouteService({ data, requesterId }) {
           steps: normalizedSteps,
         },
       },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
   } else {
     route = await ApprovalRoute.create({
@@ -312,6 +364,7 @@ async function upsertMyApprovalRouteService({ data, requesterId }) {
 }
 
 module.exports = {
+  getApprovalRolesService,
   getAllApprovalRoutesService,
   getApprovalRouteByIdService,
   createApprovalRouteService,
