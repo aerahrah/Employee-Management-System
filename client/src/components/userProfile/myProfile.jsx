@@ -14,12 +14,12 @@ import {
   Edit3,
   KeyRound,
   AlertCircle,
-  PenTool, // ✅ Added for signature placeholder
+  PenTool, // Added for signature placeholder
 } from "lucide-react";
 import { getMyProfile } from "../../api/employee";
 import { useAuth } from "../../store/authStore";
 import { usePermissions } from "../../hooks/usePermissions";
-import { buildApiUrl } from "../../config/env"; // ✅ Imported to build image URL
+import { buildApiUrl } from "../../config/env"; // Imported to build image URL
 
 /* ------------------ Resolve theme (same basis as CTO Credit History) ------------------ */
 function resolveTheme(prefTheme) {
@@ -557,6 +557,7 @@ const MyProfile = () => {
   const { can } = usePermissions();
   const canResetPassword = can("employees.reset_password_self");
   const canEditProfile = can("employees.edit_self");
+  const canUploadSignature = can("employees.upload_signature"); // ✅ Permission for digital signature
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
@@ -611,11 +612,13 @@ const MyProfile = () => {
   const profile = data?.data ?? data ?? {};
   const projectName = profile.project?.name || "";
 
-  // ✅ Check if employee is Organic to display signature
+  // Check if employee is Organic
   const isOrganic =
     profile?.employeeType === "Organic" || profile?.contractType === "Organic";
+
+  // ✅ SAFELY parse the signature URL to fix any Windows backward slashes
   const signaturePreview = profile?.signature
-    ? buildApiUrl(profile.signature)
+    ? buildApiUrl(profile.signature.replace(/\\/g, "/"))
     : null;
 
   return (
@@ -646,7 +649,7 @@ const MyProfile = () => {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              {/* ✅ Hide Reset Password button if user lacks permission */}
+              {/* Hide Reset Password button if user lacks permission */}
               {canResetPassword && (
                 <ActionButton
                   variant="secondary"
@@ -658,7 +661,7 @@ const MyProfile = () => {
                 </ActionButton>
               )}
 
-              {/* ✅ Hide Edit Profile button if user lacks permission */}
+              {/* Hide Edit Profile button if user lacks permission */}
               {canEditProfile && (
                 <ActionButton
                   variant="primary"
@@ -679,8 +682,8 @@ const MyProfile = () => {
           </div>
 
           <div className="lg:col-span-8 space-y-6">
-            {/* ✅ NEW DIGITAL SIGNATURE DISPLAY (View-Only) */}
-            {isOrganic && (
+            {/* ✅ SECURED DIGITAL SIGNATURE DISPLAY (View-Only) */}
+            {isOrganic && canUploadSignature && (
               <Section title="Digital Signature" borderColor={borderColor}>
                 <div className="flex flex-col md:flex-row gap-6 items-start">
                   <div className="w-full md:w-1/3 flex flex-col items-center gap-3">

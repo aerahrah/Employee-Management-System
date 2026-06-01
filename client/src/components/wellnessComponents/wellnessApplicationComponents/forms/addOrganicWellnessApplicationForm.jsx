@@ -1,7 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-// ✅ Correctly imported the Wellness Application API
 import { addWellnessApplicationRequest } from "../../../../api/wellnessApplication";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
@@ -13,6 +12,9 @@ import Breadcrumbs from "../../../breadCrumbs";
 import "react-loading-skeleton/dist/skeleton.css";
 import { toast } from "react-toastify";
 import * as yup from "yup";
+
+// ✅ Import your newly extracted Forbidden403 component
+import Forbidden403 from "../../../../pages/forbidden403_FormPage";
 
 const MAX_REASON_LEN = 1000;
 
@@ -252,7 +254,6 @@ const AddOrganicWellnessApplicationForm = () => {
     queryFn: fetchAllApprovalRoutes,
   });
 
-  // ✅ Switched to the correct Wellness Application API endpoint
   const mutation = useMutation({
     mutationFn: addWellnessApplicationRequest,
     retry: 0,
@@ -464,6 +465,19 @@ const AddOrganicWellnessApplicationForm = () => {
       setSuccessLatchUI(false);
     }
   };
+
+  // ------------------------------------------------------------------
+  // 403 Forbidden Access Guard for Non-Organic (e.g., "Job Order")
+  // Note: Placed after ALL hooks to strictly abide by React hook rules
+  // ------------------------------------------------------------------
+  if (admin?.employeeType !== "Organic") {
+    return (
+      <Forbidden403
+        employeeType={admin?.employeeType}
+        borderColor={borderColor}
+      />
+    );
+  }
 
   return (
     <div

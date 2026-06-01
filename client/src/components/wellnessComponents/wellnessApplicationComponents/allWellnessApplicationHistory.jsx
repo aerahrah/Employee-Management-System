@@ -23,7 +23,6 @@ import {
   ArrowUp,
   HeartPulse,
 } from "lucide-react";
-import FilterSelect from "../../filterSelect";
 import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
 
 import { useAuth } from "../../../store/authStore";
@@ -275,7 +274,7 @@ const ApplicationCard = ({
   }`.trim();
 
   const requestorRole = app?.employee?.position || "-";
-  const coveredDatesLabel = formatCoveredDates(app?.inclusiveDates);
+  const employeeType = app?.category || app?.employeeType || "Unknown";
 
   return (
     <div
@@ -309,18 +308,30 @@ const ApplicationCard = ({
                 className="w-4 h-4 mt-[2px] flex-none"
                 style={{ color: "var(--app-muted)" }}
               />
-              <div className="min-w-0">
+              <div className="min-w-0 flex flex-col">
                 <div
                   className="text-xs font-semibold truncate transition-colors duration-300 ease-out"
                   style={{ color: "var(--app-text)" }}
                 >
                   {requestorName || "-"}
                 </div>
-                <div
-                  className="text-[11px] truncate transition-colors duration-300 ease-out"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  {requestorRole}
+                <div className="flex items-center gap-2 mt-1">
+                  <div
+                    className="text-[11px] truncate transition-colors duration-300 ease-out"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    {requestorRole}
+                  </div>
+                  <div
+                    className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors duration-300 ease-out"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    {employeeType}
+                  </div>
                 </div>
               </div>
             </div>
@@ -617,6 +628,7 @@ const AllWellnessApplicationsHistory = () => {
 
   // ---- Filters / pagination ----
   const [statusFilter, setStatusFilter] = useState("");
+  const [employeeTypeFilter, setEmployeeTypeFilter] = useState(""); // ✅ Added type filter
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 500);
 
@@ -645,7 +657,9 @@ const AllWellnessApplicationsHistory = () => {
   };
 
   // reset to page 1 when filters change
-  useEffect(() => setPage(1), [debouncedSearch, statusFilter, limit]);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter, employeeTypeFilter, limit]); // ✅ Included employeeTypeFilter
 
   // ---- Data fetching ----
   const { data, isLoading } = useQuery({
@@ -655,6 +669,7 @@ const AllWellnessApplicationsHistory = () => {
       limit,
       statusFilter,
       debouncedSearch,
+      employeeTypeFilter, // ✅ Included employeeTypeFilter
     ],
     queryFn: () =>
       fetchAllWellnessApplications({
@@ -662,6 +677,7 @@ const AllWellnessApplicationsHistory = () => {
         limit,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
+        employeeType: employeeTypeFilter || undefined, // ✅ Passed to backend
       }),
     keepPreviousData: true,
   });
@@ -704,10 +720,12 @@ const AllWellnessApplicationsHistory = () => {
   const handleResetFilters = useCallback(() => {
     setSearchInput("");
     setStatusFilter("");
+    setEmployeeTypeFilter(""); // ✅ Reset type filter
     setPage(1);
   }, []);
 
-  const isFiltered = statusFilter !== "" || debouncedSearch !== "";
+  const isFiltered =
+    statusFilter !== "" || debouncedSearch !== "" || employeeTypeFilter !== "";
 
   // ✅ left strip class
   const getStatusStripClass = useCallback((status) => {
@@ -761,7 +779,6 @@ const AllWellnessApplicationsHistory = () => {
         baseColor={skeletonColors.baseColor}
         highlightColor={skeletonColors.highlightColor}
       >
-        {/* FIX: Removed overscroll-contain, added pb-24 md:pb-0 and touch-pan-y for scroll propagation on mobile */}
         <div
           ref={scrollRef}
           className="flex-1 min-h-0 overflow-y-auto md:contents cto-scrollbar pb-24 md:pb-0 touch-pan-y"
@@ -878,7 +895,7 @@ const AllWellnessApplicationsHistory = () => {
                 borderColor: borderColor,
               }}
             >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                 {/* Tabs */}
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                   {statusTabs(statusCounts, pagination.total).map((tab) => {
@@ -921,9 +938,9 @@ const AllWellnessApplicationsHistory = () => {
                   })}
                 </div>
 
-                {/* Search + limit */}
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                  <div className="relative flex-1 md:w-64">
+                {/* ✅ Refactored Search + filters to use flex-wrap like the CTO component */}
+                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                  <div className="relative flex-1 min-w-[200px]">
                     <Search
                       className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
                       style={{ color: "var(--app-muted)" }}
@@ -956,11 +973,40 @@ const AllWellnessApplicationsHistory = () => {
                   </div>
 
                   <div
-                    className="hidden md:flex items-center gap-2 pl-3 border-l"
+                    className="flex items-center gap-2 pl-3 border-l"
                     style={{ borderColor: borderColor }}
                   >
                     <span
-                      className="text-[10px] font-bold uppercase tracking-wider"
+                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Type
+                    </span>
+                    <select
+                      value={employeeTypeFilter}
+                      onChange={(e) => {
+                        setEmployeeTypeFilter(e.target.value);
+                        setPage(1);
+                      }}
+                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        borderColor: borderColor,
+                        color: "var(--app-text)",
+                      }}
+                    >
+                      <option value="">All Types</option>
+                      <option value="Organic">Organic</option>
+                      <option value="Job Order">Job Order</option>
+                    </select>
+                  </div>
+
+                  <div
+                    className="flex items-center gap-2 pl-3 border-l"
+                    style={{ borderColor: borderColor }}
+                  >
+                    <span
+                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
                       style={{ color: "var(--app-muted)" }}
                     >
                       Show
@@ -984,28 +1030,6 @@ const AllWellnessApplicationsHistory = () => {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div
-                    className="md:hidden flex items-center gap-1.5 px-2 border-l ml-1"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="text-xs font-medium uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      shows
-                    </span>
-                    <FilterSelect
-                      label=""
-                      value={limit}
-                      onChange={(v) => {
-                        setLimit(v);
-                        setPage(1);
-                      }}
-                      options={pageSizeOptions}
-                      className="!mb-0 w-20 text-xs"
-                    />
                   </div>
                 </div>
               </div>
@@ -1046,6 +1070,19 @@ const AllWellnessApplicationsHistory = () => {
                         {statusFilter}
                       </span>
                     )}
+                    {employeeTypeFilter && ( // ✅ Added chip for employee type
+                      <span
+                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                        style={{
+                          backgroundColor: "var(--accent-soft)",
+                          color: "var(--accent)",
+                          borderColor:
+                            "var(--accent-soft2, rgba(37,99,235,0.18))",
+                        }}
+                      >
+                        {employeeTypeFilter}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={handleResetFilters}
@@ -1060,7 +1097,6 @@ const AllWellnessApplicationsHistory = () => {
             </div>
 
             {/* Data region */}
-            {/* FIX: Added w-full overflow-x-hidden lg:overflow-x-auto touch-pan-y to stop horizontal scroll absorption on mobile */}
             <div
               className="min-h-[calc(100dvh-26rem)] md:min-h-0 md:flex-1 md:overflow-y-auto w-full overflow-x-hidden lg:overflow-x-auto touch-pan-y transition-colors duration-300 ease-out cto-scrollbar"
               style={{ backgroundColor: "var(--app-bg)" }}
@@ -1233,6 +1269,9 @@ const AllWellnessApplicationsHistory = () => {
                               </tr>
                             ))
                           : applications.map((app, i) => {
+                              const employeeType =
+                                app.category || app.employeeType || "Unknown";
+
                               const bg =
                                 i % 2 === 0
                                   ? "var(--app-surface)"
@@ -1252,7 +1291,7 @@ const AllWellnessApplicationsHistory = () => {
                                   }}
                                 >
                                   <td className="px-6 py-4">
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col items-start">
                                       <span
                                         className="font-semibold text-sm"
                                         style={{ color: "var(--app-text)" }}
@@ -1260,12 +1299,25 @@ const AllWellnessApplicationsHistory = () => {
                                         {app?.employee?.firstName || ""}{" "}
                                         {app?.employee?.lastName || ""}
                                       </span>
-                                      <span
-                                        className="text-[10px] font-mono mt-0.5"
-                                        style={{ color: "var(--app-muted)" }}
-                                      >
-                                        {app?.employee?.position || "-"}
-                                      </span>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span
+                                          className="text-[10px] font-mono"
+                                          style={{ color: "var(--app-muted)" }}
+                                        >
+                                          {app?.employee?.position || "-"}
+                                        </span>
+                                        <span
+                                          className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
+                                          style={{
+                                            backgroundColor:
+                                              "var(--app-surface-2)",
+                                            color: "var(--app-muted)",
+                                            borderColor: borderColor,
+                                          }}
+                                        >
+                                          {employeeType}
+                                        </span>
+                                      </div>
                                     </div>
                                   </td>
 

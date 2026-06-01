@@ -41,6 +41,11 @@ export const PERMISSION_GROUPS = [
         label: "Reset Own Password",
         hint: "Allow user to change their own password.",
       },
+      {
+        id: "employees.upload_signature",
+        label: "Upload Digital Signature",
+        hint: "Upload and manage personal e-signature for PDF forms.",
+      },
     ],
   },
   {

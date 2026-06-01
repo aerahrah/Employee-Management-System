@@ -133,40 +133,40 @@ router.patch(
    ORGANIC LEAVES (WELLNESS, ETC.)
 ========================================= */
 
-// Apply for Organic Leave
-router.post(
-  "/organic-applications/apply",
-  ...requirePerm("organic_leaves.create"),
-  addOrganicLeaveRequest,
-);
+// // Apply for Organic Leave
+// router.post(
+//   "/organic-applications/apply",
+//   ...requirePerm("organic_leaves.create"),
+//   addOrganicLeaveRequest,
+// );
 
-// Admin View All Organic Applications
-router.get(
-  "/organic-applications/all",
-  ...requirePerm("organic_leaves.applications_view"),
-  getAllOrganicLeavesRequest,
-);
+// // Admin View All Organic Applications
+// router.get(
+//   "/organic-applications/all",
+//   ...requirePerm("organic_leaves.applications_view"),
+//   getAllOrganicLeavesRequest,
+// );
 
-// ✅ FIXED: Self-service organic application views (MUST come before /employee/:employeeId)
-router.get(
-  "/organic-applications/my-application",
-  ...requirePerm("organic_leaves.view_self"),
-  getOrganicLeavesByEmployeeRequest,
-);
+// // ✅ FIXED: Self-service organic application views (MUST come before /employee/:employeeId)
+// router.get(
+//   "/organic-applications/my-application",
+//   ...requirePerm("organic_leaves.view_self"),
+//   getOrganicLeavesByEmployeeRequest,
+// );
 
-// Admin View Specific Employee Organic Applications
-router.get(
-  "/organic-applications/employee/:employeeId",
-  ...requirePerm("organic_leaves.applications_view"),
-  getOrganicLeavesByEmployeeRequest,
-);
+// // Admin View Specific Employee Organic Applications
+// router.get(
+//   "/organic-applications/employee/:employeeId",
+//   ...requirePerm("organic_leaves.applications_view"),
+//   getOrganicLeavesByEmployeeRequest,
+// );
 
-// ✅ FIXED: Updated to :applicationId
-router.patch(
-  "/organic-applications/:applicationId/cancel",
-  ...requirePerm("organic_leaves.view_self"),
-  cancelOrganicLeaveRequest,
-);
+// // ✅ FIXED: Updated to :applicationId
+// router.patch(
+//   "/organic-applications/:applicationId/cancel",
+//   ...requirePerm("organic_leaves.view_self"),
+//   cancelOrganicLeaveRequest,
+// );
 
 /* =========================================
    APPROVER FLOW (CTO)

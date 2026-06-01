@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { addApplicationRequest, fetchMyCtoMemos } from "../../../../api/cto";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
-import { getMyProfile } from "../../../../api/employee"; // Ensure this path matches your directory structure
+import { getMyProfile } from "../../../../api/employee";
 import { useAuth } from "../../../../store/authStore";
 import { AlertCircle, X, UserCheck, PenTool, Loader2 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
@@ -14,6 +14,9 @@ import { toast } from "react-toastify";
 import * as yup from "yup";
 
 import SelectCtoMemoModal from "./selectCtoMemoModal";
+
+// ✅ Import your newly extracted Forbidden403 component
+import Forbidden403 from "../../../../pages/forbidden403_FormPage";
 
 const MAX_REASON_LEN = 1000;
 
@@ -200,7 +203,7 @@ const AddOrganicCtoApplicationForm = () => {
       leaveType: "Compensatory Time-Off (CTO)", // Locked to CTO
       requestedHours: "",
       memos: [],
-      commutation: "Not Requested", // Hardcoded standard fields for Organic
+      commutation: "Not Requested",
       inclusiveDates: [],
       reason: "",
       routeId: "",
@@ -644,6 +647,18 @@ const AddOrganicCtoApplicationForm = () => {
   };
 
   const dateDisabled = !formData.requestedHours || isFormDisabled;
+
+  // ------------------------------------------------------------------
+  // 403 Forbidden Access Guard for Non-Organic (e.g., "Job Order")
+  // ------------------------------------------------------------------
+  if (admin?.employeeType !== "Organic") {
+    return (
+      <Forbidden403
+        employeeType={admin?.employeeType}
+        borderColor={borderColor}
+      />
+    );
+  }
 
   return (
     <div

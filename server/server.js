@@ -101,7 +101,7 @@ app.use(mongoSanitize());
    (Moved ABOVE Static Files so we can use it on uploads)
 ====================================================== */
 const allowedOrigins = (
-  process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:5173"
+  process.env.ALLOWED_ORIGINS || "https://cto.dictr2.cloud"
 )
   .split(",")
   .map((o) => o.trim().replace(/^"(.+)"$/, "$1"))

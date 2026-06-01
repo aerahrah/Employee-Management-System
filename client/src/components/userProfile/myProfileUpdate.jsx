@@ -17,18 +17,9 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
+import { usePermissions } from "../../hooks/usePermissions"; // ✅ Added usePermissions hook
 
-// ✅ Import buildApiUrl to construct the existing signature image path
 import { buildApiUrl } from "../../config/env";
-
-// ✅ Import your API calls
-// IMPORTANT: Make sure to add `uploadMySignature` to your api/employee.js file:
-// export const uploadMySignature = async (file) => {
-//   const fd = new FormData();
-//   fd.append("signature", file);
-//   const res = await API.post("/employee/my-profile/signature", fd, { headers: { "Content-Type": "multipart/form-data" } });
-//   return res.data;
-// };
 import {
   getMyProfile,
   updateMyProfile,
@@ -514,6 +505,7 @@ const ProfileSidebar = ({ formData, position, borderColor }) => {
 const UpdateProfile = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { can } = usePermissions(); // ✅ Initialize permissions hook
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
@@ -552,6 +544,9 @@ const UpdateProfile = () => {
   // States for Signature Upload
   const [signatureFile, setSignatureFile] = useState(null);
   const [signaturePreview, setSignaturePreview] = useState(null);
+
+  // ✅ Check if the user possesses the correct permission to view/upload signatures
+  const canUploadSignature = can("employees.upload_signature");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["myProfile"],
@@ -608,8 +603,8 @@ const UpdateProfile = () => {
   const profileMutation = useMutation({
     mutationFn: updateMyProfile,
     onSuccess: async () => {
-      if (signatureFile) {
-        // If a new signature was selected, upload it now
+      // ✅ Ensure the mutation is only triggered if a file exists AND they have permission
+      if (signatureFile && canUploadSignature) {
         signatureMutation.mutate(signatureFile);
       } else {
         await queryClient.invalidateQueries({ queryKey: ["myProfile"] });
@@ -674,9 +669,6 @@ const UpdateProfile = () => {
       />
     );
   }
-
-  const isOrganic =
-    profile?.employeeType === "Organic" || profile?.contractType === "Organic";
 
   return (
     <div
@@ -751,8 +743,8 @@ const UpdateProfile = () => {
           </div>
 
           <div className="lg:col-span-8 space-y-6">
-            {/* ✅ NEW DIGITAL SIGNATURE SECTION */}
-            {isOrganic && (
+            {/* ✅ SECURED DIGITAL SIGNATURE SECTION */}
+            {canUploadSignature && (
               <Section title="Digital Signature" borderColor={borderColor}>
                 <div className="flex flex-col md:flex-row gap-6 items-start">
                   <div className="w-full md:w-1/3 flex flex-col items-center gap-3">

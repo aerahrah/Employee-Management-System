@@ -1,4 +1,4 @@
-const defaultApiBaseUrl = "http://localhost:3000";
+const defaultApiBaseUrl = "https://locahost:3000";
 
 export const API_BASE_URL = String(defaultApiBaseUrl).replace(/\/$/, "");
 

@@ -13,6 +13,7 @@ const validPermissions = [
   "employees.create",
   "employees.edit",
   "employees.edit_self",
+  "employees.upload_signature",
   "employees.delete",
   "employees.reset_password_self",
   "employees.change_role",

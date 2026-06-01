@@ -21,7 +21,7 @@ const {
   resetMyPassword,
   getEmployeeWellnessBalanceById,
   getMyWellnessBalance,
-  uploadSignature, // ✅ Imported the new controller
+  uploadSignature,
 } = require("../controllers/employeeController");
 
 const {
@@ -32,30 +32,39 @@ const {
 // =============================
 // MULTER UPLOAD CONFIGURATION
 // =============================
-const signatureUploadDir = "uploads/signatures/";
+// Use process.cwd() to guarantee the path is created relative to your root folder
+const signatureUploadDir = path.join(process.cwd(), "uploads", "signatures");
 
-// Ensure the upload directory exists
+// Ensure the upload directory exists safely
 if (!fs.existsSync(signatureUploadDir)) {
   fs.mkdirSync(signatureUploadDir, { recursive: true });
 }
+
+// Strictly map valid mimetypes to safe extensions
+const allowedMimeTypes = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+};
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, signatureUploadDir);
   },
   filename: function (req, file, cb) {
+    // This unique suffix guarantees that even if 100 people upload "signature.jpg"
+    // at the exact same second, they will all get entirely unique file names on the server.
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    // e.g., 60f7a9b8b9b5a...-1629812345678-123456789.png
-    cb(
-      null,
-      `${req.user?.id}-${uniqueSuffix}${path.extname(file.originalname)}`,
-    );
+
+    // Instead of trusting the original file extension, force the extension based on the validated mimetype
+    const safeExtension = allowedMimeTypes[file.mimetype] || ".bin";
+
+    cb(null, `${req.user?.id || "unauth"}-${uniqueSuffix}${safeExtension}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
-  if (allowedTypes.includes(file.mimetype)) {
+  if (allowedMimeTypes[file.mimetype]) {
     cb(null, true);
   } else {
     cb(new Error("Invalid file type. Only JPEG and PNG are allowed."), false);
@@ -68,8 +77,25 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
+// Graceful Error Wrapper for Multer
+const handleSignatureUpload = (req, res, next) => {
+  upload.single("signature")(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      // A Multer error occurred when uploading (e.g., file too large)
+      return res
+        .status(400)
+        .json({ success: false, message: `Upload error: ${err.message}` });
+    } else if (err) {
+      // An unknown error occurred (e.g., our custom fileFilter error)
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    // Everything went fine, proceed to the controller
+    next();
+  });
+};
+
 // =============================
-// LOGIN RATE LIMITER
+// LOGIN RATE LIMITER (Original Code)
 // =============================
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
@@ -107,29 +133,25 @@ const requirePerm = (perm) => [authenticateToken, authorize(perm)];
    PUBLIC ROUTES
    ======================= */
 
-// Protected login route
 router.post("/login", loginLimiter, signInEmployee);
-
 router.post("/logout", authenticateToken, logoutEmployee);
 
 /* =======================
    SELF-SERVICE ROUTES
    ======================= */
 
-// Profile Management
 router.get("/my-profile", ...requirePerm("employees.view_self"), getMyProfile);
-
 router.put(
   "/my-profile",
   ...requirePerm("employees.edit_self"),
   updateMyProfile,
 );
 
-// ✅ NEW: Dedicated Signature Upload Route
+// ✅ Updated to use the secure error-handling wrapper
 router.post(
   "/my-profile/signature",
-  ...requirePerm("employees.edit_self"),
-  upload.single("signature"),
+  ...requirePerm("employees.upload_signature"),
+  handleSignatureUpload,
   uploadSignature,
 );
 
@@ -139,7 +161,6 @@ router.put(
   resetMyPassword,
 );
 
-// Leaves & Balances (Self)
 router.get("/memos/me", ...requirePerm("cto.view_self"), getMyCtoMemos);
 
 router.get(
@@ -152,25 +173,18 @@ router.get(
    ADMIN / HR ROUTES
    ======================= */
 
-// Employee Management (CRUD)
 router.get("/", ...requirePerm("employees.view"), getEmployees);
-
 router.post("/", ...requirePerm("employees.create"), createEmployee);
-
 router.get("/:id", ...requirePerm("employees.view"), getEmployeeById);
-
 router.put("/:id", ...requirePerm("employees.edit"), updateEmployee);
 
-// Update Employee Role
 router.post("/:id/role", ...requirePerm("employees.change_role"), updateRole);
 
-// View Employee Specific Balances & Memos
 router.get(
   "/memos/:id",
   ...requirePerm("cto.records_view"),
   getEmployeeCtoMemosById,
 );
-
 router.get(
   "/:id/wellness-balance",
   ...requirePerm("employees.view"),

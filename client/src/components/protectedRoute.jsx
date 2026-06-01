@@ -1,7 +1,7 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "../store/authStore";
 import { usePermissions } from "../hooks/usePermissions";
-import ForbiddenPage from "../pages/forbiddenPage";
+import ForbiddenPage from "../pages/forbidden403_GeneralPage";
 
 const ProtectedRoute = ({ allowedRoles, requiredPermission }) => {
   // ✅ Removed 'token' - we only need to check for the admin profile now

@@ -2,6 +2,8 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const fs = require("fs/promises"); // Added for file system operations
+const path = require("path"); // Added for path resolution
 
 const Employee = require("../models/employeeModel");
 const Project = require("../models/projectModel");
@@ -279,7 +281,7 @@ const createEmployeeService = async (employeeData = {}) => {
 
   await employee.save();
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const frontendUrl = process.env.FRONTEND_URL || "https://cto.dictr2.cloud";
 
   if (employee.email) {
     const enabled = await canSend(EMAIL_KEYS.EMPLOYEE_WELCOME);
@@ -384,6 +386,7 @@ const getEmployeeByIdService = async (id) => {
   if (!employee) throw httpError(`Employee not found`, 404);
   return employee;
 };
+
 const signInEmployeeService = async (username, password) => {
   const safeUsername = String(username).trim();
   const safePassword = String(password); // Prevent NoSQL Injection Object `{ $ne: null }`
@@ -424,8 +427,6 @@ const signInEmployeeService = async (username, password) => {
     throw httpError("Server misconfigured: JWT_SECRET is missing", 500);
   }
 
-  // ✅ THE FIX IS HERE:
-  // Check the actual field where "Organic" is saved (checking both common field names just in case)
   const employeeType =
     employee.employeeType === "Organic" || employee.contractType === "Organic"
       ? "Organic"
@@ -436,7 +437,7 @@ const signInEmployeeService = async (username, password) => {
     username: employee.username,
     designation: employee.designation,
     role: employee.role,
-    employeeType: employeeType, // Now correctly maps to Organic or JO
+    employeeType: employeeType,
   };
 
   const sessionSettings = await getSessionSettings();
@@ -656,25 +657,60 @@ const updateProfile = async (employeeId, updateData = {}) => {
   if (!updatedEmployee) throw httpError("Employee not found", 404);
   return updatedEmployee;
 };
-
 const uploadSignatureService = async (employeeId, signaturePath) => {
   if (!mongoose.isValidObjectId(employeeId)) {
     throw httpError("Invalid Employee ID", 400);
   }
 
-  const employee = await Employee.findByIdAndUpdate(
+  // ✅ 1. Strip the long absolute path and get just the filename
+  // (e.g., changes "C:/.../123.jpg" -> "123.jpg")
+  const safeFileName = path.basename(signaturePath);
+
+  // ✅ 2. Construct the clean, relative database path
+  const cleanDbPath = `uploads/signatures/${safeFileName}`;
+
+  // 3. Fetch the existing employee to check if they already have a signature uploaded
+  const existingEmployee = await Employee.findById(employeeId)
+    .select("signature")
+    .lean();
+
+  if (!existingEmployee) {
+    throw httpError("Employee not found", 404);
+  }
+
+  // 4. Safely delete the old signature
+  if (existingEmployee.signature) {
+    try {
+      const oldFileName = path.basename(existingEmployee.signature);
+      const oldFilePath = path.join(
+        process.cwd(),
+        "uploads",
+        "signatures",
+        oldFileName,
+      );
+
+      await fs.unlink(oldFilePath);
+      console.log(
+        `[FILE SYSTEM] Successfully deleted old signature: ${oldFileName}`,
+      );
+    } catch (err) {
+      console.error(
+        `[FILE SYSTEM] Failed to delete old signature (${existingEmployee.signature}):`,
+        err.message,
+      );
+    }
+  }
+
+  // 5. Update the database with the CLEAN path
+  const updatedEmployee = await Employee.findByIdAndUpdate(
     employeeId,
-    { $set: { signature: signaturePath } },
+    { $set: { signature: cleanDbPath } }, // <--- Use cleanDbPath here!
     { new: true, runValidators: true },
   )
     .select("-password -loginAttempts -lockUntil -__v")
     .lean();
 
-  if (!employee) {
-    throw httpError("Employee not found", 404);
-  }
-
-  return employee;
+  return updatedEmployee;
 };
 
 const resetPassword = async (employeeId, oldPassword, newPassword) => {
@@ -693,7 +729,7 @@ const resetPassword = async (employeeId, oldPassword, newPassword) => {
   if (!employee) throw httpError("Employee not found", 404);
 
   const isMatch = await employee.comparePassword(safeOldPassword);
-  if (!isMatch) throw httpError("Old password is incorrect", 400); // Standard generic message
+  if (!isMatch) throw httpError("Old password is incorrect", 400);
 
   employee.password = safeNewPassword;
 

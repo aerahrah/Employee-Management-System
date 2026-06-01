@@ -15,6 +15,8 @@ import {
   X,
   HeartPulse,
   Layers,
+  ShieldAlert,
+  ArrowLeft,
 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -536,6 +538,68 @@ const AddWellnessApplicationForm = () => {
   }, [leadTimeDays, workingDaysLoading]);
 
   const dateDisabled = isBusy || workingDaysLoading;
+
+  // ------------------------------------------------------------------
+  // 403 Forbidden Access Guard for Non-Organic
+  // ------------------------------------------------------------------
+  if (admin?.employeeType !== "Organic") {
+    return (
+      <div
+        className="w-full max-w-4xl transition-colors duration-300 ease-out pb-12 pt-2 px-4 md:px-0"
+        style={{ color: "var(--app-text)" }}
+      >
+        <Breadcrumbs rootLabel="home" rootTo="/app" />
+        <div
+          className="w-full rounded-xl overflow-hidden border shadow-sm flex flex-col items-center justify-center min-h-[50vh] mt-6 p-6 transition-colors duration-300 ease-out"
+          style={{
+            backgroundColor: "var(--app-surface)",
+            borderColor: borderColor,
+          }}
+        >
+          <div
+            className="p-6 rounded-full mb-6 border"
+            style={{
+              backgroundColor: "rgba(239,68,68,0.1)",
+              borderColor: "rgba(239,68,68,0.2)",
+            }}
+          >
+            <ShieldAlert className="w-20 h-20" style={{ color: "#ef4444" }} />
+          </div>
+          <h1 className="text-3xl font-bold mb-3 text-center">
+            403 - Unauthorized Access
+          </h1>
+          <p
+            className="mb-8 text-center max-w-lg leading-relaxed"
+            style={{ color: "var(--app-muted)" }}
+          >
+            This application form is strictly intended for{" "}
+            <strong>Organic</strong> employees. Your current employee profile is
+            registered as{" "}
+            <strong style={{ color: "#ef4444" }}>
+              {admin?.employeeType || "Unknown"}
+            </strong>
+            . You do not have the required permissions to access or submit this
+            form.
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-2.5 font-bold rounded-lg transition-colors duration-200 ease-out flex items-center gap-2"
+            style={{
+              backgroundColor: "var(--accent)",
+              color: "#fff",
+              border: "1px solid var(--accent)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.filter = "brightness(0.95)")
+            }
+            onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+          >
+            <ArrowLeft size={18} /> Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
