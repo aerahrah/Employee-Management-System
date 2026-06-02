@@ -4,6 +4,9 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
+// ✅ Imported Role model for the security guard
+const Role = require("../models/roleModel");
+
 const router = express.Router();
 
 const {
@@ -28,6 +31,63 @@ const {
   authenticateToken,
   authorize,
 } = require("../middlewares/authMiddleware");
+
+// =============================
+// ROLE ESCALATION GUARD
+// =============================
+// Prevents users from assigning a role with the "*" (Admin) permission
+// unless they themselves already possess the "*" permission.
+const preventRoleEscalation = async (req, res, next) => {
+  try {
+    const targetRoleId = req.body.role;
+
+    // If no role is being assigned/updated in this request, proceed normally
+    if (!targetRoleId) return next();
+
+    // Fetch the role they are trying to assign
+    const targetRole = await Role.findById(targetRoleId).lean();
+    if (!targetRole) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid role selected." });
+    }
+
+    // Check if the role being assigned has the wildcard admin permission
+    const isTargetAdmin = targetRole.permissions.includes("*");
+
+    if (isTargetAdmin) {
+      // Fetch the requester's role to see if THEY are an Admin
+      const requesterRoleId = req.user?.role?._id || req.user?.role;
+      if (!requesterRoleId) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized to verify role permissions.",
+        });
+      }
+
+      const requesterRole = await Role.findById(requesterRoleId).lean();
+      const requesterIsAdmin =
+        requesterRole && requesterRole.permissions.includes("*");
+
+      // If the target is Admin but the requester is NOT Admin, block the action!
+      if (!requesterIsAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: Only an Administrator can assign an Admin role.",
+        });
+      }
+    }
+
+    // Safe to proceed
+    next();
+  } catch (error) {
+    console.error("[ROLE ESCALATION GUARD] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error during role validation.",
+    });
+  }
+};
 
 // =============================
 // MULTER UPLOAD CONFIGURATION
@@ -174,11 +234,32 @@ router.get(
    ======================= */
 
 router.get("/", ...requirePerm("employees.view"), getEmployees);
-router.post("/", ...requirePerm("employees.create"), createEmployee);
-router.get("/:id", ...requirePerm("employees.view"), getEmployeeById);
-router.put("/:id", ...requirePerm("employees.edit"), updateEmployee);
 
-router.post("/:id/role", ...requirePerm("employees.change_role"), updateRole);
+// ✅ Added preventRoleEscalation guard
+router.post(
+  "/",
+  ...requirePerm("employees.create"),
+  preventRoleEscalation,
+  createEmployee,
+);
+
+router.get("/:id", ...requirePerm("employees.view"), getEmployeeById);
+
+// ✅ Added preventRoleEscalation guard
+router.put(
+  "/:id",
+  ...requirePerm("employees.edit"),
+  preventRoleEscalation,
+  updateEmployee,
+);
+
+// ✅ Added preventRoleEscalation guard
+router.post(
+  "/:id/role",
+  ...requirePerm("employees.change_role"),
+  preventRoleEscalation,
+  updateRole,
+);
 
 router.get(
   "/memos/:id",

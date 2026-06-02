@@ -10,7 +10,7 @@ const NotificationService = require("./notificationService");
 const EMAIL_KEYS = require("../utils/emailNotificationKeys");
 const { isEmailEnabled } = require("../utils/emailNotificationSettings");
 const { ctoApprovalEmail } = require("../utils/emailTemplates");
-const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles"); // ✅ Imported constants
+const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 
 /* =========================
    Helpers
@@ -76,14 +76,12 @@ const populateApplicationById = async (applicationId) => {
   assertObjectId(applicationId, "Application ID");
 
   const app = await CtoApplication.findById(applicationId)
-    // ✅ Make sure signature is retrieved for the PDF Generator!
     .populate(
       "employee",
       "firstName lastName position email employeeId signature",
     )
     .populate({
       path: "approvals",
-      // role and approverSignature are inherently fetched here because we didn't restrict the ApprovalStep fields
       populate: {
         path: "approver",
         select: "firstName lastName position email",
@@ -210,17 +208,6 @@ const addCtoApplicationService = async ({
 }) => {
   console.log("=========================================");
   console.log("[addCtoApplicationService] STARTING...");
-  console.log("-> Payload received:", {
-    userId,
-    requestedHours,
-    reason,
-    routeId,
-    approvers,
-    inclusiveDates,
-    memos,
-    employeeType,
-    commutation,
-  });
 
   assertObjectId(userId, "User ID");
 
@@ -228,7 +215,6 @@ const addCtoApplicationService = async ({
   const safeReason = sanitizeText(reason, 1000);
 
   if (strictReqHours <= 0 || !safeReason || !inclusiveDates?.length) {
-    console.error("[addCtoApplicationService] Missing required basic fields");
     throw createServiceError(
       "Requested hours (>0), reason, and inclusive dates are required.",
       400,
@@ -236,15 +222,11 @@ const addCtoApplicationService = async ({
   }
 
   if (!employeeType) {
-    console.error("[addCtoApplicationService] Employee type missing");
     throw createServiceError("Employee type is required.", 400);
   }
 
   const employee = await Employee.findById(userId).lean();
   if (!employee) {
-    console.error(
-      `[addCtoApplicationService] Employee not found for ID: ${userId}`,
-    );
     throw createServiceError("Employee not found.", 404);
   }
 
@@ -253,17 +235,8 @@ const addCtoApplicationService = async ({
     employee.contractType === "Organic" ||
     employeeType === "Organic";
 
-  console.log(
-    `[addCtoApplicationService] Employee found. Is Organic: ${isOrganic}`,
-  );
-
-  // ✅ ENFORCE RULE: Organic employees MUST have a signature before applying
   if (isOrganic) {
     if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
-      console.error(
-        "[addCtoApplicationService] Invalid commutation for Organic employee:",
-        commutation,
-      );
       throw createServiceError(
         "Commutation is required and must be either 'Requested' or 'Not Requested' for Organic employees.",
         400,
@@ -271,9 +244,6 @@ const addCtoApplicationService = async ({
     }
 
     if (!employee.signature) {
-      console.error(
-        "[addCtoApplicationService] Organic employee is missing digital signature.",
-      );
       throw createServiceError(
         "A digital signature is required to process CSC Form 6. Please upload your signature in your profile before applying.",
         403,
@@ -284,50 +254,33 @@ const addCtoApplicationService = async ({
   let finalApprovers = [];
   if (routeId) {
     assertObjectId(routeId, "Route ID");
-    console.log(
-      `[addCtoApplicationService] Resolving approvers from route ID: ${routeId}`,
-    );
     finalApprovers = await resolveApproversFromRoute(routeId);
   } else if (approvers && Array.isArray(approvers)) {
-    console.log("[addCtoApplicationService] Parsing custom approvers array...");
-    // ✅ Safely parse the incoming custom approvers
     finalApprovers = approvers
       .map((a) => {
         if (a && a.approver && mongoose.isValidObjectId(a.approver)) {
           return { approver: a.approver, role: a.role };
         }
-        return { approver: a, role: undefined }; // Fallback that will get caught by validation below
+        return { approver: a, role: undefined };
       })
       .filter((a) => mongoose.isValidObjectId(a.approver));
   }
 
-  console.log(
-    "[addCtoApplicationService] Final Approvers List:",
-    finalApprovers,
-  );
-
   if (!finalApprovers || finalApprovers.length === 0) {
-    console.error("[addCtoApplicationService] No valid approvers found.");
     throw createServiceError(
       "At least one valid approver is required (via route template or custom selection).",
       400,
     );
   }
 
-  // ✅ NEW: Validate Roles strictly before saving the application to avoid orphaned documents
   for (const fa of finalApprovers) {
     if (!fa.role || !APPROVAL_ROLE_VALUES.includes(fa.role)) {
-      console.error(
-        `[addCtoApplicationService] Validation Failed! Invalid role '${fa.role}' for approver ${fa.approver}`,
-      );
       throw createServiceError(
         `Invalid or missing approval role for approver ID ${fa.approver}. Role must be one of: ${APPROVAL_ROLE_VALUES.join(", ")}`,
         400,
       );
     }
   }
-
-  console.log("[addCtoApplicationService] Approvers validated successfully.");
 
   if (!memos || !Array.isArray(memos) || !memos.length) {
     throw createServiceError(
@@ -346,10 +299,6 @@ const addCtoApplicationService = async ({
   });
 
   const memoIds = sanitizedMemos.map((m) => m.memoId);
-  console.log(
-    "[addCtoApplicationService] Fetching CTO Credits for memos:",
-    memoIds,
-  );
 
   const credits = await CtoCredit.find({
     _id: { $in: memoIds },
@@ -358,216 +307,203 @@ const addCtoApplicationService = async ({
   });
 
   if (credits.length !== memoIds.length) {
-    console.error(
-      "[addCtoApplicationService] Memo mismatch! Fetched credits length:",
-      credits.length,
-    );
     throw createServiceError("Some memos are invalid or not credited.", 400);
   }
 
   let totalAppliedHours = 0;
   const memoUsage = [];
+  const rollbackActions = []; // Array to track deductions in case we need to roll back
 
-  for (const input of sanitizedMemos) {
-    console.log(
-      `[addCtoApplicationService] Processing memo: ${input.memoId} | Applying: ${input.appliedHours}h`,
-    );
-    const credit = credits.find((c) => String(c._id) === String(input.memoId));
+  try {
+    // 1. DEDUCT HOURS
+    for (const input of sanitizedMemos) {
+      const credit = credits.find(
+        (c) => String(c._id) === String(input.memoId),
+      );
 
-    if (!credit) {
+      if (!credit)
+        throw createServiceError(
+          `Credit not found for memoId ${input.memoId}`,
+          400,
+        );
+
+      const empCredit = credit.employees.find(
+        (e) => String(e.employee) === String(employee._id),
+      );
+      if (!empCredit)
+        throw createServiceError(
+          `Employee credit record not found for memo ${credit.memoNo}`,
+          400,
+        );
+
+      const availableHours = strictNumber(empCredit.remainingHours);
+      if (input.appliedHours <= 0 || input.appliedHours > availableHours) {
+        throw createServiceError(
+          `Invalid applied hours for memo ${credit.memoNo}. Available: ${availableHours}`,
+          400,
+        );
+      }
+
+      empCredit.reservedHours =
+        (empCredit.reservedHours || 0) + input.appliedHours;
+      empCredit.remainingHours = empCredit.remainingHours - input.appliedHours;
+      empCredit.status = empCredit.status || "ACTIVE";
+
+      const updateResult = await CtoCredit.updateOne(
+        {
+          _id: credit._id,
+          "employees.employee": employee._id,
+          "employees.remainingHours": { $gte: input.appliedHours },
+        },
+        { $set: { "employees.$": empCredit } },
+      );
+
+      if (updateResult.modifiedCount === 0) {
+        throw createServiceError(
+          `Failed to reserve hours for memo ${credit.memoNo}. Concurrency mismatch.`,
+          400,
+        );
+      }
+
+      // Track this action so we can roll it back if the app save fails
+      rollbackActions.push({
+        memoId: credit._id,
+        appliedHours: input.appliedHours,
+      });
+
+      memoUsage.push({
+        memoId: credit._id,
+        uploadedMemo: (credit.uploadedMemo || "").replace(/\\/g, "/"),
+        appliedHours: input.appliedHours,
+      });
+
+      totalAppliedHours += input.appliedHours;
+    }
+
+    if (totalAppliedHours !== strictReqHours) {
       throw createServiceError(
-        `Credit not found for memoId ${input.memoId}`,
+        `Sum of applied hours (${totalAppliedHours}) does not match requested hours (${strictReqHours})`,
         400,
       );
     }
 
-    const empCredit = credit.employees.find(
-      (e) => String(e.employee) === String(employee._id),
-    );
+    // 2. CREATE APPLICATION PAYLOAD
+    const applicationPayload = {
+      employee: employee._id,
+      employeeType,
+      requestedHours: strictReqHours,
+      reason: safeReason,
+      inclusiveDates,
+      memo: memoUsage,
+      overallStatus: "PENDING",
+      // Force a safe default for commutation so schema doesn't crash for JOs
+      commutation: commutation || "Not Requested",
+    };
 
-    if (!empCredit) {
-      throw createServiceError(
-        `Employee credit record not found for memo ${credit.memoNo}`,
-        400,
-      );
+    if (isOrganic) {
+      applicationPayload.applicantSignatureUrl = employee.signature;
     }
 
-    const availableHours = strictNumber(empCredit.remainingHours);
-    console.log(
-      `[addCtoApplicationService] Available hours for memo ${credit.memoNo}: ${availableHours}h`,
-    );
+    if (certificationOfLeaveCredits)
+      applicationPayload.certificationOfLeaveCredits =
+        certificationOfLeaveCredits;
+    if (actionDetails) applicationPayload.actionDetails = actionDetails;
 
-    if (input.appliedHours <= 0 || input.appliedHours > availableHours) {
-      throw createServiceError(
-        `Invalid applied hours for memo ${credit.memoNo}. Available: ${availableHours}`,
-        400,
-      );
-    }
+    // 3. INSTANTIATE (DO NOT SAVE YET)
+    const newApplication = new CtoApplication(applicationPayload);
 
-    empCredit.reservedHours =
-      (empCredit.reservedHours || 0) + input.appliedHours;
-    empCredit.remainingHours = empCredit.remainingHours - input.appliedHours;
-    empCredit.status = empCredit.status || "ACTIVE";
-
-    const updateResult = await CtoCredit.updateOne(
-      {
-        _id: credit._id,
-        "employees.employee": employee._id,
-        "employees.remainingHours": { $gte: input.appliedHours },
-      },
-      { $set: { "employees.$": empCredit } },
-    );
-
-    if (updateResult.modifiedCount === 0) {
-      console.error(
-        `[addCtoApplicationService] Concurrency mismatch updating memo ${credit.memoNo}`,
-      );
-      throw createServiceError(
-        `Failed to reserve hours for memo ${credit.memoNo}. Concurrency mismatch.`,
-        400,
-      );
-    }
-
-    memoUsage.push({
-      memoId: credit._id,
-      uploadedMemo: (credit.uploadedMemo || "").replace(/\\/g, "/"),
-      appliedHours: input.appliedHours,
-    });
-
-    totalAppliedHours += input.appliedHours;
-  }
-
-  if (totalAppliedHours !== strictReqHours) {
-    console.error(
-      `[addCtoApplicationService] Hours mismatch: Applied(${totalAppliedHours}) != Requested(${strictReqHours})`,
-    );
-    throw createServiceError(
-      `Sum of applied hours (${totalAppliedHours}) does not match requested hours (${strictReqHours})`,
-      400,
-    );
-  }
-
-  const applicationPayload = {
-    employee: employee._id,
-    employeeType,
-    requestedHours: strictReqHours,
-    reason: safeReason,
-    inclusiveDates,
-    memo: memoUsage,
-    overallStatus: "PENDING",
-  };
-
-  if (isOrganic) {
-    applicationPayload.commutation = commutation;
-    applicationPayload.applicantSignatureUrl = employee.signature;
-  }
-
-  if (certificationOfLeaveCredits)
-    applicationPayload.certificationOfLeaveCredits =
-      certificationOfLeaveCredits;
-  if (actionDetails) applicationPayload.actionDetails = actionDetails;
-
-  console.log(
-    "[addCtoApplicationService] Creating application payload:",
-    applicationPayload,
-  );
-  const newApplication = new CtoApplication(applicationPayload);
-  await newApplication.save();
-  console.log(
-    `[addCtoApplicationService] Main application saved. ID: ${newApplication._id}`,
-  );
-
-  // ✅ Role is guaranteed to be valid at this point
-  const approvalSteps = await Promise.all(
-    finalApprovers.map((approverObj, index) => {
-      console.log(
-        `[addCtoApplicationService] Creating Step ${index + 1}: Approver=${approverObj.approver}, Role=${approverObj.role}`,
-      );
-      return ApprovalStep.create({
+    // 4. CREATE APPROVAL STEPS FIRST to get their IDs
+    const approvalSteps = finalApprovers.map((approverObj, index) => {
+      return new ApprovalStep({
         level: index + 1,
         approver: approverObj.approver,
         role: approverObj.role,
         status: "PENDING",
         ctoApplication: newApplication._id,
       });
-    }),
-  );
-
-  newApplication.approvals = approvalSteps.map((step) => step._id);
-  await newApplication.save();
-  console.log(
-    "[addCtoApplicationService] Application linked to ApprovalSteps.",
-  );
-
-  const populatedApp = await populateApplicationById(newApplication._id);
-
-  const justApproverIds = finalApprovers.map((a) => a.approver);
-
-  try {
-    console.log("[addCtoApplicationService] Notifying approvers...");
-    await NotificationService.notifyApproversOnCtoSubmission({
-      approverIds: justApproverIds,
-      employee,
-      ctoApplication: newApplication,
     });
-  } catch (err) {
-    console.error(
-      "Failed to create CTO submission notifications:",
-      err?.message || err,
-    );
-  }
 
-  try {
-    console.log("[addCtoApplicationService] Notifying employee...");
-    await NotificationService.notifyEmployeeOnCtoSubmissionCreated({
-      employee,
-      ctoApplication: newApplication,
-    });
-  } catch (err) {
-    console.error(
-      "Failed to create employee submission notification:",
-      err?.message || err,
-    );
-  }
+    // 5. ATTACH APPROVALS TO APP SO Mongoose schema validation passes
+    newApplication.approvals = approvalSteps.map((step) => step._id);
 
-  try {
-    const firstApproval = approvalSteps.find((a) => a.level === 1);
-    const approverUser = await Employee.findById(firstApproval.approver)
-      .select("firstName lastName email")
-      .lean();
+    // 6. SAVE EVERYTHING
+    await newApplication.save();
+    await ApprovalStep.insertMany(approvalSteps);
 
-    const enabled = await canSend(EMAIL_KEYS.CTO_APPROVAL);
+    const populatedApp = await populateApplicationById(newApplication._id);
+    const justApproverIds = finalApprovers.map((a) => a.approver);
 
-    if (approverUser?.email && enabled) {
-      const tpl = ctoApprovalEmail({
-        approverName: `${approverUser.firstName} ${approverUser.lastName}`,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        requestedHours: strictReqHours,
-        reason: safeReason,
-        level: 1,
-        link: `${process.env.FRONTEND_URL}/app/cto-approvals/${newApplication._id}`,
-        brandName: "CTO Management System",
+    // 7. FIRE OFF NOTIFICATIONS
+    try {
+      await NotificationService.notifyApproversOnCtoSubmission({
+        approverIds: justApproverIds,
+        employee,
+        ctoApplication: newApplication,
       });
-
-      console.log(
-        `[addCtoApplicationService] Sending email to ${approverUser.email}`,
-      );
-      await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
-    } else if (approverUser?.email && !enabled) {
-      console.log(
-        "[EMAIL] skipped (disabled):",
-        EMAIL_KEYS.CTO_APPROVAL,
-        "to:",
-        approverUser.email,
+      await NotificationService.notifyEmployeeOnCtoSubmissionCreated({
+        employee,
+        ctoApplication: newApplication,
+      });
+    } catch (err) {
+      console.error(
+        "Failed to create CTO submission notifications:",
+        err?.message,
       );
     }
-  } catch (err) {
-    console.error("Failed to send CTO approval email:", err?.message || err);
-  }
 
-  console.log("[addCtoApplicationService] DONE. Returning populated app.");
-  console.log("=========================================");
-  return populatedApp;
+    try {
+      const firstApproval = approvalSteps.find((a) => a.level === 1);
+      const approverUser = await Employee.findById(firstApproval.approver)
+        .select("firstName lastName email")
+        .lean();
+
+      const enabled = await canSend(EMAIL_KEYS.CTO_APPROVAL);
+
+      if (approverUser?.email && enabled) {
+        const tpl = ctoApprovalEmail({
+          approverName: `${approverUser.firstName} ${approverUser.lastName}`,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          requestedHours: strictReqHours,
+          reason: safeReason,
+          level: 1,
+          link: `${process.env.FRONTEND_URL}/app/cto-approvals/${newApplication._id}`,
+          brandName: "CTO Management System",
+        });
+
+        await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
+      }
+    } catch (err) {
+      console.error("Failed to send CTO approval email:", err?.message);
+    }
+
+    console.log(
+      "[addCtoApplicationService] Application Processed Successfully.",
+    );
+    return populatedApp;
+  } catch (error) {
+    // 🚨 IF ANYTHING ABOVE FAILS, WE MANUALLY ROLL BACK THE HOURS
+    console.error(
+      "[addCtoApplicationService] Application failed to save! Rolling back hours...",
+    );
+
+    for (const action of rollbackActions) {
+      await CtoCredit.updateOne(
+        { _id: action.memoId, "employees.employee": employee._id },
+        {
+          $inc: {
+            "employees.$.reservedHours": -action.appliedHours,
+            "employees.$.remainingHours": action.appliedHours,
+          },
+        },
+      );
+      console.log(
+        `[ROLLBACK] Restored ${action.appliedHours}h to memo ${action.memoId}`,
+      );
+    }
+
+    // Bubble up the error so the frontend receives it
+    throw error;
+  }
 };
 
 const cancelCtoApplicationService = async ({ userId, applicationId }) => {
@@ -636,7 +572,6 @@ const getAllCtoApplicationsService = async (
   limit = Math.min(parseInt(limit) || 20, 100);
   const skip = (page - 1) * limit;
 
-  // 1. Build Base Query (Ignores Status)
   const baseQuery = {};
 
   if (filters.employeeId) {
@@ -663,29 +598,24 @@ const getAllCtoApplicationsService = async (
     };
   }
 
-  // 2. Add Status to Main Data Query
   const query = { ...baseQuery };
   if (filters.status) {
     query.overallStatus = String(filters.status).toUpperCase();
   }
 
-  // 3. Execute queries
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
-        // ✅ Make sure applicantSignatureUrl is selected from CtoApplication
         "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl",
       )
       .populate({
         path: "approvals",
         options: { sort: { level: 1 } },
-        // role and approverSignature are inherently fetched here because we didn't restrict the ApprovalStep fields
         populate: {
           path: "approver",
           select: "firstName lastName position _id",
         },
       })
-      // ✅ Also grab the fallback signature from the employee if available
       .populate("employee", "firstName lastName position _id signature")
       .populate("memo.memoId", "memoNo uploadedMemo totalHours appliedHours")
       .sort({ createdAt: -1 })
@@ -706,7 +636,6 @@ const getAllCtoApplicationsService = async (
     };
   });
 
-  // 4. Generate dynamic Status Counts applying ALL filters EXCEPT status
   const statusAgg = await CtoApplication.aggregate([
     { $match: baseQuery },
     {
@@ -756,7 +685,6 @@ const getCtoApplicationsByEmployeeService = async (
   limit = Math.min(parseInt(limit) || 20, 100);
   const skip = (page - 1) * limit;
 
-  // 1. Build the Base Pipeline structure
   const pipeline = [{ $match: { employee: employeeObjectId } }];
 
   if (filters.employeeType) {
@@ -822,10 +750,8 @@ const getCtoApplicationsByEmployeeService = async (
     });
   }
 
-  // 2. Copy the base pipeline specifically for calculating our dynamic Status Counts
   const countPipelineStages = [...pipeline];
 
-  // 3. Inject the Status Filter back into the Main Pipeline if provided
   if (filters.status) {
     pipeline.push({
       $match: { overallStatus: String(filters.status).toUpperCase() },
@@ -853,7 +779,7 @@ const getCtoApplicationsByEmployeeService = async (
             status: 1,
             reviewedAt: 1,
             remarks: 1,
-            role: 1, // ✅ Added role projection!
+            role: 1,
             approverSignature: 1,
             approver: {
               _id: "$approver._id",
@@ -934,7 +860,6 @@ const getCtoApplicationsByEmployeeService = async (
   const totalResult = await CtoApplication.aggregate(countPipeline);
   const total = totalResult[0]?.total || 0;
 
-  // 4. Calculate dynamic counts strictly using the extracted base pipeline
   countPipelineStages.push({
     $group: {
       _id: "$overallStatus",

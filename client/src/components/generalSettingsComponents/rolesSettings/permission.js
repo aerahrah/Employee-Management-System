@@ -83,7 +83,7 @@ export const PERMISSION_GROUPS = [
     permissions: [
       {
         id: "cto.credits_view",
-        label: "View All CTO ",
+        label: "View All Credited CTO ",
         hint: "Broad view access to CTO records.",
       },
       {

@@ -13,7 +13,7 @@ const wellnessApplicationSchema = new mongoose.Schema(
     },
     employeeType: {
       type: String,
-      enum: ["Organic", "Job Order"],
+      enum: ["Organic", "JO"],
       required: true,
     },
     inclusiveDates: {

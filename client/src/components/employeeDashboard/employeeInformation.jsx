@@ -14,7 +14,7 @@ import Modal from "../modal";
 import Breadcrumbs from "../breadCrumbs";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
-import { usePermissions } from "../../hooks/usePermissions"; // ✅ Imported permissions hook
+import { usePermissions } from "../../hooks/usePermissions";
 import {
   User,
   Mail,
@@ -228,6 +228,38 @@ const Pill = ({ children, tone = "slate", resolvedTheme }) => (
   </span>
 );
 
+const EmployeeTypeBadge = ({ type, resolvedTheme }) => {
+  if (!type) return null;
+  const isDark = resolvedTheme === "dark";
+  const isOrganic = type === "Organic";
+  const displayType = type === "JO" ? "Job Order" : type;
+
+  const style = isOrganic
+    ? {
+        backgroundColor: isDark
+          ? "rgba(59,130,246,0.14)"
+          : "rgba(59,130,246,0.10)",
+        color: isDark ? "#93c5fd" : "#1d4ed8",
+        borderColor: isDark ? "rgba(59,130,246,0.28)" : "rgba(59,130,246,0.18)",
+      }
+    : {
+        backgroundColor: isDark
+          ? "rgba(245,158,11,0.14)"
+          : "rgba(245,158,11,0.10)",
+        color: isDark ? "#fcd34d" : "#b45309",
+        borderColor: isDark ? "rgba(245,158,11,0.28)" : "rgba(245,158,11,0.18)",
+      };
+
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border uppercase tracking-wider"
+      style={style}
+    >
+      {displayType}
+    </span>
+  );
+};
+
 /* =========================
    Secure Edit Form
 ========================= */
@@ -259,6 +291,7 @@ const EmployeeEditForm = forwardRef(
         phone: normalize(e.phone),
         department: normalize(e.department),
         position: normalize(e.position),
+        employeeType: normalize(e.employeeType) || "JO", // Default to JO if missing
         employeeId: normalize(e.employeeId),
         addressStreet: normalize(e.address?.street),
         addressCity: normalize(e.address?.city),
@@ -329,6 +362,7 @@ const EmployeeEditForm = forwardRef(
         phone: normalize(form.phone),
         department: normalize(form.department),
         position: normalize(form.position),
+        employeeType: normalize(form.employeeType), // ✅ Append to payload
         employeeId: normalize(form.employeeId),
         address: {
           street: normalize(form.addressStreet),
@@ -450,6 +484,17 @@ const EmployeeEditForm = forwardRef(
             borderColor={borderColor}
           />
 
+          <SelectField
+            label="Employee Type"
+            value={form.employeeType}
+            onChange={setField("employeeType")}
+            disabled={busy}
+            options={[
+              { value: "Organic", label: "Organic" },
+              { value: "JO", label: "Job Order (JO)" },
+            ]}
+            borderColor={borderColor}
+          />
           <Field
             label="Employee ID"
             value={form.employeeId}
@@ -533,6 +578,51 @@ const Field = ({ label, value, onChange, disabled, borderColor }) => (
         e.currentTarget.style.boxShadow = "none";
       }}
     />
+  </label>
+);
+
+const SelectField = ({
+  label,
+  value,
+  onChange,
+  disabled,
+  options,
+  borderColor,
+}) => (
+  <label className="block">
+    <div
+      className="text-xs mb-1 transition-colors duration-300 ease-out"
+      style={{ color: "var(--app-muted)" }}
+    >
+      {label}
+    </div>
+    <select
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      className="w-full h-11 px-3 rounded-xl text-sm outline-none transition disabled:opacity-60 cursor-pointer"
+      style={{
+        backgroundColor: disabled
+          ? "var(--app-surface-2)"
+          : "var(--app-surface)",
+        color: "var(--app-text)",
+        border: `1px solid ${borderColor}`,
+      }}
+      onFocus={(e) => {
+        e.currentTarget.style.borderColor = "var(--accent)";
+        e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = borderColor;
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   </label>
 );
 
@@ -671,6 +761,10 @@ const EmployeeInformation = () => {
                       >
                         {emp?.firstName} {emp?.lastName}
                       </h1>
+                      <EmployeeTypeBadge
+                        type={emp?.employeeType}
+                        resolvedTheme={resolvedTheme}
+                      />
                       <StatusBadge status={emp?.status} />
                     </div>
 
@@ -719,9 +813,7 @@ const EmployeeInformation = () => {
                 {canEditEmployee && (
                   <button
                     type="button"
-                    onClick={() =>
-                      navigate(`/app/employees/${emp?._id}/update`)
-                    }
+                    onClick={() => setIsEditOpen(true)}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition"
                     style={{
                       backgroundColor: "var(--accent)",
@@ -980,6 +1072,17 @@ const EmployeeInformation = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                       <DataBlock label="Department" value={emp?.department} />
                       <DataBlock label="Position" value={emp?.position} />
+
+                      {/* ✅ Added Employee Type here to the Job details tab */}
+                      <DataBlock
+                        label="Employee Type"
+                        value={
+                          emp?.employeeType === "JO"
+                            ? "Job Order"
+                            : emp?.employeeType
+                        }
+                      />
+
                       <DataBlock
                         label="Employment Status"
                         value={<StatusBadge status={emp?.status} />}

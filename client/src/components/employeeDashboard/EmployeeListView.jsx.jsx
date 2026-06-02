@@ -153,6 +153,43 @@ const getDivisionBadgeStyle = (division, resolvedTheme) => {
 };
 
 /* =========================
+   UI COMPONENTS
+========================= */
+
+// ✅ New EmployeeTypeBadge to differentiate Organic vs JO
+const EmployeeTypeBadge = ({ type, resolvedTheme }) => {
+  if (!type) return null;
+  const isDark = resolvedTheme === "dark";
+  const isOrganic = type === "Organic";
+  const displayType = type === "JO" ? "Job Order" : type;
+
+  const style = isOrganic
+    ? {
+        backgroundColor: isDark
+          ? "rgba(59,130,246,0.14)"
+          : "rgba(59,130,246,0.10)",
+        color: isDark ? "#93c5fd" : "#1d4ed8",
+        borderColor: isDark ? "rgba(59,130,246,0.28)" : "rgba(59,130,246,0.18)",
+      }
+    : {
+        backgroundColor: isDark
+          ? "rgba(245,158,11,0.14)"
+          : "rgba(245,158,11,0.10)",
+        color: isDark ? "#fcd34d" : "#b45309",
+        borderColor: isDark ? "rgba(245,158,11,0.28)" : "rgba(245,158,11,0.18)",
+      };
+
+  return (
+    <span
+      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider"
+      style={style}
+    >
+      {displayType}
+    </span>
+  );
+};
+
+/* =========================
    HOOK: DEBOUNCE
 ========================= */
 function useDebounce(value, delay) {
@@ -240,7 +277,6 @@ const ActionMenu = ({
             borderColor,
           }}
         >
-          {/* ✅ View Profile with new hover effect */}
           <button
             type="button"
             onClick={() => handle(() => onAction("view"))}
@@ -258,7 +294,6 @@ const ActionMenu = ({
             <User size={14} /> View Profile
           </button>
 
-          {/* ✅ Hide Update option if user lacks permission, applies hover effect */}
           {canEditEmployee && (
             <button
               type="button"
@@ -617,22 +652,30 @@ const EmployeeCard = ({
               {emp?.firstName} {emp?.lastName}
             </h4>
 
+            {/* ✅ Added EmployeeTypeBadge below the name in the card */}
+            <div className="mt-1 flex items-center gap-2">
+              <EmployeeTypeBadge
+                type={emp?.employeeType}
+                resolvedTheme={resolvedTheme}
+              />
+
+              {emp?.username && (
+                <span
+                  className="text-[10px] font-mono truncate transition-colors duration-300 ease-out"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  @{emp.username}
+                </span>
+              )}
+            </div>
+
             <div
-              className="flex items-center gap-1 text-xs mt-0.5 transition-colors duration-300 ease-out"
+              className="flex items-center gap-1 text-xs mt-1 transition-colors duration-300 ease-out"
               style={{ color: "var(--app-muted)" }}
             >
               <Mail size={12} style={{ color: "var(--app-muted)" }} />
               <span className="truncate">{emp?.email || "No email"}</span>
             </div>
-
-            {emp?.username && (
-              <div
-                className="mt-1 text-[11px] font-mono truncate transition-colors duration-300 ease-out"
-                style={{ color: "var(--app-muted)" }}
-              >
-                @{emp.username}
-              </div>
-            )}
           </div>
 
           <div className="flex-none -mt-1">
@@ -647,7 +690,7 @@ const EmployeeCard = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 mt-2">
           <div
             className="rounded-lg p-2 border transition-colors duration-300 ease-out"
             style={{
@@ -1450,20 +1493,30 @@ const EmployeeDirectory = () => {
                                     >
                                       {emp.firstName} {emp.lastName}
                                     </p>
-                                    <p
-                                      className="text-xs truncate transition-colors duration-300 ease-out"
-                                      style={{ color: "var(--app-muted)" }}
-                                    >
-                                      {emp.email || "No email"}
-                                      {emp.username ? (
-                                        <span
-                                          className="ml-2 font-mono text-[11px] transition-colors duration-300 ease-out"
-                                          style={{ color: "var(--app-muted)" }}
-                                        >
-                                          @{emp.username}
-                                        </span>
-                                      ) : null}
-                                    </p>
+
+                                    {/* ✅ Added EmployeeTypeBadge below the name in the desktop table */}
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <EmployeeTypeBadge
+                                        type={emp.employeeType}
+                                        resolvedTheme={resolvedTheme}
+                                      />
+                                      <p
+                                        className="text-xs truncate transition-colors duration-300 ease-out"
+                                        style={{ color: "var(--app-muted)" }}
+                                      >
+                                        {emp.email || "No email"}
+                                        {emp.username ? (
+                                          <span
+                                            className="ml-2 font-mono text-[11px] transition-colors duration-300 ease-out"
+                                            style={{
+                                              color: "var(--app-muted)",
+                                            }}
+                                          >
+                                            @{emp.username}
+                                          </span>
+                                        ) : null}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
                               </td>

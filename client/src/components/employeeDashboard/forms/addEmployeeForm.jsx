@@ -32,6 +32,7 @@ import {
   Hash,
   Mail,
   Shield,
+  Tag,
 } from "lucide-react";
 
 /* =========================
@@ -51,6 +52,7 @@ function resolveTheme(prefTheme) {
 ========================= */
 const DIVISIONS = ["AFD", "TOD", "ORD"];
 const STATUSES = ["Active", "Inactive", "Resigned", "Terminated"];
+const EMPLOYEE_TYPES = ["Organic", "JO"]; // ✅ Added Employee Types
 
 /* =========================
    HELPERS (sanitize / normalize)
@@ -645,6 +647,8 @@ const AddEmployeeForm = () => {
   const { id } = useParams();
   const isEditMode = Boolean(id);
 
+  // ✅ Get the currently logged-in user to check their permissions
+  const currentUser = useAuth((s) => s.admin || s.user);
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
 
@@ -711,7 +715,7 @@ const AddEmployeeForm = () => {
   }, [projectsQuery.data]);
 
   /* -------------------------
-     Roles fetch
+     Roles fetch & Security Guard
   ------------------------- */
   const { data: roles } = useQuery({
     queryKey: ["roles"],
@@ -719,10 +723,24 @@ const AddEmployeeForm = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Check if the current user possesses the wildcard "*" permission
+  const isCurrentUserAdmin = useMemo(() => {
+    const perms = currentUser?.role?.permissions || [];
+    return perms.includes("*");
+  }, [currentUser]);
+
+  // Safely map role options based on user's own permissions
   const roleOptions = useMemo(() => {
     if (!roles) return [];
-    return roles.map((r) => ({ value: r._id, label: r.name }));
-  }, [roles]);
+    return roles
+      .filter((r) => {
+        // If the logged-in user is NOT an admin, hide roles that contain the "*" permission
+        const isRoleAdmin = r.permissions?.includes("*");
+        if (isRoleAdmin && !isCurrentUserAdmin) return false;
+        return true;
+      })
+      .map((r) => ({ value: r._id, label: r.name }));
+  }, [roles, isCurrentUserAdmin]);
 
   /* -------------------------
      Schema
@@ -794,6 +812,12 @@ const AddEmployeeForm = () => {
         .transform((v) => normalizeText(v))
         .oneOf(STATUSES, "Invalid status")
         .required("Status is required"),
+
+      employeeType: yup
+        .string()
+        .transform((v) => normalizeText(v))
+        .oneOf(EMPLOYEE_TYPES, "Invalid employee type")
+        .required("Employee Type is required"),
 
       designation: yup
         .mixed()
@@ -884,6 +908,7 @@ const AddEmployeeForm = () => {
       division: "",
       project: "",
       status: "Active",
+      employeeType: "",
       role: "employee",
       designation: "",
       address: { street: "", city: "", province: "" },
@@ -920,6 +945,8 @@ const AddEmployeeForm = () => {
       division: safeEnumCI(employee.division, DIVISIONS),
       project: pickProjectId(employee.project),
       status: safeEnumCI(employee.status, STATUSES) || "Active",
+
+      employeeType: safeEnumCI(employee.employeeType, EMPLOYEE_TYPES) || "JO",
 
       role: normalizeText(employee.role || "employee"),
       designation: pickDesignationId(employee.designation),
@@ -958,6 +985,7 @@ const AddEmployeeForm = () => {
         division: safeEnum(normalizeText(raw.division), DIVISIONS),
         project: normalizeText(raw.project),
         status: safeEnum(normalizeText(raw.status), STATUSES),
+        employeeType: safeEnum(normalizeText(raw.employeeType), EMPLOYEE_TYPES),
         designation: pickDesignationId(raw.designation),
 
         address: {
@@ -972,13 +1000,16 @@ const AddEmployeeForm = () => {
         },
       };
 
-      const validRoleIds = (roles || []).map((r) => String(r._id));
+      // ✅ Use the safe, filtered roleOptions for strict validation
+      const validRoleIds = roleOptions.map((r) => String(r.value));
 
       if (!isEditMode) {
         const roleValue = normalizeText(raw.role);
 
         if (!validRoleIds.includes(roleValue)) {
-          throw new Error("Invalid role selected.");
+          throw new Error(
+            "Invalid role selected. You do not have permission to assign this role.",
+          );
         }
 
         payload.role = roleValue;
@@ -990,6 +1021,7 @@ const AddEmployeeForm = () => {
         throw new Error("Invalid project selected.");
       }
       if (!payload.status) throw new Error("Invalid status selected.");
+      if (!payload.employeeType) throw new Error("Employee type is required.");
       if (!payload.designation) throw new Error("Designation is required.");
 
       return isEditMode
@@ -1325,22 +1357,44 @@ const AddEmployeeForm = () => {
                 </div>
               )}
 
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <SelectInput
-                    label="Status"
-                    options={STATUSES}
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.status}
-                    required
-                    borderColor={borderColor}
-                    resolvedTheme={resolvedTheme}
-                  />
-                )}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Controller
+                  name="status"
+                  control={control}
+                  render={({ field }) => (
+                    <SelectInput
+                      label="Status"
+                      options={STATUSES}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.status}
+                      required
+                      borderColor={borderColor}
+                      resolvedTheme={resolvedTheme}
+                    />
+                  )}
+                />
+
+                <Controller
+                  name="employeeType"
+                  control={control}
+                  render={({ field }) => (
+                    <SelectInput
+                      label="Employee Type"
+                      options={[
+                        { value: "Organic", label: "Organic" },
+                        { value: "JO", label: "Job Order (JO)" },
+                      ]}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.employeeType}
+                      required
+                      borderColor={borderColor}
+                      resolvedTheme={resolvedTheme}
+                    />
+                  )}
+                />
+              </div>
 
               <InputField
                 label="Position Title"

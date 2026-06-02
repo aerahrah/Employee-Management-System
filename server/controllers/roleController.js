@@ -29,11 +29,12 @@ const getRoleById = async (req, res, next) => {
 const createRole = async (req, res, next) => {
   try {
     const { name, description, permissions } = req.body;
-    
+
     if (!name) throw httpError("Role name is required", 400);
 
     const existingRole = await Role.findOne({ name });
-    if (existingRole) throw httpError("Role with this name already exists", 409);
+    if (existingRole)
+      throw httpError("Role with this name already exists", 409);
 
     const role = new Role({
       name,
@@ -62,7 +63,8 @@ const updateRole = async (req, res, next) => {
 
     if (name && name !== role.name) {
       const existingRole = await Role.findOne({ name });
-      if (existingRole) throw httpError("Role with this name already exists", 409);
+      if (existingRole)
+        throw httpError("Role with this name already exists", 409);
       role.name = name;
     }
 
@@ -88,7 +90,10 @@ const deleteRole = async (req, res, next) => {
     // Check if any employees are using this role
     const usersWithRole = await Employee.countDocuments({ role: role._id });
     if (usersWithRole > 0) {
-      throw httpError(`Cannot delete role. It is assigned to ${usersWithRole} employees.`, 409);
+      throw httpError(
+        `Cannot delete role. It is assigned to ${usersWithRole} employees.`,
+        409,
+      );
     }
 
     await Role.findByIdAndDelete(req.params.id);

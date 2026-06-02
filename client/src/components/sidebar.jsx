@@ -145,7 +145,7 @@ const Sidebar = ({
             name: "Credit CTO",
             path: "/app/cto-credit",
             icon: <CirclePlus size={14} />,
-            requiredPermission: "cto.credits_manage",
+            requiredPermission: "cto.credits_view",
           },
           {
             name: "My CTO Records",

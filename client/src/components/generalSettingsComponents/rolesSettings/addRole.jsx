@@ -342,6 +342,9 @@ const Toggle = ({
 export default function AddRole() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  // ✅ Get the current user to verify their permissions
+  const currentUser = useAuth((s) => s.admin || s.user);
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
@@ -366,6 +369,12 @@ export default function AddRole() {
         : "rgba(15,23,42,0.02)",
     [resolvedTheme],
   );
+
+  // ✅ Security Check: Does the person looking at this page have Super Admin powers?
+  const isCurrentUserAdmin = useMemo(() => {
+    const perms = currentUser?.role?.permissions || [];
+    return perms.includes(SUPER_ADMIN_PERM) || perms.includes("*");
+  }, [currentUser]);
 
   const [currentRole, setCurrentRole] = useState({
     name: "",
@@ -458,15 +467,6 @@ export default function AddRole() {
               className="text-2xl md:text-3xl font-bold tracking-tight transition-colors duration-300 ease-out flex items-center gap-3"
               style={{ color: "var(--app-text)" }}
             >
-              {/* <div
-                className="p-2 rounded-lg"
-                style={{
-                  backgroundColor: "var(--accent-soft)",
-                  color: "var(--accent)",
-                }}
-              >
-                <ShieldCheck className="w-6 h-6" />
-              </div> */}
               Create New Role
             </h1>
             <p
@@ -590,37 +590,43 @@ export default function AddRole() {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Super Admin Toggle */}
-                <div
-                  className="p-5 rounded-xl border transition-colors duration-300 ease-out"
-                  style={{
-                    backgroundColor: isSuperAdmin
-                      ? "var(--accent-soft)"
-                      : inputBg,
-                    borderColor: isSuperAdmin ? "var(--accent)" : borderColor,
-                  }}
-                >
-                  <Toggle
-                    checked={isSuperAdmin}
-                    disabled={isSaving}
-                    onChange={() => togglePermission(SUPER_ADMIN_PERM)}
-                    label="Super Admin (All Permissions)"
-                    hint="Grants unrestricted, permanent access to all modules and settings. Overrides all toggles below."
-                    borderColor={borderColor}
-                    theme={resolvedTheme}
-                  />
-                </div>
+                {/* ✅ Frontend Guard: Only display the Super Admin toggle if the user is a Super Admin */}
+                {isCurrentUserAdmin && (
+                  <>
+                    <div
+                      className="p-5 rounded-xl border transition-colors duration-300 ease-out"
+                      style={{
+                        backgroundColor: isSuperAdmin
+                          ? "var(--accent-soft)"
+                          : inputBg,
+                        borderColor: isSuperAdmin
+                          ? "var(--accent)"
+                          : borderColor,
+                      }}
+                    >
+                      <Toggle
+                        checked={isSuperAdmin}
+                        disabled={isSaving}
+                        onChange={() => togglePermission(SUPER_ADMIN_PERM)}
+                        label="Super Admin (All Permissions)"
+                        hint="Grants unrestricted, permanent access to all modules and settings. Overrides all toggles below."
+                        borderColor={borderColor}
+                        theme={resolvedTheme}
+                      />
+                    </div>
 
-                {isSuperAdmin && (
-                  <SoftNotice
-                    icon={CheckCircle2}
-                    tone="blue"
-                    title="Super Admin Active"
-                    theme={resolvedTheme}
-                  >
-                    Because this role is a Super Admin, all individual
-                    permissions below are automatically granted and locked.
-                  </SoftNotice>
+                    {isSuperAdmin && (
+                      <SoftNotice
+                        icon={CheckCircle2}
+                        tone="blue"
+                        title="Super Admin Active"
+                        theme={resolvedTheme}
+                      >
+                        Because this role is a Super Admin, all individual
+                        permissions below are automatically granted and locked.
+                      </SoftNotice>
+                    )}
+                  </>
                 )}
 
                 {/* Grouped Permissions */}
@@ -735,7 +741,7 @@ export default function AddRole() {
               </div>
             </Card>
 
-            {/* Action Buttons (Desktop Layout usually places these here or in summary, putting them below main form is standard) */}
+            {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4">
               <GhostButton
                 onClick={handleCancel}

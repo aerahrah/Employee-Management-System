@@ -2,7 +2,6 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const fs = require("fs/promises"); // Added for file system operations
 const path = require("path"); // Added for path resolution
 
 const Employee = require("../models/employeeModel");
@@ -39,6 +38,7 @@ const ALLOWED_ADMIN_UPDATES = Object.freeze([
   ...ALLOWED_PROFILE_UPDATES,
   "contractType",
   "status",
+  "employeeType", // ✅ Added so admins can update it
 ]);
 
 // --- HELPER FUNCTIONS ---
@@ -219,6 +219,7 @@ const createEmployeeService = async (employeeData = {}) => {
     project,
     role,
     contractType,
+    employeeType, // ✅ Extracted field
   } = employeeData;
 
   if (
@@ -227,7 +228,8 @@ const createEmployeeService = async (employeeData = {}) => {
     !firstName ||
     !lastName ||
     !designation ||
-    !project
+    !project ||
+    !employeeType // ✅ Required field check
   ) {
     throw httpError("Missing required fields for employee creation", 400);
   }
@@ -270,6 +272,7 @@ const createEmployeeService = async (employeeData = {}) => {
     position: position ? String(position).trim() : undefined,
     role: resolvedRoleId,
     contractType: contractType || "Permanent",
+    employeeType: employeeType, // ✅ Passed to DB
     password: tempPassword, // Will be hashed by pre-save hook
     balances: {
       wellnessDays: !contractType || contractType === "Permanent" ? 5 : 0,
@@ -355,6 +358,7 @@ const getEmployeesService = async ({
     role: 1,
     status: 1,
     position: 1,
+    employeeType: 1, // ✅ Adding to default query projections
   };
 
   const [data, total] = await Promise.all([
@@ -427,17 +431,14 @@ const signInEmployeeService = async (username, password) => {
     throw httpError("Server misconfigured: JWT_SECRET is missing", 500);
   }
 
-  const employeeType =
-    employee.employeeType === "Organic" || employee.contractType === "Organic"
-      ? "Organic"
-      : "JO";
-
   const tokenPayload = {
     id: employee._id,
     username: employee.username,
     designation: employee.designation,
     role: employee.role,
-    employeeType: employeeType,
+    employeeType:
+      employee.employeeType ||
+      (employee.contractType === "Organic" ? "Organic" : "JO"), // ✅ Safely mapped
   };
 
   const sessionSettings = await getSessionSettings();
@@ -657,6 +658,7 @@ const updateProfile = async (employeeId, updateData = {}) => {
   if (!updatedEmployee) throw httpError("Employee not found", 404);
   return updatedEmployee;
 };
+
 const uploadSignatureService = async (employeeId, signaturePath) => {
   if (!mongoose.isValidObjectId(employeeId)) {
     throw httpError("Invalid Employee ID", 400);
@@ -669,42 +671,19 @@ const uploadSignatureService = async (employeeId, signaturePath) => {
   // ✅ 2. Construct the clean, relative database path
   const cleanDbPath = `uploads/signatures/${safeFileName}`;
 
-  // 3. Fetch the existing employee to check if they already have a signature uploaded
+  // 3. Fetch the existing employee to check if they exist
   const existingEmployee = await Employee.findById(employeeId)
-    .select("signature")
+    .select("_id")
     .lean();
 
   if (!existingEmployee) {
     throw httpError("Employee not found", 404);
   }
 
-  // 4. Safely delete the old signature
-  if (existingEmployee.signature) {
-    try {
-      const oldFileName = path.basename(existingEmployee.signature);
-      const oldFilePath = path.join(
-        process.cwd(),
-        "uploads",
-        "signatures",
-        oldFileName,
-      );
-
-      await fs.unlink(oldFilePath);
-      console.log(
-        `[FILE SYSTEM] Successfully deleted old signature: ${oldFileName}`,
-      );
-    } catch (err) {
-      console.error(
-        `[FILE SYSTEM] Failed to delete old signature (${existingEmployee.signature}):`,
-        err.message,
-      );
-    }
-  }
-
-  // 5. Update the database with the CLEAN path
+  // 4. Update the database with the CLEAN path, leaving the old file safely on the hard drive
   const updatedEmployee = await Employee.findByIdAndUpdate(
     employeeId,
-    { $set: { signature: cleanDbPath } }, // <--- Use cleanDbPath here!
+    { $set: { signature: cleanDbPath } },
     { new: true, runValidators: true },
   )
     .select("-password -loginAttempts -lockUntil -__v")

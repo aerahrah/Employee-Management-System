@@ -605,6 +605,7 @@ const AddCtoApplicationForm = () => {
           "Your approval workflow has no active approvers. Please enable them in your settings.",
           () => hasValidApprovalRoute,
         ),
+      employeeType: yup.string().optional(), // ✅ Accept employeeType in validation
       inclusiveDates: yup
         .array()
         .of(yup.string())
@@ -682,6 +683,7 @@ const AddCtoApplicationForm = () => {
           new Set((formData.inclusiveDates || []).filter(Boolean)),
         ).sort(),
         routeId: formData.routeId,
+        employeeType: admin?.employeeType || "JO",
       };
 
       const validatedPayload = await validationSchema.validate(rawPayload, {

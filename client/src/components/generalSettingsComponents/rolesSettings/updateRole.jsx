@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   Settings2,
@@ -345,6 +345,8 @@ export default function UpdateRole() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // ✅ Get the current user to verify their permissions
+  const currentUser = useAuth((s) => s.admin || s.user);
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
@@ -369,6 +371,12 @@ export default function UpdateRole() {
         : "rgba(15,23,42,0.02)",
     [resolvedTheme],
   );
+
+  // ✅ Security Check: Does the person looking at this page have Super Admin powers?
+  const isCurrentUserAdmin = useMemo(() => {
+    const perms = currentUser?.role?.permissions || [];
+    return perms.includes(SUPER_ADMIN_PERM) || perms.includes("*");
+  }, [currentUser]);
 
   const { data: roles, isLoading } = useQuery({
     queryKey: ["roles"],
@@ -486,15 +494,6 @@ export default function UpdateRole() {
               className="text-2xl md:text-3xl font-bold tracking-tight transition-colors duration-300 ease-out flex items-center gap-3"
               style={{ color: "var(--app-text)" }}
             >
-              {/* <div
-                className="p-2 rounded-lg"
-                style={{
-                  backgroundColor: "var(--accent-soft)",
-                  color: "var(--accent)",
-                }}
-              >
-                <ShieldCheck className="w-6 h-6" />
-              </div> */}
               Update Role
             </h1>
             <p
@@ -632,37 +631,43 @@ export default function UpdateRole() {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Super Admin Toggle */}
-                <div
-                  className="p-5 rounded-xl border transition-colors duration-300 ease-out"
-                  style={{
-                    backgroundColor: isSuperAdmin
-                      ? "var(--accent-soft)"
-                      : inputBg,
-                    borderColor: isSuperAdmin ? "var(--accent)" : borderColor,
-                  }}
-                >
-                  <Toggle
-                    checked={isSuperAdmin}
-                    disabled={isSaving}
-                    onChange={() => togglePermission(SUPER_ADMIN_PERM)}
-                    label="Super Admin (All Permissions)"
-                    hint="Grants unrestricted, permanent access to all modules and settings. Overrides all toggles below."
-                    borderColor={borderColor}
-                    theme={resolvedTheme}
-                  />
-                </div>
+                {/* ✅ Frontend Guard: Only display the Super Admin toggle if the user is a Super Admin */}
+                {isCurrentUserAdmin && (
+                  <>
+                    <div
+                      className="p-5 rounded-xl border transition-colors duration-300 ease-out"
+                      style={{
+                        backgroundColor: isSuperAdmin
+                          ? "var(--accent-soft)"
+                          : inputBg,
+                        borderColor: isSuperAdmin
+                          ? "var(--accent)"
+                          : borderColor,
+                      }}
+                    >
+                      <Toggle
+                        checked={isSuperAdmin}
+                        disabled={isSaving}
+                        onChange={() => togglePermission(SUPER_ADMIN_PERM)}
+                        label="Super Admin (All Permissions)"
+                        hint="Grants unrestricted, permanent access to all modules and settings. Overrides all toggles below."
+                        borderColor={borderColor}
+                        theme={resolvedTheme}
+                      />
+                    </div>
 
-                {isSuperAdmin && (
-                  <SoftNotice
-                    icon={CheckCircle2}
-                    tone="blue"
-                    title="Super Admin Active"
-                    theme={resolvedTheme}
-                  >
-                    Because this role is a Super Admin, all individual
-                    permissions below are automatically granted and locked.
-                  </SoftNotice>
+                    {isSuperAdmin && (
+                      <SoftNotice
+                        icon={CheckCircle2}
+                        tone="blue"
+                        title="Super Admin Active"
+                        theme={resolvedTheme}
+                      >
+                        Because this role is a Super Admin, all individual
+                        permissions below are automatically granted and locked.
+                      </SoftNotice>
+                    )}
+                  </>
                 )}
 
                 {/* Grouped Permissions */}
