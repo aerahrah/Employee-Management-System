@@ -6,9 +6,31 @@ const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const NotificationService = require("./notificationService");
 const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 
+// ✅ Email Dependencies
+const sendEmail = require("../utils/sendEmail");
+const EMAIL_KEYS = require("../utils/emailNotificationKeys");
+const { isEmailEnabled } = require("../utils/emailNotificationSettings");
+const { wellnessApprovalEmail } = require("../utils/emailTemplates");
+
 /* =========================
    Helpers
 ========================= */
+
+async function safeSendEmail(to, subject, html) {
+  try {
+    await sendEmail(to, subject, html);
+  } catch (e) {
+    console.error("[EMAIL] failed but continuing:", {
+      to,
+      subject,
+      message: e?.message,
+    });
+  }
+}
+
+async function canSend(key) {
+  return await isEmailEnabled(key);
+}
 
 const populateApplicationById = async (applicationId, session = null) => {
   return (
@@ -274,7 +296,7 @@ const addWellnessApplicationService = async ({
 
     const populatedApp = await populateApplicationById(newApplication._id);
 
-    // Notify first approver
+    // Notify first approver (In-App)
     const firstStep = approvalSteps.find((s) => s.level === 1);
     if (firstStep) {
       await NotificationService.createNotification({
@@ -286,6 +308,32 @@ const addWellnessApplicationService = async ({
         link: `/app/wellness-approvals/${populatedApp._id}`,
         priority: "HIGH",
       });
+
+      // ✅ Notify first approver (Email)
+      try {
+        const approverUser = await Employee.findById(firstStep.approver)
+          .select("firstName lastName email")
+          .lean();
+
+        const enabled = await canSend(EMAIL_KEYS.WELLNESS_APPROVAL);
+
+        if (approverUser?.email && enabled) {
+          const tpl = wellnessApprovalEmail({
+            approverName: `${approverUser.firstName} ${approverUser.lastName}`,
+            employeeName: `${employee.firstName} ${employee.lastName}`,
+            requestedDays: totalDays,
+            inclusiveDates: inclusiveDates.join(", "),
+            reason: reason,
+            level: 1,
+            link: `${process.env.FRONTEND_URL}/app/wellness-approvals/${populatedApp._id}`,
+            brandName: "CTO Management System",
+          });
+
+          await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
+        }
+      } catch (err) {
+        console.error("Failed to send Wellness approval email:", err?.message);
+      }
     }
 
     return populatedApp;

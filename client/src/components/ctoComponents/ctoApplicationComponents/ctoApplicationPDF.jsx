@@ -485,7 +485,6 @@ export default function CtoApplicationPdf({
   const dateOfFiling = fmtDateLong(app?.createdAt) || "";
   const requestedHours = safeNumber(app?.requestedHours);
   const inclusiveDates = formatInclusiveDates(app?.inclusiveDates || []);
-  console.log(app);
   const reason = app?.reason || "";
   const dayCount = Array.isArray(app?.inclusiveDates)
     ? app.inclusiveDates.length

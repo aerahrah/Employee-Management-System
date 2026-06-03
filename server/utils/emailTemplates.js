@@ -1,9 +1,5 @@
 // utils/emailTemplates.js
-// Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit)
-// Usage example:
-//   const { employeeWelcomeEmail, ctoApprovalEmail, ctoCreditAddedEmail } = require("../utils/emailTemplates");
-//   const tpl = employeeWelcomeEmail({ firstName, username, tempPassword, loginUrl });
-//   await sendEmail(to, tpl.subject, tpl.html);
+// Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit + Wellness)
 
 const BRAND = {
   name: "CTO Management System",
@@ -81,7 +77,6 @@ function emailLayout({
     <title>${safeTitle}</title>
   </head>
   <body style="margin:0; padding:0; background:${BRAND.bg}; color:${BRAND.text};">
-    <!-- Preheader (hidden) -->
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
       ${safePreheader}
     </div>
@@ -101,7 +96,6 @@ function emailLayout({
               box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
             ">
 
-            <!-- Header -->
             <tr>
               <td style="background:${BRAND.primary}; padding: 18px 20px;">
                 <div style="color:#ffffff; font-weight:800; font-size:16px; letter-spacing:0.2px;">
@@ -110,7 +104,6 @@ function emailLayout({
               </td>
             </tr>
 
-            <!-- Content -->
             <tr>
               <td style="padding: 22px 20px;">
                 <h1 style="margin:0 0 10px; font-size: 20px; line-height: 1.25; color:${BRAND.text};">
@@ -163,7 +156,6 @@ function emailLayout({
               </td>
             </tr>
 
-            <!-- Footer -->
             <tr>
               <td style="background:#f1f5f9; padding: 14px 20px;">
                 <p style="margin:0; color:${BRAND.muted}; font-size: 12px; line-height: 1.5;">
@@ -262,7 +254,7 @@ function employeeWelcomeEmail({
 }
 
 // ───────────────────────────────────────────────────────────────
-// BELOW EMAILS (CTO approvals)
+// CTO APPROVALS
 // ───────────────────────────────────────────────────────────────
 function ctoApprovalEmail({
   approverName,
@@ -357,10 +349,114 @@ function ctoRejectionEmail({ employeeName, remarks, brandName = BRAND.name }) {
 }
 
 // ───────────────────────────────────────────────────────────────
+// WELLNESS APPROVALS
+// ───────────────────────────────────────────────────────────────
+function wellnessApprovalEmail({
+  approverName,
+  employeeName,
+  requestedDays,
+  inclusiveDates,
+  reason,
+  level,
+  link,
+  brandName = BRAND.name,
+}) {
+  const safeApprover = escapeHtml(approverName || "Approver");
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeDays = escapeHtml(requestedDays ?? "0");
+  const safeDates = escapeHtml(inclusiveDates || "—");
+  const safeReason = escapeHtml(reason || "—");
+  const safeLevel = escapeHtml(level ?? "—");
+
+  const details = `
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Requested Days", safeDays)}
+    ${detailRow("Inclusive Dates", safeDates)}
+    ${detailRow("Reason", safeReason)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`)}
+  `;
+
+  return {
+    subject: `Wellness Leave Approval Request (Level ${level}) — ${employeeName || "Pending"}`,
+    html: emailLayout({
+      title: `Wellness Approval Request (Level ${safeLevel})`,
+      preheader: `Action required: Wellness leave approval for ${employeeName || "an employee"}`,
+      greeting: `Good day <strong>${safeApprover}</strong>,`,
+      intro:
+        "You have a pending Wellness Leave application awaiting your approval. Review the request details below and proceed using the button.",
+      detailsRowsHtml: details,
+      cta: { label: "Review application", url: link },
+      outro: "If you believe this was sent in error, please ignore this email.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessFinalApprovalEmail({
+  employeeName,
+  requestedDays,
+  inclusiveDates,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeDays = escapeHtml(requestedDays ?? "0");
+  const safeDates = escapeHtml(inclusiveDates || "—");
+
+  const details = `
+    ${detailRow("Status", "<strong>Approved</strong>")}
+    ${detailRow("Approved Days", safeDays)}
+    ${detailRow("Inclusive Dates", safeDates)}
+  `;
+
+  return {
+    subject: "Wellness Leave Approved",
+    html: emailLayout({
+      title: "Your Wellness Leave is approved",
+      preheader: "Your Wellness Leave request has been fully approved",
+      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your Wellness Leave application has been <strong>fully approved</strong>.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro: "You may now proceed based on the approved dates. Thank you.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessRejectionEmail({
+  employeeName,
+  remarks,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeRemarks = escapeHtml(remarks || "No remarks provided");
+
+  const details = `
+    ${detailRow("Status", "<strong>Rejected</strong>")}
+    ${detailRow("Remarks", safeRemarks)}
+  `;
+
+  return {
+    subject: "Wellness Leave Rejected",
+    html: emailLayout({
+      title: "Your Wellness Leave application was rejected",
+      preheader: "Update on your Wellness request",
+      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your Wellness Leave application has been <strong>rejected</strong>. Please see the remarks below.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "If you need clarification, please coordinate with your supervisor/approver.",
+      brandName,
+    }),
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
 // CTO CREDIT EMAILS (add credit + rollback credit)
 // ───────────────────────────────────────────────────────────────
-
-// For notifying employees that CTO hours were credited to them
 function ctoCreditAddedEmail({
   employeeName,
   memoNo,
@@ -397,7 +493,6 @@ function ctoCreditAddedEmail({
   };
 }
 
-// For notifying employees that a CTO credit memo was rolled back (balance reduced)
 function ctoCreditRolledBackEmail({
   employeeName,
   memoNo,
@@ -436,6 +531,83 @@ function ctoCreditRolledBackEmail({
   };
 }
 
+// ───────────────────────────────────────────────────────────────
+// WELLNESS CREDIT EMAILS (add credit + rollback credit)
+// ───────────────────────────────────────────────────────────────
+function wellnessCreditAddedEmail({
+  employeeName,
+  memoNo,
+  creditedDays,
+  dateApproved,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeMemoNo = escapeHtml(memoNo || "—");
+  const safeDays = escapeHtml(String(creditedDays ?? 0));
+  const safeDate = escapeHtml(formatDateLikeHuman(dateApproved));
+
+  const details = `
+    ${detailRow("Status", "<strong>Credited</strong>")}
+    ${detailRow("Memo No.", safeMemoNo)}
+    ${detailRow("Date Approved", safeDate)}
+    ${detailRow("Credited Days", safeDays)}
+  `;
+
+  return {
+    subject: `Wellness Credit Added — Memo ${memoNo || ""}`.trim(),
+    html: emailLayout({
+      title: "Wellness days have been added to your balance",
+      preheader: "Your Wellness Leave balance has been updated",
+      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your Wellness Leave balance has been updated. Please see the credit details below.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "If you believe this update is incorrect, please contact your HR/Admin.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessCreditRolledBackEmail({
+  employeeName,
+  memoNo,
+  rolledBackDays,
+  dateRolledBack,
+  reason, // optional
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeMemoNo = escapeHtml(memoNo || "—");
+  const safeDays = escapeHtml(String(rolledBackDays ?? 0));
+  const safeDate = escapeHtml(formatDateLikeHuman(dateRolledBack));
+  const safeReason = escapeHtml(reason || "—");
+
+  const details = `
+    ${detailRow("Status", "<strong>Rolled Back</strong>")}
+    ${detailRow("Memo No.", safeMemoNo)}
+    ${detailRow("Date Rolled Back", safeDate)}
+    ${detailRow("Days Removed", safeDays)}
+    ${detailRow("Reason", safeReason)}
+  `;
+
+  return {
+    subject: `Wellness Credit Rolled Back — Memo ${memoNo || ""}`.trim(),
+    html: emailLayout({
+      title: "A Wellness credit was rolled back",
+      preheader: "Your Wellness Leave balance was adjusted due to a rollback",
+      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      intro:
+        "A previously credited Wellness memo was rolled back, and your Wellness Leave balance has been adjusted. Details are below.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro: "If you have questions, please contact your HR/Admin.",
+      brandName,
+    }),
+  };
+}
+
 module.exports = {
   employeeWelcomeEmail,
   ctoApprovalEmail,
@@ -443,4 +615,9 @@ module.exports = {
   ctoRejectionEmail,
   ctoCreditAddedEmail,
   ctoCreditRolledBackEmail,
+  wellnessApprovalEmail,
+  wellnessFinalApprovalEmail,
+  wellnessRejectionEmail,
+  wellnessCreditAddedEmail,
+  wellnessCreditRolledBackEmail,
 };

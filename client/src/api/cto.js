@@ -96,7 +96,6 @@ export const fetchEmployeeCredits = async (employeeId, params = {}) => {
 
 export const addApplicationRequest = async (payload) => {
   try {
-    console.log(payload);
     const res = await API.post("/cto/applications/apply", payload, {
       withCredentials: true,
     });
@@ -263,7 +262,6 @@ export const fetchMyCtoApplicationsApprovals = async (params = {}) => {
 
 export const getCtoApplicationById = async (id) => {
   try {
-    console.log(id);
     const res = await API.get(`cto/applications/approvers/my-approvals/${id}`, {
       withCredentials: true,
     });
@@ -374,7 +372,6 @@ export const fetchProvincialOffices = async () => {
 export const fetchDashboard = async () => {
   try {
     const res = await API.get("/cto/dashboard", { withCredentials: true });
-    console.log(res.data);
     return unwrap(res)?.data ?? unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch dashboard");

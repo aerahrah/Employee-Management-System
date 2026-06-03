@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Info,
   Sparkles,
+  HeartPulse, // ✅ Added for Wellness icon
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -390,6 +391,49 @@ const GROUPS = [
         key: "cto_credit_rolled_back",
         label: "Credit rolled back",
         hint: "Sent when CTO credit changes are reverted/rolled back.",
+      },
+    ],
+  },
+  // ✅ Added Wellness Leave Approvals
+  {
+    title: "Wellness Leaves",
+    icon: HeartPulse,
+    description:
+      "Notifications for Wellness leave request approvals and outcomes.",
+    items: [
+      {
+        key: "wellness_approval",
+        label: "Approval request",
+        hint: "Sent to the next approver when a wellness approval step is pending.",
+      },
+      {
+        key: "wellness_final_approval",
+        label: "Final approval",
+        hint: "Sent to the employee after the wellness leave is fully approved.",
+      },
+      {
+        key: "wellness_rejection",
+        label: "Rejection",
+        hint: "Sent to the employee when an approver rejects the wellness leave.",
+      },
+    ],
+  },
+  // ✅ Added Wellness Credits
+  {
+    title: "Wellness Credits",
+    icon: Sparkles,
+    description:
+      "Notifications for Wellness day credit changes and adjustments.",
+    items: [
+      {
+        key: "wellness_credit_added",
+        label: "Credit added",
+        hint: "Sent when new Wellness days are added for an employee.",
+      },
+      {
+        key: "wellness_credit_rolled_back",
+        label: "Credit rolled back",
+        hint: "Sent when Wellness day changes are reverted/rolled back.",
       },
     ],
   },

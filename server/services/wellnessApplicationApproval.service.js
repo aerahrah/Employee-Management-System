@@ -8,6 +8,16 @@ const NotificationService = require("./notificationService");
 const buildAuditDetails = require("../utils/auditActionBuilder");
 const auditLogService = require("./auditLog.service");
 
+// ✅ Email Dependencies
+const sendEmail = require("../utils/sendEmail");
+const EMAIL_KEYS = require("../utils/emailNotificationKeys");
+const { isEmailEnabled } = require("../utils/emailNotificationSettings");
+const {
+  wellnessApprovalEmail,
+  wellnessFinalApprovalEmail,
+  wellnessRejectionEmail,
+} = require("../utils/emailTemplates");
+
 /* =========================
    Helpers
 ========================= */
@@ -49,6 +59,23 @@ const getEffectiveStatusForApprover = (app, myStep) => {
 
 const clampPage = (v) => Math.max(parseInt(v, 10) || 1, 1);
 const clampLimit = (v) => Math.min(Math.max(parseInt(v, 10) || 10, 1), 100);
+
+// ✅ Email Helpers
+async function safeSendEmail(to, subject, html) {
+  try {
+    await sendEmail(to, subject, html);
+  } catch (e) {
+    console.error("[EMAIL] failed but continuing:", {
+      to,
+      subject,
+      message: e?.message,
+    });
+  }
+}
+
+async function canSend(key) {
+  return await isEmailEnabled(key);
+}
 
 /* =========================
    Services
@@ -397,7 +424,30 @@ const approveWellnessApplicationService = async ({
       );
     }
 
-    if (!allApproved) {
+    if (allApproved) {
+      // ✅ EMAIL: Final Approval Email to Employee
+      try {
+        const enabled = await canSend(EMAIL_KEYS.WELLNESS_FINAL_APPROVAL);
+        if (application.employee.email && enabled) {
+          const tpl = wellnessFinalApprovalEmail({
+            employeeName: `${application.employee.firstName} ${application.employee.lastName}`,
+            requestedDays: application.totalDays,
+            inclusiveDates: (application.inclusiveDates || []).join(", "),
+            brandName: "CTO Management System",
+          });
+          await safeSendEmail(
+            application.employee.email,
+            tpl.subject,
+            tpl.html,
+          );
+        }
+      } catch (err) {
+        console.error(
+          "Failed to send Wellness final approval email:",
+          err?.message,
+        );
+      }
+    } else {
       const nextStep = updatedSteps.find(
         (s) => s.level === currentStep.level + 1,
       );
@@ -416,6 +466,33 @@ const approveWellnessApplicationService = async ({
           console.error(
             "Failed creating next step Wellness notification:",
             e?.message || e,
+          );
+        }
+
+        // ✅ EMAIL: Approval Request to Next Approver
+        try {
+          const nextApproverUser = await Employee.findById(nextStep.approver)
+            .select("firstName lastName email")
+            .lean();
+
+          const enabled = await canSend(EMAIL_KEYS.WELLNESS_APPROVAL);
+          if (nextApproverUser?.email && enabled) {
+            const tpl = wellnessApprovalEmail({
+              approverName: `${nextApproverUser.firstName} ${nextApproverUser.lastName}`,
+              employeeName: `${application.employee.firstName} ${application.employee.lastName}`,
+              requestedDays: application.totalDays,
+              inclusiveDates: (application.inclusiveDates || []).join(", "),
+              reason: application.reason,
+              level: nextStep.level,
+              link: `${process.env.FRONTEND_URL}/app/wellness-approvals/${application._id}`,
+              brandName: "CTO Management System",
+            });
+            await safeSendEmail(nextApproverUser.email, tpl.subject, tpl.html);
+          }
+        } catch (err) {
+          console.error(
+            "Failed to send Wellness next-step approval email:",
+            err?.message,
           );
         }
       }
@@ -581,6 +658,21 @@ const rejectWellnessApplicationService = async ({
         "Failed creating Wellness rejection notification:",
         e?.message || e,
       );
+    }
+
+    // ✅ EMAIL: Send Rejection Email to Employee
+    try {
+      const enabled = await canSend(EMAIL_KEYS.WELLNESS_REJECTION);
+      if (application.employee.email && enabled) {
+        const tpl = wellnessRejectionEmail({
+          employeeName: `${application.employee.firstName} ${application.employee.lastName}`,
+          remarks: remarks || "No remarks provided",
+          brandName: "CTO Management System",
+        });
+        await safeSendEmail(application.employee.email, tpl.subject, tpl.html);
+      }
+    } catch (err) {
+      console.error("Failed to send Wellness rejection email:", err?.message);
     }
 
     return getWellnessApplicationByIdService(applicationId);

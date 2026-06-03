@@ -567,6 +567,7 @@ const CtoApplicationsList = () => {
                 type="text"
                 placeholder="Search applicant..."
                 value={searchTerm}
+                maxLength={100}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 pr-8 py-2 w-full rounded-lg text-sm outline-none border transition-colors duration-200 ease-out"
                 style={{

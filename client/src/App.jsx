@@ -4,7 +4,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { CalendarDays, ShieldCheck, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-
+import NotFoundPage from "./pages/notFoundPage";
 import SessionGuard from "./components/sessionExpiredModal";
 
 /* ✅ Global theme + scrollbar sync (mount once) */
@@ -47,7 +47,6 @@ import AllWellnessApplicationsHistory from "./components/wellnessComponents/well
 import WellnessCreditHistory from "./components/wellnessComponents/wellnessCreditComponents/recentWellnessCreditHistory";
 import AddWellnessCreditForm from "./components/wellnessComponents/wellnessCreditComponents/forms/addWellnessCreditForm";
 import AddWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addWellnessApplicationForm";
-// ✅ Imported Organic Wellness Form
 import AddOrganicWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addOrganicWellnessApplicationForm";
 
 /* Organic Leave Components */
@@ -242,6 +241,10 @@ function App() {
           <Route element={<ProtectedRoute requiredPermission="cto.create" />}>
             <Route path="cto-apply" element={<CtoApplication />} />
             <Route path="cto-apply/add" element={<AddCtoApplicationForm />} />
+            <Route
+              path="cto-apply/organic"
+              element={<AddOrganicLeaveApplicationForm />}
+            />
           </Route>
 
           {/* Wellness Self Service */}
@@ -257,18 +260,6 @@ function App() {
             <Route
               path="wellness-apply/organic"
               element={<AddOrganicWellnessApplicationForm />}
-            />
-          </Route>
-
-          {/* Organic Leaves Self Service Form */}
-          <Route
-            element={
-              <ProtectedRoute requiredPermission="organic_leaves.create" />
-            }
-          >
-            <Route
-              path="cto-apply/organic"
-              element={<AddOrganicLeaveApplicationForm />}
             />
           </Route>
 
@@ -509,7 +500,7 @@ function App() {
         </Route>
 
         {/* FALLBACK */}
-        <Route path="*" element={<div>404 - Page Not Found</div>} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
       {/* TOASTS */}
