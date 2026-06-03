@@ -9,6 +9,7 @@ const approvalStepSchema = new mongoose.Schema(
       required: true,
     },
 
+    // We keep the reference so we can link back to the user account
     approver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
@@ -40,15 +41,18 @@ const approvalStepSchema = new mongoose.Schema(
       maxlength: [1000, "Remarks cannot exceed 1000 characters"],
     },
 
-    // Snapshot of approver signature at approval time
-    approverSignature: {
-      signatureUrl: {
-        type: String,
-        trim: true,
-      },
-      signedAt: {
-        type: Date,
-      },
+    // =========================================
+    // HISTORICAL SNAPSHOT (Immutability)
+    // =========================================
+    // Captures the exact details of the approver when they hit "Approve/Reject".
+    // This ensures that past PDF forms retain the correct name, position,
+    // and signature of the approver at that exact moment in time.
+    approverSnapshot: {
+      firstName: { type: String, trim: true },
+      lastName: { type: String, trim: true },
+      position: { type: String, trim: true },
+      signatureUrl: { type: String, trim: true },
+      signedAt: { type: Date },
     },
 
     ctoApplication: {

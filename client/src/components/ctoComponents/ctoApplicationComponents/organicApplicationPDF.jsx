@@ -8,7 +8,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 
-// ✅ FIX 2: Import your buildApiUrl utility so the PDF can construct absolute URLs for the signatures
+// ✅ Import your buildApiUrl utility so the PDF can construct absolute URLs for the signatures
 import { buildApiUrl } from "../../../config/env";
 
 /* =========================
@@ -304,16 +304,22 @@ const SlotSignatures = ({
   const otherApprovers = approvals.filter((a) => a._id !== mainApprover._id);
   const isMainInitial = mainApprover.role?.toLowerCase().includes("initial");
 
-  const mainName = mainApprover.approver
-    ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
-    : fallbackName;
+  // Use Approver Snapshot if available, fallback to live profile or placeholder
+  const mainName = mainApprover.approverSnapshot
+    ? `${mainApprover.approverSnapshot.firstName} ${mainApprover.approverSnapshot.lastName}`.toUpperCase()
+    : mainApprover.approver
+      ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
+      : fallbackName;
 
-  const mainRole = mainApprover.approver?.position || fallbackRole;
+  const mainRole =
+    mainApprover.approverSnapshot?.position ||
+    mainApprover.approver?.position ||
+    fallbackRole;
 
-  // ✅ FIX: Ensure absolute URLs
   const rawMainSigUrl =
     mainApprover.status === "APPROVED"
-      ? mainApprover.approverSignature?.signatureUrl
+      ? mainApprover.approverSnapshot?.signatureUrl ||
+        mainApprover.approverSignature?.signatureUrl
       : null;
   const mainSigUrl = safeImageUrl(rawMainSigUrl);
 
@@ -334,9 +340,10 @@ const SlotSignatures = ({
           {otherApprovers.map((appr, idx) => {
             const rawUrl =
               appr.status === "APPROVED"
-                ? appr.approverSignature?.signatureUrl
+                ? appr.approverSnapshot?.signatureUrl ||
+                  appr.approverSignature?.signatureUrl
                 : null;
-            const url = safeImageUrl(rawUrl); // ✅ Ensure absolute URL
+            const url = safeImageUrl(rawUrl);
             if (!url) return null;
             return (
               <Image key={idx} src={url} style={styles.approverInitialBeside} />
@@ -359,16 +366,26 @@ const SlotSignatures = ({
    Main Component
 ========================= */
 export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
-  const emp = app?.employee || {};
-  const office = emp.officeDivision || emp.department || "ADMIN AND FINANCE";
-  const lastName = emp.lastName || "";
-  const firstName = emp.firstName || "";
-  const middleName = emp.middleName || "";
+  // ✅ Extract data from Applicant Snapshot for historical accuracy
+  const snapshot = app?.applicantSnapshot || {};
+  const emp = app?.employee || {}; // Fallback for legacy records
+
+  const office = emp.division || emp.department || "ADMIN AND FINANCE";
+  const lastName = snapshot.lastName || emp.lastName || "";
+  const firstName = snapshot.firstName || emp.firstName || "";
+  const middleName = snapshot.middleName || emp.middleName || "";
+  const position = snapshot.position || emp.position || "";
+
+  // ✅ Format Salary Amount to show ONLY the monetary value (e.g., ₱59,153.00)
+  const amt = snapshot.salaryAmount;
+
+  let salaryText = "";
+  console.log(amt);
+  if (amt) {
+    salaryText = `${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+  }
 
   const dateOfFiling = fmtDateLong(app?.createdAt);
-  const position = emp.position || "";
-  const salary = emp.salary ? `₱${Number(emp.salary).toLocaleString()}` : "";
-
   const leaveType = app?.type || "Others";
   const daysApplied = app?.totalDays || app?.requestedDays || 1;
   const inclusiveDates = formatInclusiveDates(app?.inclusiveDates || []);
@@ -377,7 +394,6 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
   const isCommutationNotReq =
     app?.commutation === "Not Requested" || !isCommutationReq;
 
-  // ✅ FIX: Process the final signature URL to ensure it is absolute
   const rawFinalSignatureSrc =
     app?.applicantSignatureUrl || signatureSrc || emp.signature || null;
   const finalSignatureSrc = safeImageUrl(rawFinalSignatureSrc);
@@ -484,7 +500,7 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
             <View style={{ width: "30%", padding: 4, flexDirection: "row" }}>
               <Text style={styles.labelTitle}>5. SALARY </Text>
               <View style={styles.inputUnderlineCenter}>
-                <Text style={styles.valueText}>{salary}</Text>
+                <Text style={styles.valueText}>{salaryText}</Text>
               </View>
             </View>
           </View>

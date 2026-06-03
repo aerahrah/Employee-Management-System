@@ -99,6 +99,7 @@ export const addApplicationRequest = async (payload) => {
     const res = await API.post("/cto/applications/apply", payload, {
       withCredentials: true,
     });
+    console.log(res);
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to submit CTO application");

@@ -34,6 +34,7 @@ import {
   Mail,
   Route,
   Activity,
+  Banknote, // ✅ Imported for Salary Grades
 } from "lucide-react";
 
 /* =========================
@@ -274,6 +275,13 @@ const Sidebar = ({
             path: "/app/email-notification-settings",
             icon: <Mail size={14} />,
             requiredPermission: "settings.email",
+          },
+          // ✅ Added Salary Grades menu item here
+          {
+            name: "Salary Grades",
+            path: "/app/salary-grades",
+            icon: <Banknote size={14} />,
+            requiredPermission: "salary_grades.view",
           },
           {
             name: "Backup & Restore",

@@ -64,6 +64,13 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // ✅ Added middleName (Required)
+    middleName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     lastName: {
       type: String,
       required: true,
@@ -87,6 +94,13 @@ const employeeSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+
+    // ✅ Updated salary to reference the SalaryGrade model
+    salary: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SalaryGrade",
+      required: false,
     },
 
     division: {

@@ -35,10 +35,10 @@ async function canSend(key) {
 const populateApplicationById = async (applicationId, session = null) => {
   return (
     WellnessApplication.findById(applicationId)
-      // ✅ Include signature for the PDF Generator (Needed for Organic CSC Form 6)
+      // ✅ Include middleName and signature for the PDF Generator
       .populate(
         "employee",
-        "firstName lastName position email employeeId signature",
+        "firstName middleName lastName position email employeeId signature",
       )
       .populate({
         path: "approvals",
@@ -132,21 +132,23 @@ const addWellnessApplicationService = async ({
   actionDetails,
   req, // Passed for future Audit Logging
 }) => {
+  // ✅ Add default fallback for reason to prevent 400 errors if left blank on frontend
+  const finalReason = String(reason || "Availment of Wellness Leave").trim();
+
   if (
     !inclusiveDates ||
     !Array.isArray(inclusiveDates) ||
-    inclusiveDates.length === 0 ||
-    !reason
+    inclusiveDates.length === 0
   ) {
-    throw Object.assign(
-      new Error("Inclusive dates array and reason are required."),
-      { status: 400 },
-    );
+    throw Object.assign(new Error("Inclusive dates array is required."), {
+      status: 400,
+    });
   }
 
   const totalDays = inclusiveDates.length;
 
-  const employee = await Employee.findById(userId).lean();
+  // ✅ Populate salary so we can capture the salary grade & amount for the snapshot
+  const employee = await Employee.findById(userId).populate("salary").lean();
   if (!employee) {
     throw Object.assign(new Error("Employee not found."), { status: 404 });
   }
@@ -172,6 +174,16 @@ const addWellnessApplicationService = async ({
           "A digital signature is required to process CSC Form 6. Please upload your signature in your profile before applying.",
         ),
         { status: 403 },
+      );
+    }
+
+    // ✅ Ensure salary amount exists for the snapshot so PDF accurately prints it
+    if (!employee.salary || typeof employee.salary.amount !== "number") {
+      throw Object.assign(
+        new Error(
+          "Salary Amount information is missing from your profile. This is required for CSC Form 6. Please contact HR.",
+        ),
+        { status: 400 },
       );
     }
   }
@@ -243,20 +255,31 @@ const addWellnessApplicationService = async ({
       );
     }
 
-    // ✅ Base Application Payload
+    // ✅ Base Application Payload with Snapshot
     const applicationPayload = {
       employee: employee._id,
-      employeeType: finalEmployeeType, // Saves whether they are Organic or Job Order
+      employeeType: finalEmployeeType,
+      applicantSnapshot: {
+        firstName: employee.firstName || "",
+        middleName: employee.middleName || "",
+        lastName: employee.lastName || "",
+        position: employee.position || "",
+      },
       inclusiveDates,
       totalDays,
-      reason,
+      reason: finalReason, // ✅ Injected safe fallback reason
       overallStatus: "PENDING",
     };
 
     // ✅ Append CSC Form 6 specific data ONLY if Organic
     if (isOrganic) {
-      applicationPayload.commutation = commutation;
+      applicationPayload.commutation = commutation || "Not Requested";
       applicationPayload.applicantSignatureUrl = employee.signature;
+
+      // ✅ Save BOTH Grade and Amount in the historical snapshot
+      applicationPayload.applicantSnapshot.salaryGrade = employee.salary?.grade;
+      applicationPayload.applicantSnapshot.salaryAmount =
+        employee.salary?.amount;
 
       if (certificationOfLeaveCredits) {
         applicationPayload.certificationOfLeaveCredits =
@@ -323,7 +346,7 @@ const addWellnessApplicationService = async ({
             employeeName: `${employee.firstName} ${employee.lastName}`,
             requestedDays: totalDays,
             inclusiveDates: inclusiveDates.join(", "),
-            reason: reason,
+            reason: finalReason,
             level: 1,
             link: `${process.env.FRONTEND_URL}/app/wellness-approvals/${populatedApp._id}`,
             brandName: "CTO Management System",
@@ -379,10 +402,10 @@ const getAllWellnessApplicationsService = async (
 
   // ✅ Fetch applications with deep populated approvals mapping to frontend requirements
   const applications = await WellnessApplication.find(query)
-    // ✅ Ensure signature is returned if present
+    // ✅ Ensure middleName and signature are returned if present
     .populate(
       "employee",
-      "firstName lastName position email employeeId signature",
+      "firstName middleName lastName position email employeeId signature",
     )
     .populate({
       path: "approvals",
@@ -544,6 +567,7 @@ const getWellnessApplicationsByEmployeeService = async (
       employee: {
         _id: "$employeeDoc._id",
         firstName: "$employeeDoc.firstName",
+        middleName: "$employeeDoc.middleName", // ✅ Added middleName
         lastName: "$employeeDoc.lastName",
         position: "$employeeDoc.position",
         signature: "$employeeDoc.signature", // ✅ Fallback signature included

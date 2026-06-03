@@ -72,6 +72,8 @@ const validPermissions = [
   "roles.manage", // Create/edit/delete roles & permissions
   "projects.manage", // Create/edit/delete projects
   "backups.manage", // System backups and restore
+  "salary_grades.view", // ✅ View salary grade table
+  "salary_grades.manage", // ✅ Edit and update salary grade amounts
 ];
 
 const roleSchema = new mongoose.Schema(

@@ -6,6 +6,7 @@ import OrganicApplicationPdf from "./organicApplicationPDF"; // Your PDF layout 
 const OrganicApplicationPdfModal = ({ app, isOpen, onClose }) => {
   if (!isOpen || !app) return null;
 
+  console.log(app);
   return (
     <Modal
       isOpen={isOpen}

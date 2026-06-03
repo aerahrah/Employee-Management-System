@@ -22,6 +22,7 @@ import EmployeesPage from "./pages/employeePage";
 import AdminPage from "./pages/adminPage";
 import SettingsPage from "./pages/settingsPage";
 import AuditLogTable from "./pages/auditPage";
+import SalaryGradesSettings from "./components/generalSettingsComponents/salaryGradesSettings";
 
 /* CTO Components */
 import CtoDashboard from "./components/ctoComponents/ctoDashboard";
@@ -447,6 +448,13 @@ function App() {
               path="email-notification-settings"
               element={<EmailNotificationSettings />}
             />
+          </Route>
+
+          {/* ✅ Salary Grades Route */}
+          <Route
+            element={<ProtectedRoute requiredPermission="salary_grades.view" />}
+          >
+            <Route path="salary-grades" element={<SalaryGradesSettings />} />
           </Route>
 
           {/* ===================== */}

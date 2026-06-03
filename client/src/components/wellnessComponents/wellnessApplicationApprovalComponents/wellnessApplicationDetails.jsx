@@ -260,6 +260,18 @@ const TimelineCard = ({ approval, index, isLast }) => {
           fg: "var(--app-text)",
         };
 
+  // ✅ Pull from historical approverSnapshot if available, fallback to live populated approver
+  const approverFName =
+    approval.approverSnapshot?.firstName || approval.approver?.firstName;
+  const approverLName =
+    approval.approverSnapshot?.lastName || approval.approver?.lastName;
+  const approverPosition =
+    approval.approverSnapshot?.position ||
+    approval.approver?.position ||
+    "Approver";
+  const signatureUrl = approval.approverSnapshot?.signatureUrl;
+  const signedAt = approval.approverSnapshot?.signedAt;
+
   return (
     <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
       {!isLast && (
@@ -297,13 +309,13 @@ const TimelineCard = ({ approval, index, isLast }) => {
               className="text-sm font-semibold break-words mt-1"
               style={{ color: "var(--app-text)" }}
             >
-              {approval.approver?.firstName} {approval.approver?.lastName}
+              {approverFName} {approverLName}
             </p>
             <p
               className="text-xs font-medium break-words"
               style={{ color: "var(--accent)" }}
             >
-              {approval.approver?.position || "Approver"}
+              {approverPosition}
             </p>
           </div>
           <div className="flex-none">
@@ -344,16 +356,15 @@ const TimelineCard = ({ approval, index, isLast }) => {
           </div>
         )}
 
-        {/* Display the signature if available */}
-        {approval.approverSignature?.signatureUrl && (
+        {/* ✅ Display the signature and signed date from the snapshot */}
+        {signatureUrl && (
           <div
             className="mt-4  border-t border-dashed"
             style={{ borderColor: "var(--app-border)" }}
           >
-            {approval.approverSignature?.signedAt && (
+            {signedAt && (
               <p className="text-[10px] text-slate-500 mt-1">
-                Signed on:{" "}
-                {new Date(approval.approverSignature.signedAt).toLocaleString()}
+                Signed on: {new Date(signedAt).toLocaleString()}
               </p>
             )}
           </div>

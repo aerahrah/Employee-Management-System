@@ -15,7 +15,7 @@ import * as yup from "yup";
 
 import SelectCtoMemoModal from "./selectCtoMemoModal";
 
-// ✅ Import your newly extracted Forbidden403 component
+// ✅ Import your Forbidden403 component
 import Forbidden403 from "../../../../pages/forbidden403_FormPage";
 
 const MAX_REASON_LEN = 1000;
@@ -154,6 +154,8 @@ const Banner = ({ tone = "error", message, borderColor }) => {
 const AddOrganicCtoApplicationForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  // ✅ The session data from Zustand (usually lacks populated fields like `salary`)
   const { admin } = useAuth();
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
@@ -220,15 +222,31 @@ const AddOrganicCtoApplicationForm = () => {
     };
   }, []);
 
-  // Fetch live profile to check for signature
+  // ✅ Fetch live profile. This guarantees we have the populated salary & middleName
   const { data: profileData, isLoading: isProfileLoading } = useQuery({
     queryKey: ["myProfile"],
     queryFn: getMyProfile,
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
-  // Evaluate signature availability (fallback to store data just in case)
-  const hasSignature = Boolean(profileData?.signature || admin?.signature);
+  const employeeLive = profileData?.data || admin || {};
+
+  // Evaluate signature availability
+  const hasSignature = Boolean(employeeLive?.signature);
+
+  // ✅ Pre-format Salary for Display
+  const salaryText = useMemo(() => {
+    const amt = employeeLive?.salary?.amount;
+    const sg = employeeLive?.salary?.grade;
+    if (amt && sg) {
+      return `₱${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })} (SG ${sg})`;
+    } else if (amt) {
+      return `₱${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+    } else if (sg) {
+      return `SG ${sg}`;
+    }
+    return "N/A";
+  }, [employeeLive]);
 
   const {
     data: workingDaysRes,
@@ -306,9 +324,9 @@ const AddOrganicCtoApplicationForm = () => {
     return routesResponse.find(
       (r) =>
         String(r.createdBy?._id || r.createdBy) ===
-        String(admin?.id || admin?._id),
+        String(employeeLive?._id || employeeLive?.id),
     );
-  }, [routesResponse, admin]);
+  }, [routesResponse, employeeLive]);
 
   const hasValidApprovalRoute = useMemo(() => {
     if (!myRoute) return false;
@@ -503,6 +521,7 @@ const AddOrganicCtoApplicationForm = () => {
     }));
   };
 
+  // ✅ UPDATED VALIDATION SCHEMA: Made reason explicit required
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       requestedHours: yup
@@ -525,6 +544,7 @@ const AddOrganicCtoApplicationForm = () => {
       reason: yup
         .string()
         .trim()
+        .required("Reason / Additional Justification is required.")
         .max(
           MAX_REASON_LEN,
           `Remarks cannot exceed ${MAX_REASON_LEN} characters.`,
@@ -599,7 +619,7 @@ const AddOrganicCtoApplicationForm = () => {
 
     try {
       const rawPayload = {
-        employeeType: admin?.employeeType || "Organic",
+        employeeType: employeeLive?.employeeType || "Organic",
         commutation: formData.commutation,
         reason: String(formData.reason || "").trim(),
         inclusiveDates: Array.from(
@@ -630,8 +650,10 @@ const AddOrganicCtoApplicationForm = () => {
 
       setTimeout(() => navigate(-1), 1500);
     } catch (err) {
+      // ✅ Handle Frontend Yup validation specifically
       if (err instanceof yup.ValidationError) {
         showBanner("error", err.errors[0]);
+        toast.error(err.errors[0]);
       } else {
         const msg =
           err?.response?.data?.message ||
@@ -651,10 +673,10 @@ const AddOrganicCtoApplicationForm = () => {
   // ------------------------------------------------------------------
   // 403 Forbidden Access Guard for Non-Organic (e.g., "Job Order")
   // ------------------------------------------------------------------
-  if (admin?.employeeType !== "Organic") {
+  if (employeeLive?.employeeType !== "Organic") {
     return (
       <Forbidden403
-        employeeType={admin?.employeeType}
+        employeeType={employeeLive?.employeeType}
         borderColor={borderColor}
       />
     );
@@ -734,38 +756,41 @@ const AddOrganicCtoApplicationForm = () => {
                 borderColor={borderColor}
               />
 
-              {/* Employee Information Header */}
-              <div className="border border-black mb-6 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-black text-sm">
-                <div className="flex-1 p-2">
+              {/* ✅ Employee Information Header (with Middle Name & Salary) */}
+              <div className="border border-black mb-6 grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-black text-sm">
+                <div className="p-2">
                   <span className="text-[10px] text-gray-500 uppercase block font-semibold">
                     1. Office/Department
                   </span>
                   <div className="font-semibold mt-1">
-                    {admin?.office || "N/A"}
+                    {employeeLive?.division ||
+                      employeeLive?.department ||
+                      "ADMIN AND FINANCE"}
                   </div>
                 </div>
-                <div className="flex-1 p-2">
+                <div className="p-2">
                   <span className="text-[10px] text-gray-500 uppercase block font-semibold">
                     2. Name (Last, First, Middle)
                   </span>
                   <div className="font-semibold mt-1 uppercase">
-                    {admin?.lastName}, {admin?.firstName}
+                    {employeeLive?.lastName}, {employeeLive?.firstName}{" "}
+                    {employeeLive?.middleName || ""}
                   </div>
                 </div>
-                <div className="flex-1 p-2">
+                <div className="p-2">
                   <span className="text-[10px] text-gray-500 uppercase block font-semibold">
                     3. Position
                   </span>
                   <div className="font-semibold mt-1">
-                    {admin?.position || "N/A"}
+                    {employeeLive?.position || "N/A"}
                   </div>
                 </div>
-                <div className="flex-1 p-2">
-                  <span className="text-[10px] text-gray-500 uppercase block font-semibold">
-                    4. Employee Type
+                <div className="p-2 bg-blue-50/50">
+                  <span className="text-[10px] text-blue-700 uppercase block font-semibold">
+                    4. Salary
                   </span>
-                  <div className="font-semibold mt-1 text-blue-800">
-                    {admin?.employeeType || "Organic"}
+                  <div className="font-semibold mt-1 text-blue-900">
+                    {salaryText}
                   </div>
                 </div>
               </div>

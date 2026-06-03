@@ -27,6 +27,9 @@ const {
   uploadSignature,
 } = require("../controllers/employeeController");
 
+// ✅ Imported Salary Grade Controller
+const salaryGradeController = require("../controllers/salaryGradeController");
+
 const {
   authenticateToken,
   authorize,
@@ -35,16 +38,12 @@ const {
 // =============================
 // ROLE ESCALATION GUARD
 // =============================
-// Prevents users from assigning a role with the "*" (Admin) permission
-// unless they themselves already possess the "*" permission.
 const preventRoleEscalation = async (req, res, next) => {
   try {
     const targetRoleId = req.body.role;
 
-    // If no role is being assigned/updated in this request, proceed normally
     if (!targetRoleId) return next();
 
-    // Fetch the role they are trying to assign
     const targetRole = await Role.findById(targetRoleId).lean();
     if (!targetRole) {
       return res
@@ -52,11 +51,9 @@ const preventRoleEscalation = async (req, res, next) => {
         .json({ success: false, message: "Invalid role selected." });
     }
 
-    // Check if the role being assigned has the wildcard admin permission
     const isTargetAdmin = targetRole.permissions.includes("*");
 
     if (isTargetAdmin) {
-      // Fetch the requester's role to see if THEY are an Admin
       const requesterRoleId = req.user?.role?._id || req.user?.role;
       if (!requesterRoleId) {
         return res.status(403).json({
@@ -69,7 +66,6 @@ const preventRoleEscalation = async (req, res, next) => {
       const requesterIsAdmin =
         requesterRole && requesterRole.permissions.includes("*");
 
-      // If the target is Admin but the requester is NOT Admin, block the action!
       if (!requesterIsAdmin) {
         return res.status(403).json({
           success: false,
@@ -78,7 +74,6 @@ const preventRoleEscalation = async (req, res, next) => {
       }
     }
 
-    // Safe to proceed
     next();
   } catch (error) {
     console.error("[ROLE ESCALATION GUARD] Error:", error);
@@ -92,15 +87,12 @@ const preventRoleEscalation = async (req, res, next) => {
 // =============================
 // MULTER UPLOAD CONFIGURATION
 // =============================
-// Use process.cwd() to guarantee the path is created relative to your root folder
 const signatureUploadDir = path.join(process.cwd(), "uploads", "signatures");
 
-// Ensure the upload directory exists safely
 if (!fs.existsSync(signatureUploadDir)) {
   fs.mkdirSync(signatureUploadDir, { recursive: true });
 }
 
-// Strictly map valid mimetypes to safe extensions
 const allowedMimeTypes = {
   "image/jpeg": ".jpg",
   "image/jpg": ".jpg",
@@ -112,13 +104,8 @@ const storage = multer.diskStorage({
     cb(null, signatureUploadDir);
   },
   filename: function (req, file, cb) {
-    // This unique suffix guarantees that even if 100 people upload "signature.jpg"
-    // at the exact same second, they will all get entirely unique file names on the server.
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-
-    // Instead of trusting the original file extension, force the extension based on the validated mimetype
     const safeExtension = allowedMimeTypes[file.mimetype] || ".bin";
-
     cb(null, `${req.user?.id || "unauth"}-${uniqueSuffix}${safeExtension}`);
   },
 });
@@ -137,43 +124,33 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-// Graceful Error Wrapper for Multer
 const handleSignatureUpload = (req, res, next) => {
   upload.single("signature")(req, res, function (err) {
     if (err instanceof multer.MulterError) {
-      // A Multer error occurred when uploading (e.g., file too large)
       return res
         .status(400)
         .json({ success: false, message: `Upload error: ${err.message}` });
     } else if (err) {
-      // An unknown error occurred (e.g., our custom fileFilter error)
       return res.status(400).json({ success: false, message: err.message });
     }
-    // Everything went fine, proceed to the controller
     next();
   });
 };
 
 // =============================
-// LOGIN RATE LIMITER (Original Code)
+// LOGIN RATE LIMITER
 // =============================
 const loginLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 10, // IMPORTANT: keep low for login security
-
+  windowMs: 10 * 60 * 1000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-
   keyGenerator: (req) => {
-    // normalize username so "Admin" and "admin" are same bucket
     return (req.body.username || "unknown").toLowerCase().trim();
   },
-
   skipSuccessfulRequests: true,
-
   handler: (req, res) => {
     const retryAfter = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
-
     const minutes = Math.floor(retryAfter / 60);
     const seconds = retryAfter % 60;
 
@@ -207,7 +184,6 @@ router.put(
   updateMyProfile,
 );
 
-// ✅ Updated to use the secure error-handling wrapper
 router.post(
   "/my-profile/signature",
   ...requirePerm("employees.upload_signature"),
@@ -235,7 +211,6 @@ router.get(
 
 router.get("/", ...requirePerm("employees.view"), getEmployees);
 
-// ✅ Added preventRoleEscalation guard
 router.post(
   "/",
   ...requirePerm("employees.create"),
@@ -243,9 +218,31 @@ router.post(
   createEmployee,
 );
 
+// ==========================================
+// SALARY GRADE ROUTES (Must be above /:id)
+// ==========================================
+// ✅ Updated permissions to use salary_grades isolated access
+router.get(
+  "/salary-grades",
+  ...requirePerm("salary_grades.view"),
+  salaryGradeController.getAllGrades,
+);
+router.get(
+  "/salary-grades/:id",
+  ...requirePerm("salary_grades.view"),
+  salaryGradeController.getGradeById,
+);
+router.put(
+  "/salary-grades/:id",
+  ...requirePerm("salary_grades.manage"),
+  salaryGradeController.updateGrade,
+);
+
+// ==========================================
+// EMPLOYEE ID ROUTES
+// ==========================================
 router.get("/:id", ...requirePerm("employees.view"), getEmployeeById);
 
-// ✅ Added preventRoleEscalation guard
 router.put(
   "/:id",
   ...requirePerm("employees.edit"),
@@ -253,7 +250,6 @@ router.put(
   updateEmployee,
 );
 
-// ✅ Added preventRoleEscalation guard
 router.post(
   "/:id/role",
   ...requirePerm("employees.change_role"),

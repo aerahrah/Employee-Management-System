@@ -304,16 +304,23 @@ const SlotSignatures = ({
   const otherApprovers = approvals.filter((a) => a._id !== mainApprover._id);
   const isMainInitial = mainApprover.role?.toLowerCase().includes("initial");
 
-  const mainName = mainApprover.approver
-    ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
-    : fallbackName;
+  // ✅ Use Approver Snapshot if available, fallback to live profile or placeholder
+  const mainName = mainApprover.approverSnapshot
+    ? `${mainApprover.approverSnapshot.firstName} ${mainApprover.approverSnapshot.lastName}`.toUpperCase()
+    : mainApprover.approver
+      ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
+      : fallbackName;
 
-  const mainRole = mainApprover.approver?.position || fallbackRole;
+  const mainRole =
+    mainApprover.approverSnapshot?.position ||
+    mainApprover.approver?.position ||
+    fallbackRole;
 
-  // Ensure absolute URLs
+  // ✅ Ensure absolute URLs pulling from snapshot when approved
   const rawMainSigUrl =
     mainApprover.status === "APPROVED"
-      ? mainApprover.approverSignature?.signatureUrl
+      ? mainApprover.approverSnapshot?.signatureUrl ||
+        mainApprover.approverSignature?.signatureUrl
       : null;
   const mainSigUrl = safeImageUrl(rawMainSigUrl);
 
@@ -334,7 +341,8 @@ const SlotSignatures = ({
           {otherApprovers.map((appr, idx) => {
             const rawUrl =
               appr.status === "APPROVED"
-                ? appr.approverSignature?.signatureUrl
+                ? appr.approverSnapshot?.signatureUrl ||
+                  appr.approverSignature?.signatureUrl
                 : null;
             const url = safeImageUrl(rawUrl);
             if (!url) return null;
@@ -359,15 +367,26 @@ const SlotSignatures = ({
    Main Component
 ========================= */
 export default function WellnessApplicationPdf({ app, logoSrc, signatureSrc }) {
-  const emp = app?.employee || {};
-  const office = emp.officeDivision || emp.department || "ADMIN AND FINANCE";
-  const lastName = emp.lastName || "";
-  const firstName = emp.firstName || "";
-  const middleName = emp.middleName || "";
+  // ✅ Extract data from Applicant Snapshot for historical accuracy
+  const snapshot = app?.applicantSnapshot || {};
+  const emp = app?.employee || {}; // Fallback for legacy records
+
+  const office = emp.division || emp.department || "ADMIN AND FINANCE";
+  const lastName = snapshot.lastName || emp.lastName || "";
+  const firstName = snapshot.firstName || emp.firstName || "";
+  const middleName = snapshot.middleName || emp.middleName || "";
+  const position = snapshot.position || emp.position || "";
+
+  // ✅ Format Salary Amount + Salary Grade seamlessly
+  const amt = snapshot.salaryAmount;
+
+  let salaryText = "";
+
+  if (amt) {
+    salaryText = `${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+  }
 
   const dateOfFiling = fmtDateLong(app?.createdAt);
-  const position = emp.position || "";
-  const salary = emp.salary ? `₱${Number(emp.salary).toLocaleString()}` : "";
 
   // For Wellness Applications, we force default to WELLNESS
   const leaveType = app?.type || "WELLNESS";
@@ -485,7 +504,7 @@ export default function WellnessApplicationPdf({ app, logoSrc, signatureSrc }) {
             <View style={{ width: "30%", padding: 4, flexDirection: "row" }}>
               <Text style={styles.labelTitle}>5. SALARY </Text>
               <View style={styles.inputUnderlineCenter}>
-                <Text style={styles.valueText}>{salary}</Text>
+                <Text style={styles.valueText}>{salaryText}</Text>
               </View>
             </View>
           </View>
@@ -527,7 +546,7 @@ export default function WellnessApplicationPdf({ app, logoSrc, signatureSrc }) {
                 checked={leaveType === "Paternity"}
               />
               <CheckboxItem
-                label="Special Privilege Leave" // ✅ Reverted to original SPL Label
+                label="Special Privilege Leave"
                 law="(Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
                 checked={leaveType === "SPL"}
               />

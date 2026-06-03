@@ -24,6 +24,7 @@ const MAX_SESSION_MINUTES = 60 * 24 * 30; // 30 days
 // Explicit allowlists to prevent mass assignment vulnerabilities
 const ALLOWED_PROFILE_UPDATES = Object.freeze([
   "firstName",
+  "middleName", // ✅ Added middleName
   "lastName",
   "email",
   "phone",
@@ -38,7 +39,8 @@ const ALLOWED_ADMIN_UPDATES = Object.freeze([
   ...ALLOWED_PROFILE_UPDATES,
   "contractType",
   "status",
-  "employeeType", // ✅ Added so admins can update it
+  "employeeType",
+  "salary", // ✅ Added salary so admins can update it
 ]);
 
 // --- HELPER FUNCTIONS ---
@@ -212,6 +214,7 @@ const createEmployeeService = async (employeeData = {}) => {
     username,
     email,
     firstName,
+    middleName, // ✅ Extracted middleName
     lastName,
     position,
     designation,
@@ -219,19 +222,33 @@ const createEmployeeService = async (employeeData = {}) => {
     project,
     role,
     contractType,
-    employeeType, // ✅ Extracted field
+    employeeType,
+    salary, // ✅ Extracted salary
   } = employeeData;
 
   if (
     !employeeId ||
     !username ||
     !firstName ||
+    !middleName || // ✅ Required check
     !lastName ||
     !designation ||
     !project ||
-    !employeeType // ✅ Required field check
+    !employeeType
   ) {
     throw httpError("Missing required fields for employee creation", 400);
+  }
+
+  // ✅ Salary Grade validation based on employeeType
+  let resolvedSalaryId = null;
+  if (employeeType === "Organic") {
+    if (!salary) {
+      throw httpError("Salary Grade is required for Organic personnel.", 400);
+    }
+    if (!mongoose.isValidObjectId(salary)) {
+      throw httpError("Invalid Salary Grade ID.", 400);
+    }
+    resolvedSalaryId = salary;
   }
 
   const existing = await Employee.findOne({
@@ -265,6 +282,7 @@ const createEmployeeService = async (employeeData = {}) => {
     username: String(username).trim(),
     email: email ? String(email).trim() : undefined,
     firstName: String(firstName).trim(),
+    middleName: String(middleName).trim(), // ✅ Saved to DB
     lastName: String(lastName).trim(),
     division: division ? String(division).trim() : undefined,
     project: projectId,
@@ -272,7 +290,8 @@ const createEmployeeService = async (employeeData = {}) => {
     position: position ? String(position).trim() : undefined,
     role: resolvedRoleId,
     contractType: contractType || "Permanent",
-    employeeType: employeeType, // ✅ Passed to DB
+    employeeType: employeeType,
+    salary: resolvedSalaryId, // ✅ Saved to DB (null if JO)
     password: tempPassword, // Will be hashed by pre-save hook
     balances: {
       wellnessDays: !contractType || contractType === "Permanent" ? 5 : 0,
@@ -339,6 +358,7 @@ const getEmployeesService = async ({
     const safeSearch = sanitizeSearch(q, 100);
     query.$or = [
       { firstName: { $regex: safeSearch, $options: "i" } },
+      { middleName: { $regex: safeSearch, $options: "i" } },
       { lastName: { $regex: safeSearch, $options: "i" } },
       { email: { $regex: safeSearch, $options: "i" } },
     ];
@@ -350,6 +370,7 @@ const getEmployeesService = async ({
 
   const projection = {
     firstName: 1,
+    middleName: 1, // ✅ Projected
     lastName: 1,
     email: 1,
     designation: 1,
@@ -358,7 +379,8 @@ const getEmployeesService = async ({
     role: 1,
     status: 1,
     position: 1,
-    employeeType: 1, // ✅ Adding to default query projections
+    employeeType: 1,
+    salary: 1, // ✅ Projected
   };
 
   const [data, total] = await Promise.all([
@@ -369,6 +391,7 @@ const getEmployeesService = async ({
       .populate("designation", "name status")
       .populate("project", "name status")
       .populate("role", "name permissions isSystem")
+      .populate("salary") // ✅ Populated salary grade
       .lean(),
     Employee.countDocuments(query),
   ]);
@@ -385,6 +408,7 @@ const getEmployeeByIdService = async (id) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
+    .populate("salary") // ✅ Populated salary grade
     .lean();
 
   if (!employee) throw httpError(`Employee not found`, 404);
@@ -438,7 +462,7 @@ const signInEmployeeService = async (username, password) => {
     role: employee.role,
     employeeType:
       employee.employeeType ||
-      (employee.contractType === "Organic" ? "Organic" : "JO"), // ✅ Safely mapped
+      (employee.contractType === "Organic" ? "Organic" : "JO"),
   };
 
   const sessionSettings = await getSessionSettings();
@@ -513,6 +537,16 @@ const updateEmployeeService = async (id, updateData = {}) => {
     );
   }
 
+  // Validate Salary Reference if provided
+  if (updateData.salary !== undefined) {
+    if (
+      updateData.salary !== null &&
+      !mongoose.isValidObjectId(updateData.salary)
+    ) {
+      throw httpError("Invalid Salary Grade ID provided", 400);
+    }
+  }
+
   // Prevent Mass Assignment Vulnerabilities
   ALLOWED_ADMIN_UPDATES.forEach((field) => {
     if (updateData[field] !== undefined) {
@@ -523,6 +557,15 @@ const updateEmployeeService = async (id, updateData = {}) => {
           : updateData[field];
     }
   });
+
+  // ✅ Enforce Employee Type constraints after updating fields
+  if (employee.employeeType === "Organic" && !employee.salary) {
+    throw httpError("Salary Grade is required for Organic personnel.", 400);
+  }
+  // Automatically clear salary if changed to JO
+  if (employee.employeeType === "JO") {
+    employee.salary = undefined;
+  }
 
   // Handle nested object specific fields explicitly
   if (updateData.balances && typeof updateData.balances === "object") {
@@ -542,6 +585,7 @@ const updateEmployeeService = async (id, updateData = {}) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
+    .populate("salary") // ✅ Populated salary grade
     .lean();
 };
 
@@ -609,6 +653,7 @@ const getProfile = async (employeeId) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
+    .populate("salary") // ✅ Populated salary grade
     .lean();
 
   if (!employee) throw httpError("Employee not found", 404);
@@ -653,6 +698,7 @@ const updateProfile = async (employeeId, updateData = {}) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
+    .populate("salary") // ✅ Populated salary grade
     .lean();
 
   if (!updatedEmployee) throw httpError("Employee not found", 404);

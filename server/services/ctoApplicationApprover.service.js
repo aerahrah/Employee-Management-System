@@ -203,8 +203,8 @@ const getCtoApplicationsForApproverService = async (
         { path: "employee", select: "firstName lastName position" },
         {
           path: "approvals",
-          // ✅ Added `role` and `approverSignature` to the select projection!
-          select: "approver status level role approverSignature",
+          // ✅ Updated to pull `approverSnapshot` instead of just the signature
+          select: "approver status level role approverSnapshot",
           populate: {
             path: "approver",
             select: "firstName lastName position _id",
@@ -306,7 +306,7 @@ const getCtoApplicationByIdService = async (ctoApplicationId) => {
     })
     .populate({
       path: "approvals",
-      select: "-__v", // -__v ensures we don't accidentally drop role or approverSignature
+      select: "-__v",
       populate: {
         path: "approver",
         select: "firstName lastName position email",
@@ -332,9 +332,9 @@ const approveCtoApplicationService = async ({
   assertObjectId(safeApproverId, "Approver ID");
   assertObjectId(safeAppId, "Application ID");
 
-  // Fetch approver early to validate signature before beginning transaction
+  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(safeApproverId)
-    .select("username firstName lastName email signature")
+    .select("username firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -382,14 +382,17 @@ const approveCtoApplicationService = async ({
         400,
       );
 
-    // Update approval step securely via $set, snapshotting the signature
+    // ✅ Update approval step securely via $set, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
         $set: {
           status: CTO_STATUS.APPROVED,
           reviewedAt: new Date(),
-          approverSignature: {
+          approverSnapshot: {
+            firstName: approver.firstName || "",
+            lastName: approver.lastName || "",
+            position: approver.position || "",
             signatureUrl: approver.signature,
             signedAt: new Date(),
           },
@@ -581,14 +584,11 @@ const rejectCtoApplicationService = async ({
   const safeApproverId = String(approverId).trim();
   const safeAppId = String(applicationId).trim();
 
-  assertObjectId(safeApproverId, "Approver ID");
-  assertObjectId(safeAppId, "Application ID");
-
   const safeRemarks = sanitizeString(remarks, 1000) || "No remarks provided";
 
-  // Fetch approver early to validate signature before beginning transaction
+  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(safeApproverId)
-    .select("username firstName lastName email signature")
+    .select("username firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -674,7 +674,7 @@ const rejectCtoApplicationService = async ({
       }
     }
 
-    // Update current step to rejected securely via $set, snapshotting the signature
+    // ✅ Update current step to rejected securely via $set, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
@@ -682,7 +682,10 @@ const rejectCtoApplicationService = async ({
           status: CTO_STATUS.REJECTED,
           remarks: safeRemarks,
           reviewedAt: new Date(),
-          approverSignature: {
+          approverSnapshot: {
+            firstName: approver.firstName || "",
+            lastName: approver.lastName || "",
+            position: approver.position || "",
             signatureUrl: approver.signature,
             signedAt: new Date(),
           },

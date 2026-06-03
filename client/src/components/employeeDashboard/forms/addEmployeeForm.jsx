@@ -1,6 +1,6 @@
 // src/components/employees/addEmployee/addEmployeeForm.jsx
 import React, { useEffect, useMemo, useRef } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,7 @@ import {
 } from "../../../api/employee";
 import { getRoles } from "../../../api/role";
 import { fetchProjectOptions } from "../../../api/project";
+import { fetchSalaryGrades } from "../../../api/salaryGrade"; // ✅ Imported Salary Grades API
 import SelectDesignation from "./selectDesignation";
 import SelectProjectOptions from "./selectProject";
 
@@ -32,7 +33,7 @@ import {
   Hash,
   Mail,
   Shield,
-  Tag,
+  Banknote,
 } from "lucide-react";
 
 /* =========================
@@ -52,7 +53,7 @@ function resolveTheme(prefTheme) {
 ========================= */
 const DIVISIONS = ["AFD", "TOD", "ORD"];
 const STATUSES = ["Active", "Inactive", "Resigned", "Terminated"];
-const EMPLOYEE_TYPES = ["Organic", "JO"]; // ✅ Added Employee Types
+const EMPLOYEE_TYPES = ["Organic", "JO"];
 
 /* =========================
    HELPERS (sanitize / normalize)
@@ -239,7 +240,13 @@ const FormSkeleton = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <SkInput
+                    style={{
+                      backgroundColor: skeletonColors.baseColor,
+                      borderColor: borderColor,
+                    }}
+                  />
                   <SkInput
                     style={{
                       backgroundColor: skeletonColors.baseColor,
@@ -743,6 +750,23 @@ const AddEmployeeForm = () => {
   }, [roles, isCurrentUserAdmin]);
 
   /* -------------------------
+     Salary Grades fetch (✅ NEW)
+  ------------------------- */
+  const { data: salaryGradesRes } = useQuery({
+    queryKey: ["salaryGrades"],
+    queryFn: () => fetchSalaryGrades(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const salaryOptions = useMemo(() => {
+    const grades = salaryGradesRes?.data || [];
+    return grades.map((g) => ({
+      value: g._id,
+      label: `SG ${g.grade} Step ${g.step} - ₱${g.amount.toLocaleString()}`,
+    }));
+  }, [salaryGradesRes]);
+
+  /* -------------------------
      Schema
   ------------------------- */
   const schema = useMemo(() => {
@@ -763,6 +787,12 @@ const AddEmployeeForm = () => {
         .string()
         .transform((v) => normalizeText(v))
         .required("First name is required"),
+
+      // ✅ Added Middle Name Validation
+      middleName: yup
+        .string()
+        .transform((v) => normalizeText(v))
+        .required("Middle name is required"),
 
       lastName: yup
         .string()
@@ -818,6 +848,14 @@ const AddEmployeeForm = () => {
         .transform((v) => normalizeText(v))
         .oneOf(EMPLOYEE_TYPES, "Invalid employee type")
         .required("Employee Type is required"),
+
+      // ✅ Conditionally require Salary Grade only for Organic employees
+      salary: yup.string().when("employeeType", {
+        is: (val) => val === "Organic",
+        then: (schema) =>
+          schema.required("Salary Grade is required for Organic employees."),
+        otherwise: (schema) => schema.nullable().notRequired(),
+      }),
 
       designation: yup
         .mixed()
@@ -901,6 +939,7 @@ const AddEmployeeForm = () => {
       employeeId: "",
       username: "",
       firstName: "",
+      middleName: "", // ✅ Added default
       lastName: "",
       email: "",
       phone: "",
@@ -909,6 +948,7 @@ const AddEmployeeForm = () => {
       project: "",
       status: "Active",
       employeeType: "",
+      salary: "", // ✅ Added default
       role: "employee",
       designation: "",
       address: { street: "", city: "", province: "" },
@@ -922,12 +962,16 @@ const AddEmployeeForm = () => {
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues,
     mode: "onSubmit",
   });
+
+  // Watch employeeType to dynamically render Salary Grade dropdown
+  const watchEmployeeType = watch("employeeType");
 
   useEffect(() => {
     if (!isEditMode) return;
@@ -937,6 +981,7 @@ const AddEmployeeForm = () => {
       employeeId: normalizeText(employee.employeeId),
       username: normalizeText(employee.username),
       firstName: normalizeText(employee.firstName),
+      middleName: normalizeText(employee.middleName), // ✅ Resets value
       lastName: normalizeText(employee.lastName),
       email: normalizeEmail(employee.email),
       phone: digitsOnly(employee.phone),
@@ -947,6 +992,7 @@ const AddEmployeeForm = () => {
       status: safeEnumCI(employee.status, STATUSES) || "Active",
 
       employeeType: safeEnumCI(employee.employeeType, EMPLOYEE_TYPES) || "JO",
+      salary: pickId(employee.salary), // ✅ Safely sets Salary Grade ID if exists
 
       role: normalizeText(employee.role || "employee"),
       designation: pickDesignationId(employee.designation),
@@ -976,6 +1022,7 @@ const AddEmployeeForm = () => {
 
         username: normalizeText(raw.username),
         firstName: normalizeText(raw.firstName),
+        middleName: normalizeText(raw.middleName), // ✅ Added to payload
         lastName: normalizeText(raw.lastName),
         email: normalizeEmail(raw.email),
         phone: digitsOnly(raw.phone),
@@ -986,6 +1033,14 @@ const AddEmployeeForm = () => {
         project: normalizeText(raw.project),
         status: safeEnum(normalizeText(raw.status), STATUSES),
         employeeType: safeEnum(normalizeText(raw.employeeType), EMPLOYEE_TYPES),
+
+        // ✅ Only send salary ID if type is Organic
+        salary:
+          safeEnum(normalizeText(raw.employeeType), EMPLOYEE_TYPES) ===
+          "Organic"
+            ? pickId(raw.salary)
+            : undefined,
+
         designation: pickDesignationId(raw.designation),
 
         address: {
@@ -1262,12 +1317,20 @@ const AddEmployeeForm = () => {
                 borderColor={borderColor}
               />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ✅ Updated to 3 columns for First, Middle, and Last Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <InputField
                   label="First Name"
                   required
                   {...register("firstName")}
                   error={errors.firstName}
+                  borderColor={borderColor}
+                />
+                <InputField
+                  label="Middle Name"
+                  required
+                  {...register("middleName")}
+                  error={errors.middleName}
                   borderColor={borderColor}
                 />
                 <InputField
@@ -1395,6 +1458,26 @@ const AddEmployeeForm = () => {
                   )}
                 />
               </div>
+
+              {/* ✅ Conditionally render Salary Grade Dropdown ONLY for Organic */}
+              {watchEmployeeType === "Organic" && (
+                <Controller
+                  name="salary"
+                  control={control}
+                  render={({ field }) => (
+                    <SelectInput
+                      label="Salary Grade"
+                      options={salaryOptions}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.salary}
+                      required
+                      borderColor={borderColor}
+                      resolvedTheme={resolvedTheme}
+                    />
+                  )}
+                />
+              )}
 
               <InputField
                 label="Position Title"

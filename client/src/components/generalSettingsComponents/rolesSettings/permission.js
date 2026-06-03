@@ -1,4 +1,4 @@
-// constants.js
+// src/components/roles/permission.js
 
 export const SUPER_ADMIN_PERM = "*";
 
@@ -9,17 +9,12 @@ export const PERMISSION_GROUPS = [
       {
         id: "employees.view",
         label: "View Employees",
-        hint: "View the employee directory and basic profiles.",
-      },
-      {
-        id: "employees.view_self",
-        label: "View Own Profile",
-        hint: "Access own personal employee profile.",
+        hint: "Access the employee directory.",
       },
       {
         id: "employees.create",
         label: "Create Employees",
-        hint: "Onboard new employees into the system.",
+        hint: "Add new employees to the system.",
       },
       {
         id: "employees.edit",
@@ -27,54 +22,39 @@ export const PERMISSION_GROUPS = [
         hint: "Modify existing employee records.",
       },
       {
-        id: "employees.edit_self",
-        label: "Edit Own Profile",
-        hint: "Modify own personal details.",
-      },
-      {
         id: "employees.delete",
         label: "Delete Employees",
         hint: "Remove employees from the system.",
       },
       {
-        id: "employees.reset_password_self",
-        label: "Reset Own Password",
-        hint: "Allow user to change their own password.",
-      },
-      {
-        id: "employees.upload_signature",
-        label: "Upload Digital Signature",
-        hint: "Upload and manage personal e-signature for PDF forms.",
+        id: "employees.change_role",
+        label: "Change Roles",
+        hint: "Assign new roles to employees.",
       },
     ],
   },
   {
-    name: "Wellness Leave",
+    name: "Self Service",
     permissions: [
       {
-        id: "wellness.manage_self",
-        label: "Apply for Wellness",
-        hint: "File a new wellness leave application.",
+        id: "employees.view_self",
+        label: "View Own Profile",
+        hint: "View personal profile details.",
       },
       {
-        id: "wellness.view_self",
-        label: "View Own Wellness",
-        hint: "View personal wellness leave history.",
+        id: "employees.edit_self",
+        label: "Edit Own Profile",
+        hint: "Update personal contact details.",
       },
       {
-        id: "wellness.view_all",
-        label: "View Global Wellness",
-        hint: "View all wellness applications in the system.",
+        id: "employees.upload_signature",
+        label: "Upload Signature",
+        hint: "Upload an e-signature.",
       },
       {
-        id: "wellness.view_application",
-        label: "View Assigned Applications",
-        hint: "View specific wellness applications assigned to you for approval.",
-      },
-      {
-        id: "wellness.manage_application",
-        label: "Manage Assigned Applications",
-        hint: "Approve or reject assigned wellness applications.",
+        id: "employees.reset_password_self",
+        label: "Change Password",
+        hint: "Allow user to change their password.",
       },
     ],
   },
@@ -82,19 +62,14 @@ export const PERMISSION_GROUPS = [
     name: "CTO & Leaves",
     permissions: [
       {
-        id: "cto.credits_view",
-        label: "View All Credited CTO ",
-        hint: "Broad view access to CTO records.",
-      },
-      {
         id: "cto.view_self",
         label: "View Own CTO",
-        hint: "View personal CTO records and history.",
+        hint: "View personal CTO records.",
       },
       {
         id: "cto.create",
         label: "Apply for CTO",
-        hint: "File a new Compensatory Time-off application.",
+        hint: "Submit a CTO application.",
       },
       {
         id: "cto.credits_manage",
@@ -102,59 +77,89 @@ export const PERMISSION_GROUPS = [
         hint: "Add or rollback CTO credits.",
       },
       {
+        id: "cto.credits_view",
+        label: "View Global Credits",
+        hint: "View all employee CTO balances.",
+      },
+      {
         id: "cto.applications_view",
-        label: "View Global Applications",
-        hint: "View all CTO applications in the system.",
+        label: "View All Applications",
+        hint: "View global CTO application list.",
       },
       {
         id: "cto.records_view",
-        label: "View CTO Records",
-        hint: "View employee CTO credit balances and application history.",
+        label: "View Employee Records",
+        hint: "View specific employee CTO history.",
       },
       {
         id: "cto.view_application",
-        label: "View Assigned Applications",
-        hint: "View specific CTO applications assigned to you for approval.",
+        label: "Approver: View Assigned",
+        hint: "View CTO applications assigned for approval.",
       },
       {
         id: "cto.manage_application",
-        label: "Manage Assigned Applications",
+        label: "Approver: Manage Assigned",
         hint: "Approve or reject assigned CTO applications.",
       },
       {
         id: "cto.dashboard.self_view",
-        label: "View Personal Dashboard",
+        label: "Dashboard: Personal",
         hint: "Access the personal CTO dashboard.",
       },
-      //   {
-      //     id: "cto.dashboard.hr_view",
-      //     label: "View HR Dashboard",
-      //     hint: "Access the HR CTO dashboard with credit and record summaries.",
-      //   },
-      //   {
-      //     id: "cto.dashboard.admin_view",
-      //     label: "View Admin Dashboard",
-      //     hint: "Access the global Admin CTO dashboard with request summaries.",
-      //   },
+      {
+        id: "cto.dashboard.hr_view",
+        label: "Dashboard: HR",
+        hint: "Access HR summaries.",
+      },
+      {
+        id: "cto.dashboard.admin_view",
+        label: "Dashboard: Admin",
+        hint: "Access global summary dashboard.",
+      },
     ],
   },
   {
-    name: "Role Management",
+    name: "Wellness Leaves",
     permissions: [
       {
-        id: "roles.view",
-        label: "View Roles",
-        hint: "View the list of system roles.",
+        id: "wellness.view_self",
+        label: "View Own Wellness",
+        hint: "View personal wellness records.",
       },
       {
-        id: "roles.manage",
-        label: "Manage Roles",
-        hint: "Create, edit, or delete roles and permissions.",
+        id: "wellness.manage_self",
+        label: "Apply for Wellness",
+        hint: "Submit wellness leave applications.",
       },
       {
-        id: "employees.change_role",
-        label: "Update Employee Role",
-        hint: "Update employee role from the system.",
+        id: "wellness.view_all",
+        label: "View All Applications",
+        hint: "View global wellness application list.",
+      },
+      {
+        id: "wellness.view_application",
+        label: "Approver: View Assigned",
+        hint: "View wellness applications assigned for approval.",
+      },
+      {
+        id: "wellness.manage_application",
+        label: "Approver: Manage Assigned",
+        hint: "Approve or reject assigned wellness applications.",
+      },
+    ],
+  },
+  {
+    name: "System & Administration",
+    permissions: [
+      {
+        id: "admin.view",
+        label: "Admin Dashboard",
+        hint: "Access the master Admin Dashboard.",
+      },
+      {
+        id: "audit.view",
+        label: "View Audit Logs",
+        hint: "Read-only access to system audit logs.",
       },
     ],
   },
@@ -162,44 +167,76 @@ export const PERMISSION_GROUPS = [
     name: "Settings & Configuration",
     permissions: [
       {
-        id: "audit.view",
-        label: "View Audit Logs",
-        hint: "Access system-wide activity and audit logs.",
+        id: "settings.view",
+        label: "View Settings",
+        hint: "Access the settings hub.",
+      },
+      {
+        id: "settings.edit",
+        label: "Edit Legacy Settings",
+        hint: "Edit standard legacy configurations.",
       },
       {
         id: "settings.general",
-        label: "Manage Working days Settings",
-        hint: "Modify working days system behavior.",
+        label: "Core Settings",
+        hint: "Edit working days and core settings.",
       },
+      {
+        id: "settings.sessions",
+        label: "Session Settings",
+        hint: "Manage session timeouts.",
+      },
+      {
+        id: "settings.email",
+        label: "Email Settings",
+        hint: "Configure system email notifications.",
+      },
+      {
+        id: "settings.cto_workflow",
+        label: "Workflow Routes",
+        hint: "Manage approval route templates.",
+      },
+    ],
+  },
+  {
+    name: "Resource Management",
+    permissions: [
       {
         id: "designations.manage",
         label: "Manage Designations",
-        hint: "Create, edit, or delete job designations.",
+        hint: "Create, edit, or delete designations.",
+      },
+      {
+        id: "roles.view",
+        label: "View Roles",
+        hint: "View existing roles in the system.",
+      },
+      {
+        id: "roles.manage",
+        label: "Manage Roles",
+        hint: "Create, edit, or delete roles.",
       },
       {
         id: "projects.manage",
         label: "Manage Projects",
-        hint: "Create, edit, or delete company projects.",
-      },
-      {
-        id: "settings.sessions",
-        label: "Manage Sessions",
-        hint: "Configure session timeouts and security.",
-      },
-      {
-        id: "settings.email",
-        label: "Manage Email Notifs",
-        hint: "Toggle specific email notification triggers.",
-      },
-      {
-        id: "settings.cto_workflow",
-        label: "Manage CTO Workflow",
-        hint: "Configure CTO approval routes and approvers.",
+        hint: "Create, edit, or delete projects.",
       },
       {
         id: "backups.manage",
         label: "Manage Backups",
-        hint: "Create, download, or restore database backups.",
+        hint: "Trigger system backups and restores.",
+      },
+
+      // ✅ Added Salary Grade Permissions Here
+      {
+        id: "salary_grades.view",
+        label: "View Salary Grades",
+        hint: "View the master salary grade table.",
+      },
+      {
+        id: "salary_grades.manage",
+        label: "Manage Salary Grades",
+        hint: "Edit and update salary grade monetary amounts.",
       },
     ],
   },

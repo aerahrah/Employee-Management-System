@@ -143,8 +143,8 @@ const getWellnessApplicationsForApproverService = async (
         { path: "employee", select: "firstName lastName position signature" },
         {
           path: "approvals",
-          // ✅ Added role and approverSignature
-          select: "approver status level role approverSignature",
+          // ✅ Updated to use approverSnapshot instead of approverSignature
+          select: "approver status level role approverSnapshot",
           populate: {
             path: "approver",
             select: "firstName lastName position _id",
@@ -268,7 +268,7 @@ const getWellnessApplicationByIdService = async (wellnessApplicationId) => {
     })
     .populate({
       path: "approvals",
-      select: "-__v", // ✅ Ensure role and approverSignature flow through
+      select: "-__v", // ✅ Ensure role and approverSnapshot flow through
       populate: {
         path: "approver",
         select: "firstName lastName position email",
@@ -292,9 +292,9 @@ const approveWellnessApplicationService = async ({
   assertObjectId(approverId, "approverId");
   assertObjectId(applicationId, "applicationId");
 
-  // ✅ Fetch approver early to validate signature before beginning transaction
+  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(approverId)
-    .select("username firstName lastName email signature")
+    .select("username firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -338,15 +338,20 @@ const approveWellnessApplicationService = async ({
         400,
       );
 
-    // ✅ Update approval step securely, snapshotting the signature
+    // ✅ Update approval step securely, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        approverSignature: {
-          signatureUrl: approver.signature,
-          signedAt: new Date(),
+        $set: {
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          approverSnapshot: {
+            firstName: approver.firstName || "",
+            lastName: approver.lastName || "",
+            position: approver.position || "",
+            signatureUrl: approver.signature,
+            signedAt: new Date(),
+          },
         },
       },
       { session, runValidators: true },
@@ -515,9 +520,9 @@ const rejectWellnessApplicationService = async ({
   assertObjectId(approverId, "approverId");
   assertObjectId(applicationId, "applicationId");
 
-  // ✅ Fetch approver early to validate signature before beginning transaction
+  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(approverId)
-    .select("username firstName lastName email signature")
+    .select("username firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -573,16 +578,21 @@ const rejectWellnessApplicationService = async ({
       { session },
     );
 
-    // ✅ Update approval step securely, snapshotting the signature
+    // ✅ Update approval step securely, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
-        status: "REJECTED",
-        remarks: remarks || "No remarks provided",
-        reviewedAt: new Date(),
-        approverSignature: {
-          signatureUrl: approver.signature,
-          signedAt: new Date(),
+        $set: {
+          status: "REJECTED",
+          remarks: remarks || "No remarks provided",
+          reviewedAt: new Date(),
+          approverSnapshot: {
+            firstName: approver.firstName || "",
+            lastName: approver.lastName || "",
+            position: approver.position || "",
+            signatureUrl: approver.signature,
+            signedAt: new Date(),
+          },
         },
       },
       { session, runValidators: true },

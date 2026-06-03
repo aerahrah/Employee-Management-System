@@ -16,6 +16,34 @@ const wellnessApplicationSchema = new mongoose.Schema(
       enum: ["Organic", "JO"],
       required: true,
     },
+
+    // =========================================
+    // HISTORICAL SNAPSHOT (Immutability)
+    // =========================================
+    // Captures the exact details of the employee at the time of submission
+    // preventing past forms (like CSC Form 6) from retroactively changing
+    // if the employee is promoted, gets a raise, or changes their name.
+    applicantSnapshot: {
+      firstName: { type: String, required: true, trim: true },
+      middleName: { type: String, required: true, trim: true },
+      lastName: { type: String, required: true, trim: true },
+      position: { type: String, required: true, trim: true },
+
+      // Salary details are only mandated for Organic employees (CSC Form 6 requirement)
+      salaryGrade: {
+        type: Number,
+        required: function () {
+          return this.employeeType === "Organic";
+        },
+      },
+      salaryAmount: {
+        type: Number,
+        required: function () {
+          return this.employeeType === "Organic";
+        },
+      },
+    },
+
     inclusiveDates: {
       type: [Date],
       required: true,
