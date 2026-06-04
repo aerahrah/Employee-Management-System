@@ -32,6 +32,15 @@ export const useAuth = create(
 
         // ✅ 3. Save it to state
         set({ admin, preferences: prefs, sessionExpiresAt });
+
+        // 🔥 TAB SYNC: Broadcast the login event to other tabs
+        if (admin) {
+          const currentUserId = admin._id || admin.id;
+          localStorage.setItem(
+            "auth_sync",
+            JSON.stringify({ id: currentUserId, time: Date.now() }),
+          );
+        }
       },
 
       setPreferences: (prefs) => {
@@ -55,6 +64,12 @@ export const useAuth = create(
         });
 
         localStorage.removeItem("auth");
+
+        // 🔥 TAB SYNC: Broadcast the logout event to other tabs
+        localStorage.setItem(
+          "auth_sync",
+          JSON.stringify({ action: "logout", time: Date.now() }),
+        );
       },
     }),
     {

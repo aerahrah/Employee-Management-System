@@ -1,7 +1,7 @@
 // src/components/session/SessionGuard.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Clock, LogIn } from "lucide-react";
+import { Clock, LogIn, RefreshCw } from "lucide-react";
 import Modal from "./modal";
 import { useAuth } from "../store/authStore";
 
@@ -9,10 +9,11 @@ export default function SessionGuard() {
   const navigate = useNavigate();
   const logout = useAuth((s) => s.logout);
   const sessionExpiresAt = useAuth((s) => s.sessionExpiresAt);
+  const admin = useAuth((s) => s.admin);
 
   const [open, setOpen] = useState(false);
+  const [actionType, setActionType] = useState("login"); // 'login' | 'reload'
 
-  // ✅ 1. Add state to hold the dynamic expiration message
   const [expireMessage, setExpireMessage] = useState(
     "Your session has ended for security reasons. Please sign in again to continue.",
   );
@@ -26,10 +27,16 @@ export default function SessionGuard() {
     }
   };
 
-  const relogin = () => {
-    logout();
-    setOpen(false);
-    navigate("/", { replace: true });
+  const handleAction = () => {
+    if (actionType === "reload") {
+      // Hard refresh to pick up the new user's state from the other tab
+      window.location.href = "/";
+    } else {
+      // Standard expiration: clear state and route to login
+      logout();
+      setOpen(false);
+      navigate("/", { replace: true });
+    }
   };
 
   // 1. Proactive Timer
@@ -41,28 +48,30 @@ export default function SessionGuard() {
 
     const msLeft = sessionExpiresAt - Date.now();
     if (msLeft <= 0) {
+      setActionType("login");
       setOpen(true);
       return;
     }
 
-    timerRef.current = setTimeout(() => setOpen(true), msLeft);
+    timerRef.current = setTimeout(() => {
+      setActionType("login");
+      setOpen(true);
+    }, msLeft);
+
     return clearTimer;
   }, [sessionExpiresAt]);
 
-  // ✅ 2. Update to listen for your custom event and grab the message
+  // 2. Listen for custom API interceptor expiration events
   useEffect(() => {
     const handleSessionExpired = (event) => {
-      // If emitSessionExpired passed a custom message, update the state
       if (event.detail?.message) {
         setExpireMessage(event.detail.message);
       }
+      setActionType("login");
       setOpen(true);
     };
 
-    // IMPORTANT: Make sure "onSessionExpired" matches exactly what is
-    // being dispatched in your src/api/sessionEvents.js file
     window.addEventListener("onSessionExpired", handleSessionExpired);
-
     return () =>
       window.removeEventListener("onSessionExpired", handleSessionExpired);
   }, []);
@@ -71,6 +80,7 @@ export default function SessionGuard() {
   useEffect(() => {
     const recheck = () => {
       if (sessionExpiresAt && Date.now() >= sessionExpiresAt) {
+        setActionType("login");
         setOpen(true);
       }
     };
@@ -83,6 +93,36 @@ export default function SessionGuard() {
       document.removeEventListener("visibilitychange", recheck);
     };
   }, [sessionExpiresAt]);
+
+  // 4. CROSS-TAB SYNCHRONIZATION (Zombie Tab Prevention)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "auth_sync" && e.newValue) {
+        const newData = JSON.parse(e.newValue);
+        const currentUserId = admin?._id || admin?.id;
+
+        // If another tab fired a logout
+        if (newData.action === "logout") {
+          setExpireMessage("You have been logged out in another tab.");
+          setActionType("login");
+          setOpen(true);
+          return;
+        }
+
+        // If another tab logged in as a DIFFERENT user
+        if (currentUserId && newData.id && newData.id !== currentUserId) {
+          setExpireMessage(
+            "It looks like you logged into a different account in another tab. This tab has been locked to protect your data.",
+          );
+          setActionType("reload");
+          setOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [admin]);
 
   return (
     <Modal
@@ -101,10 +141,9 @@ export default function SessionGuard() {
         </div>
 
         <div className="mt-4 text-lg font-semibold text-gray-900">
-          Session expired
+          {actionType === "reload" ? "Account Switched" : "Session Expired"}
         </div>
 
-        {/* ✅ 3. Render the dynamic message here */}
         <p className="mt-1 max-w-sm text-sm leading-relaxed text-gray-500">
           {expireMessage}
         </p>
@@ -114,11 +153,20 @@ export default function SessionGuard() {
         <div className="flex w-full flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={relogin}
+            onClick={handleAction}
             className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
-            <LogIn className="h-4 w-4" />
-            Login again
+            {actionType === "reload" ? (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Reload Page
+              </>
+            ) : (
+              <>
+                <LogIn className="h-4 w-4" />
+                Login again
+              </>
+            )}
           </button>
         </div>
       </div>
