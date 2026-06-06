@@ -127,6 +127,11 @@ export const PERMISSION_GROUPS = [
         hint: "View personal wellness records.",
       },
       {
+        id: "wellness.manage",
+        label: "Add Credited Wellness Leave",
+        hint: "View all Credited Wellness Leave",
+      },
+      {
         id: "wellness.manage_self",
         label: "Apply for Wellness",
         hint: "Submit wellness leave applications.",
@@ -166,16 +171,16 @@ export const PERMISSION_GROUPS = [
   {
     name: "Settings & Configuration",
     permissions: [
-      {
-        id: "settings.view",
-        label: "View Settings",
-        hint: "Access the settings hub.",
-      },
-      {
-        id: "settings.edit",
-        label: "Edit Legacy Settings",
-        hint: "Edit standard legacy configurations.",
-      },
+      // {
+      //   id: "settings.view",
+      //   label: "View Settings",
+      //   hint: "Access the settings hub.",
+      // },
+      // {
+      //   id: "settings.edit",
+      //   label: "Edit Legacy Settings",
+      //   hint: "Edit standard legacy configurations.",
+      // },
       {
         id: "settings.general",
         label: "Core Settings",

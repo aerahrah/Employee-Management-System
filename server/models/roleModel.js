@@ -43,7 +43,7 @@ const validPermissions = [
   "wellness.view_self", // View own wellness records
   "wellness.manage_self", // Apply for wellness leaves
   "wellness.view_all", // View global wellness applications list
-
+  "wellness.manage",
   // Wellness Approver Flow Permissions
   "wellness.view_application", // View specific wellness applications assigned for approval
   "wellness.manage_application", // Approve or reject assigned wellness applications

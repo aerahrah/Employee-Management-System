@@ -211,7 +211,7 @@ const AddCtoCreditForm = () => {
     return rawEmployees
       .filter(
         (e) =>
-          e.employeeType === "Job Order" ||
+          e.employeeType === "JO" ||
           (!e.employeeType &&
             /JO|Job Order|Contractual/i.test(e.position || "")),
       )

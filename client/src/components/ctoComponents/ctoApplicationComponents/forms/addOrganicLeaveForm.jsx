@@ -14,8 +14,6 @@ import { toast } from "react-toastify";
 import * as yup from "yup";
 
 import SelectCtoMemoModal from "./selectCtoMemoModal";
-
-// ✅ Import your Forbidden403 component
 import Forbidden403 from "../../../../pages/forbidden403_FormPage";
 
 const MAX_REASON_LEN = 1000;
@@ -155,8 +153,9 @@ const AddOrganicCtoApplicationForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // ✅ The session data from Zustand (usually lacks populated fields like `salary`)
+  // ✅ LOCAL SESSION DATA: Used for immediate UI rendering (Name, Dept)
   const { admin } = useAuth();
+  const sessionAdmin = admin || {};
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
@@ -202,7 +201,7 @@ const AddOrganicCtoApplicationForm = () => {
 
   const initialState = useMemo(
     () => ({
-      leaveType: "Compensatory Time-Off (CTO)", // Locked to CTO
+      leaveType: "Compensatory Time-Off (CTO)",
       requestedHours: "",
       memos: [],
       commutation: "Not Requested",
@@ -222,22 +221,31 @@ const AddOrganicCtoApplicationForm = () => {
     };
   }, []);
 
-  // ✅ Fetch live profile. This guarantees we have the populated salary & middleName
-  const { data: profileData, isLoading: isProfileLoading } = useQuery({
+  // ✅ LIVE DATABASE DATA: Strictly used for signature, salary, and access controls
+  const {
+    data: profileDataResponse,
+    isLoading: isProfileLoading,
+    isFetching: isProfileFetching,
+  } = useQuery({
     queryKey: ["myProfile"],
     queryFn: getMyProfile,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    refetchOnMount: "always",
   });
 
-  const employeeLive = profileData?.data || admin || {};
+  const liveProfile = profileDataResponse || {};
 
-  // Evaluate signature availability
-  const hasSignature = Boolean(employeeLive?.signature);
+  // Strictly evaluate signature against live profile data
+  const hasSignature = Boolean(liveProfile.signature);
 
-  // ✅ Pre-format Salary for Display
+  // Block the UI from assuming no signature if we are still loading
+  const checkingProfile =
+    isProfileLoading || (isProfileFetching && !hasSignature);
+
+  // Pre-format Salary for Display using live profile data
   const salaryText = useMemo(() => {
-    const amt = employeeLive?.salary?.amount;
-    const sg = employeeLive?.salary?.grade;
+    if (isProfileLoading) return "Loading...";
+    const amt = liveProfile.salary?.amount;
+    const sg = liveProfile.salary?.grade;
     if (amt && sg) {
       return `₱${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })} (SG ${sg})`;
     } else if (amt) {
@@ -246,7 +254,7 @@ const AddOrganicCtoApplicationForm = () => {
       return `SG ${sg}`;
     }
     return "N/A";
-  }, [employeeLive]);
+  }, [liveProfile, isProfileLoading]);
 
   const {
     data: workingDaysRes,
@@ -310,23 +318,25 @@ const AddOrganicCtoApplicationForm = () => {
     setMaxRequestedHours(totalRemaining);
   }, [validMemos]);
 
-  // Pointing to the unified API application endpoint
   const mutation = useMutation({
     mutationFn: addApplicationRequest,
     retry: 0,
   });
 
   const isBusy = mutation.isPending || successLatchUI;
-  const isFormDisabled = !hasSignature || isProfileLoading || isBusy;
+  const isFormDisabled = !hasSignature || checkingProfile || isBusy;
+
+  // Find approval route based on live profile ID, falling back to session ID
+  const userId =
+    liveProfile._id || liveProfile.id || sessionAdmin._id || sessionAdmin.id;
 
   const myRoute = useMemo(() => {
-    if (!routesResponse || !Array.isArray(routesResponse)) return null;
+    if (!routesResponse || !Array.isArray(routesResponse) || !userId)
+      return null;
     return routesResponse.find(
-      (r) =>
-        String(r.createdBy?._id || r.createdBy) ===
-        String(employeeLive?._id || employeeLive?.id),
+      (r) => String(r.createdBy?._id || r.createdBy) === String(userId),
     );
-  }, [routesResponse, employeeLive]);
+  }, [routesResponse, userId]);
 
   const hasValidApprovalRoute = useMemo(() => {
     if (!myRoute) return false;
@@ -521,7 +531,6 @@ const AddOrganicCtoApplicationForm = () => {
     }));
   };
 
-  // ✅ UPDATED VALIDATION SCHEMA: Made reason explicit required
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       requestedHours: yup
@@ -619,7 +628,9 @@ const AddOrganicCtoApplicationForm = () => {
 
     try {
       const rawPayload = {
-        employeeType: employeeLive?.employeeType || "Organic",
+        // Employee type evaluated from live profile, fallback to session
+        employeeType:
+          liveProfile.employeeType || sessionAdmin.employeeType || "Organic",
         commutation: formData.commutation,
         reason: String(formData.reason || "").trim(),
         inclusiveDates: Array.from(
@@ -644,13 +655,11 @@ const AddOrganicCtoApplicationForm = () => {
 
       toast.success("Organic CTO application submitted successfully!");
 
-      // Invalidate relevant unified queries
       queryClient.invalidateQueries({ queryKey: ["ctoApplications"] });
       queryClient.invalidateQueries({ queryKey: ["myCtoMemos"] });
 
       setTimeout(() => navigate(-1), 1500);
     } catch (err) {
-      // ✅ Handle Frontend Yup validation specifically
       if (err instanceof yup.ValidationError) {
         showBanner("error", err.errors[0]);
         toast.error(err.errors[0]);
@@ -671,12 +680,19 @@ const AddOrganicCtoApplicationForm = () => {
   const dateDisabled = !formData.requestedHours || isFormDisabled;
 
   // ------------------------------------------------------------------
-  // 403 Forbidden Access Guard for Non-Organic (e.g., "Job Order")
+  // 403 Forbidden Access Guard
+  // Wait until profile is finished loading before evaluating type
   // ------------------------------------------------------------------
-  if (employeeLive?.employeeType !== "Organic") {
+  const currentEmployeeType =
+    liveProfile.employeeType || sessionAdmin.employeeType;
+  if (
+    !isProfileLoading &&
+    profileDataResponse &&
+    currentEmployeeType !== "Organic"
+  ) {
     return (
       <Forbidden403
-        employeeType={employeeLive?.employeeType}
+        employeeType={currentEmployeeType}
         borderColor={borderColor}
       />
     );
@@ -699,7 +715,6 @@ const AddOrganicCtoApplicationForm = () => {
           className="w-full bg-white text-black shadow-lg rounded-sm overflow-hidden"
           style={{ fontFamily: "Arial, sans-serif" }}
         >
-          {/* Header Block */}
           <div className="text-center py-6 border-b-2 border-black">
             <h1 className="text-2xl font-bold uppercase tracking-wide">
               Application for Leave
@@ -717,8 +732,7 @@ const AddOrganicCtoApplicationForm = () => {
             className="flex flex-col"
           >
             <div className="px-6 py-4">
-              {/* Missing Signature Warning Block */}
-              {isProfileLoading ? (
+              {checkingProfile ? (
                 <div className="mb-6 p-4 bg-gray-50 border-l-4 border-gray-300 rounded flex items-center gap-3 shadow-sm">
                   <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
                   <span className="text-sm font-medium text-gray-600">
@@ -756,15 +770,17 @@ const AddOrganicCtoApplicationForm = () => {
                 borderColor={borderColor}
               />
 
-              {/* ✅ Employee Information Header (with Middle Name & Salary) */}
               <div className="border border-black mb-6 grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-black text-sm">
                 <div className="p-2">
                   <span className="text-[10px] text-gray-500 uppercase block font-semibold">
                     1. Office/Department
                   </span>
                   <div className="font-semibold mt-1">
-                    {employeeLive?.division ||
-                      employeeLive?.department ||
+                    {/* Prefer live profile, fallback to session, default to ADMIN */}
+                    {liveProfile.division ||
+                      liveProfile.department ||
+                      sessionAdmin.division ||
+                      sessionAdmin.department ||
                       "ADMIN AND FINANCE"}
                   </div>
                 </div>
@@ -773,8 +789,7 @@ const AddOrganicCtoApplicationForm = () => {
                     2. Name (Last, First, Middle)
                   </span>
                   <div className="font-semibold mt-1 uppercase">
-                    {employeeLive?.lastName}, {employeeLive?.firstName}{" "}
-                    {employeeLive?.middleName || ""}
+                    {`${liveProfile.lastName || sessionAdmin.lastName || ""}, ${liveProfile.firstName || sessionAdmin.firstName || ""} ${liveProfile.middleName || sessionAdmin.middleName || ""}`.trim()}
                   </div>
                 </div>
                 <div className="p-2">
@@ -782,7 +797,7 @@ const AddOrganicCtoApplicationForm = () => {
                     3. Position
                   </span>
                   <div className="font-semibold mt-1">
-                    {employeeLive?.position || "N/A"}
+                    {liveProfile.position || sessionAdmin.position || "N/A"}
                   </div>
                 </div>
                 <div className="p-2 bg-blue-50/50">
@@ -795,7 +810,6 @@ const AddOrganicCtoApplicationForm = () => {
                 </div>
               </div>
 
-              {/* DETAILS OF APPLICATION */}
               <div
                 className={`border border-black ${isFormDisabled ? "opacity-60 pointer-events-none" : ""}`}
               >
@@ -803,7 +817,6 @@ const AddOrganicCtoApplicationForm = () => {
                   6. Details of Application
                 </div>
 
-                {/* ROW 1: Type of Leave */}
                 <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-black border-b border-black">
                   <div className="flex-1 p-4">
                     <h3 className="text-xs font-bold uppercase mb-3">
@@ -823,9 +836,7 @@ const AddOrganicCtoApplicationForm = () => {
                   </div>
                 </div>
 
-                {/* ROW 2: Hours / Commutation */}
                 <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-black border-b border-black">
-                  {/* Number of Hours */}
                   <div className="flex-1 p-4 relative">
                     <h3 className="text-xs font-bold uppercase mb-4">
                       6.C Number of Hours Applied For
@@ -901,7 +912,6 @@ const AddOrganicCtoApplicationForm = () => {
                     </div>
                   </div>
 
-                  {/* Commutation & Memos */}
                   <div className="flex-1 p-4 flex flex-col justify-between">
                     <div className="mb-6">
                       <h3 className="text-xs font-bold uppercase mb-3">
@@ -976,7 +986,6 @@ const AddOrganicCtoApplicationForm = () => {
                   </div>
                 </div>
 
-                {/* ROW 3: Reason / Custom Digital Fields */}
                 <div className="p-4 border-b border-black">
                   <h3 className="text-xs font-bold uppercase mb-2">
                     Reason / Additional Justification
@@ -993,7 +1002,6 @@ const AddOrganicCtoApplicationForm = () => {
                   />
                 </div>
 
-                {/* ROW 4: Approval Workflow Selection */}
                 <div className="p-4 bg-blue-50/50">
                   <h3 className="text-xs font-bold uppercase mb-2 text-blue-800 flex items-center gap-1">
                     <UserCheck size={14} /> Workflow Approvers
@@ -1034,7 +1042,6 @@ const AddOrganicCtoApplicationForm = () => {
               </div>
             </div>
 
-            {/* Sticky Submit Footer */}
             <div className="border-t border-gray-300 px-6 py-4 flex flex-row items-center justify-end gap-3 sticky bottom-0 bg-white z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <button
                 type="button"
@@ -1053,7 +1060,7 @@ const AddOrganicCtoApplicationForm = () => {
                 }
                 className="px-8 py-2 rounded font-semibold text-sm disabled:opacity-70 disabled:cursor-not-allowed text-white bg-blue-600 hover:bg-blue-700 transition-colors"
               >
-                {isProfileLoading
+                {checkingProfile
                   ? "Checking Status..."
                   : !hasSignature
                     ? "Signature Required"

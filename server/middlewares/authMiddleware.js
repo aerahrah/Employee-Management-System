@@ -12,7 +12,7 @@ const authenticateToken = (req, res, next) => {
   // ✅ Allow CORS preflight requests through
   if (req.method === "OPTIONS") return next();
 
-  // ✅ NEW: Look for the token in the cookies first, then fallback to the header
+  // ✅ Look for the token in the cookies first, then fallback to the header
   let token = null;
   if (req.cookies && req.cookies.token) {
     token = req.cookies.token;
@@ -39,6 +39,17 @@ const authenticateToken = (req, res, next) => {
       issuer: process.env.JWT_ISSUER || undefined,
       audience: process.env.JWT_AUDIENCE || undefined,
     });
+
+    // 🔥 THE DOUBLE VERIFICATION CHECK (Anti-Zombie Tab) 🔥
+    const clientUserId = req.headers["x-client-user-id"];
+    const tokenId = decoded.id || decoded._id; // Ensure this matches how you sign your JWT payload
+
+    // If the frontend explicitly sent an ID, but it doesn't match the token's ID
+    if (clientUserId && String(clientUserId) !== String(tokenId)) {
+      return res.status(409).json({
+        message: "Session mismatch detected. Please reload the page.",
+      });
+    }
 
     req.user = decoded;
     return next();
@@ -85,7 +96,7 @@ const authorize = (requiredPermission) => {
     }
 
     const permissions = req.user.role.permissions;
-    console.log(permissions);
+
     if (permissions.includes("*")) {
       return next();
     }
