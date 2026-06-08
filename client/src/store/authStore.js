@@ -77,9 +77,8 @@ export const useAuth = create(
       storage: createJSONStorage(() => localStorage),
 
       partialize: (state) => ({
+        admin: state.admin, // ✅ FIX: THIS IS THE LINE THAT KEEPS YOU LOGGED IN ON REFRESH!
         preferences: state.preferences,
-        // ✅ 5. Persist the timer! If you don't add it here, the timer
-        // will break if the user hits the "refresh" button on their browser.
         sessionExpiresAt: state.sessionExpiresAt,
       }),
 

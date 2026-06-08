@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { CalendarDays, ShieldCheck, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { CalendarDays, ShieldCheck } from "lucide-react";
 import NotFoundPage from "./pages/notFoundPage";
 import SessionGuard from "./components/sessionExpiredModal";
 
@@ -11,9 +10,6 @@ import SessionGuard from "./components/sessionExpiredModal";
 import ThemeSync from "./components/themeSync";
 import ScrollbarsSync from "./components/scrollbarSync";
 import { useAuth } from "./store/authStore";
-
-/* API Instance - IMPORTANT: Update this path to point to your Axios setup file */
-import API from "./api/api";
 
 /* Pages */
 import Login from "./pages/loginPage";
@@ -90,7 +86,7 @@ import ResetPassword from "./components/userProfile/myProfileResetPassword";
 /* Auth */
 import ProtectedRoute from "./components/protectedRoute";
 
-/* ------------------ Resolve theme (no tailwind dark class dependency) ------------------ */
+/* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -100,7 +96,6 @@ function resolveTheme(prefTheme) {
   return prefTheme === "dark" ? "dark" : "light";
 }
 
-/* Reactive resolved theme for system mode */
 function useResolvedTheme(prefTheme) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined")
@@ -110,19 +105,15 @@ function useResolvedTheme(prefTheme) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     if (prefTheme !== "system") {
       setTheme(prefTheme === "dark" ? "dark" : "light");
       return;
     }
-
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => setTheme(mq.matches ? "dark" : "light");
-
     update();
     if (mq.addEventListener) mq.addEventListener("change", update);
     else mq.addListener(update);
-
     return () => {
       if (mq.removeEventListener) mq.removeEventListener("change", update);
       else mq.removeListener(update);
@@ -136,39 +127,9 @@ function App() {
   const location = useLocation();
   const isLoginRoute = location.pathname === "/";
 
+  // Theme State
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
-
-  // SESSION RECOVERY LOGIC
-  const login = useAuth((s) => s.login);
-  const admin = useAuth((s) => s.admin);
-
-  const { isLoading: isSessionLoading } = useQuery({
-    queryKey: ["session"],
-    queryFn: async () => {
-      // Adjust this endpoint if your getMyProfile route is named differently
-      const res = await API.get("/employee/my-profile");
-      login({ admin: res.data });
-      return res.data;
-    },
-    retry: false, // Do not retry if unauthorized
-    enabled: !admin, // Only run on refresh when Zustand state is empty
-    staleTime: Infinity,
-  });
-
-  // Show a loading state to prevent flickering out of protected routes while verifying cookie
-  if (isSessionLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Verifying session...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -187,7 +148,7 @@ function App() {
         {/* APP LAYOUT */}
         <Route path="/app" element={<Dashboard />}>
           {/* ===================== */}
-          {/* BASE AUTHENTICATED (No special permissions needed) */}
+          {/* BASE AUTHENTICATED */}
           {/* ===================== */}
           <Route element={<ProtectedRoute />}>
             <Route index element={<CtoDashboard />} />
@@ -198,10 +159,8 @@ function App() {
           </Route>
 
           {/* ===================== */}
-          {/* SELF-SERVICE / EMPLOYEE LEVEL */}
+          {/* SELF-SERVICE */}
           {/* ===================== */}
-
-          {/* View Own Profile */}
           <Route
             element={
               <ProtectedRoute requiredPermission="employees.view_self" />
@@ -210,7 +169,6 @@ function App() {
             <Route path="my-profile" element={<MyProfile />} />
           </Route>
 
-          {/* Edit Own Profile */}
           <Route
             element={
               <ProtectedRoute requiredPermission="employees.edit_self" />
@@ -219,7 +177,6 @@ function App() {
             <Route path="my-profile/edit" element={<UpdateProfile />} />
           </Route>
 
-          {/* Reset Own Password */}
           <Route
             element={
               <ProtectedRoute requiredPermission="employees.reset_password_self" />
@@ -231,14 +188,12 @@ function App() {
             />
           </Route>
 
-          {/* View Own Credits/Records */}
           <Route
             element={<ProtectedRoute requiredPermission="cto.view_self" />}
           >
             <Route path="cto-my-credits" element={<MyCtoCredits />} />
           </Route>
 
-          {/* Apply for Leaves */}
           <Route element={<ProtectedRoute requiredPermission="cto.create" />}>
             <Route path="cto-apply" element={<CtoApplication />} />
             <Route path="cto-apply/add" element={<AddCtoApplicationForm />} />
@@ -248,7 +203,6 @@ function App() {
             />
           </Route>
 
-          {/* Wellness Self Service */}
           <Route
             element={<ProtectedRoute requiredPermission="wellness.view_self" />}
           >
@@ -265,10 +219,8 @@ function App() {
           </Route>
 
           {/* ===================== */}
-          {/* RESTRICTED HUBS (Admin & Settings) */}
+          {/* RESTRICTED HUBS */}
           {/* ===================== */}
-
-          {/* Settings Hub & Approval Routes */}
           <Route
             element={
               <ProtectedRoute requiredPermission="settings.cto_workflow" />
@@ -285,11 +237,6 @@ function App() {
             />
           </Route>
 
-          {/* ===================== */}
-          {/* HR / EMPLOYEES (Separated CRUD) */}
-          {/* ===================== */}
-
-          {/* View Employees */}
           <Route
             element={<ProtectedRoute requiredPermission="employees.view" />}
           >
@@ -297,7 +244,6 @@ function App() {
             <Route path="employees/:id" element={<EmployeeInformation />} />
           </Route>
 
-          {/* Create/Add Employee */}
           <Route
             element={<ProtectedRoute requiredPermission="employees.create" />}
           >
@@ -307,18 +253,12 @@ function App() {
             />
           </Route>
 
-          {/* Edit/Update Employee */}
           <Route
             element={<ProtectedRoute requiredPermission="employees.edit" />}
           >
             <Route path="employees/:id/update" element={<AddEmployeeForm />} />
           </Route>
 
-          {/* ===================== */}
-          {/* CTO GLOBAL VIEWS (Separated) */}
-          {/* ===================== */}
-
-          {/* Manage CTO Credits */}
           <Route
             element={<ProtectedRoute requiredPermission="cto.credits_view" />}
           >
@@ -326,7 +266,6 @@ function App() {
             <Route path="cto-credit/add" element={<AddCtoCreditForm />} />
           </Route>
 
-          {/* View All CTO Applications */}
           <Route
             element={
               <ProtectedRoute requiredPermission="cto.applications_view" />
@@ -338,7 +277,6 @@ function App() {
             />
           </Route>
 
-          {/* View All CTO Records */}
           <Route
             element={<ProtectedRoute requiredPermission="cto.records_view" />}
           >
@@ -348,11 +286,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* ===================== */}
-          {/* WELLNESS GLOBAL VIEWS */}
-          {/* ===================== */}
-
-          {/* Manage Wellness Credits */}
           <Route
             element={<ProtectedRoute requiredPermission="wellness.manage" />}
           >
@@ -363,7 +296,6 @@ function App() {
             />
           </Route>
 
-          {/* View All Wellness Applications */}
           <Route
             element={<ProtectedRoute requiredPermission="wellness.view_all" />}
           >
@@ -373,16 +305,10 @@ function App() {
             />
           </Route>
 
-          {/* ===================== */}
-          {/* SYSTEM SETTINGS / AUDIT */}
-          {/* ===================== */}
-
-          {/* Audit Logs */}
           <Route element={<ProtectedRoute requiredPermission="audit.view" />}>
             <Route path="audit-logs" element={<AuditLogTable />} />
           </Route>
 
-          {/* CTO Workflow Settings */}
           <Route
             element={
               <ProtectedRoute requiredPermission="settings.cto_workflow" />
@@ -394,7 +320,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* Designations */}
           <Route
             element={
               <ProtectedRoute requiredPermission="designations.manage" />
@@ -403,9 +328,7 @@ function App() {
             <Route path="designations" element={<DesignationSettings />} />
           </Route>
 
-          {/* Roles (Separated CRUD) */}
           <Route element={<ProtectedRoute requiredPermission="roles.view" />}>
-            {" "}
             <Route path="roles" element={<RolesSettings />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermission="roles.manage" />}>
@@ -414,21 +337,18 @@ function App() {
             <Route path="roles/:id/update" element={<UpdateRole />} />
           </Route>
 
-          {/* Projects */}
           <Route
             element={<ProtectedRoute requiredPermission="projects.manage" />}
           >
             <Route path="projects" element={<ProjectSettings />} />
           </Route>
 
-          {/* Backups */}
           <Route
             element={<ProtectedRoute requiredPermission="backups.manage" />}
           >
             <Route path="backups" element={<BackupSettings />} />
           </Route>
 
-          {/* General Core Settings - Separated */}
           <Route
             element={<ProtectedRoute requiredPermission="settings.general" />}
           >
@@ -450,16 +370,12 @@ function App() {
             />
           </Route>
 
-          {/* ✅ Salary Grades Route */}
           <Route
             element={<ProtectedRoute requiredPermission="salary_grades.view" />}
           >
             <Route path="salary-grades" element={<SalaryGradesSettings />} />
           </Route>
 
-          {/* ===================== */}
-          {/* CTO APPROVALS (Dynamic Guard) */}
-          {/* ===================== */}
           <Route
             element={
               <ProtectedRoute requiredPermission="cto.view_application" />
@@ -471,9 +387,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* ===================== */}
-          {/* WELLNESS APPROVALS (Dynamic Guard) */}
-          {/* ===================== */}
           <Route
             element={
               <ProtectedRoute requiredPermission="wellness.view_application" />
