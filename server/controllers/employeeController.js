@@ -11,7 +11,7 @@ const {
   updateProfile,
   resetPassword,
   getEmployeeWellnessBalanceService,
-  uploadSignatureService, // ✅ NEW: Import the new service
+  uploadSignatureService,
 } = require("../services/employeeService");
 
 function sendError(res, err) {
@@ -34,7 +34,6 @@ const createEmployee = async (req, res) => {
       message: "Employee created",
       data: {
         id: employee._id,
-        username: employee.username,
         email: employee.email,
         ...(tempPassword ? { tempPassword } : {}),
       },
@@ -97,7 +96,7 @@ const getEmployeeById = async (req, res) => {
 const signInEmployee = async (req, res) => {
   try {
     const { token, payload } = await signInEmployeeService(
-      req.body.username,
+      req.body.email,
       req.body.password,
     );
 
@@ -204,7 +203,6 @@ const updateMyProfile = async (req, res) => {
     const employeeId = req.user?.id;
     if (!employeeId) return res.status(401).json({ error: "Unauthorized" });
 
-    // Handles standard text fields (address, emergency contact, etc.)
     const updatedEmployee = await updateProfile(employeeId, req.body);
     return res.json(updatedEmployee);
   } catch (err) {
@@ -212,7 +210,6 @@ const updateMyProfile = async (req, res) => {
   }
 };
 
-// ✅ NEW: Dedicated signature upload controller
 const uploadSignature = async (req, res) => {
   try {
     const employeeId = req.user?.id;

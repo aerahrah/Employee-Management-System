@@ -9,13 +9,6 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
-
     password: {
       type: String,
 
@@ -58,13 +51,20 @@ const employeeSchema = new mongoose.Schema(
       required: false,
     },
 
+    // ✅ Prefix Title (e.g., Atty., Engr., Dr.)
+    prefixTitle: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     firstName: {
       type: String,
       required: true,
       trim: true,
     },
 
-    // ✅ Added middleName (Required)
+    // ✅ Middle Name
     middleName: {
       type: String,
       required: true,
@@ -77,6 +77,21 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // ✅ Name Extension (e.g., Jr., Sr., II, III)
+    nameExtension: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    // ✅ Postfix Title / Certifications (e.g., PECE, PhD, MIT)
+    postfixTitle: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    // ✅ Email is now the primary login identifier
     email: {
       type: String,
       required: true,
@@ -96,7 +111,7 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ✅ Updated salary to reference the SalaryGrade model
+    // ✅ Salary references the SalaryGrade model
     salary: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SalaryGrade",
@@ -126,18 +141,18 @@ const employeeSchema = new mongoose.Schema(
       default: "Active",
     },
 
-    // ✅ Added employeeType here
+    // ✅ Employee Type
     employeeType: {
       type: String,
       enum: ["JO", "Organic"],
       required: true,
     },
 
-    // ✅ Added signature field for organic personnel
+    // ✅ Signature field for organic personnel
     signature: {
       type: String,
       trim: true,
-      default: null, // Intended to store a file path, URL, or base64 string
+      default: null,
     },
 
     balances: {

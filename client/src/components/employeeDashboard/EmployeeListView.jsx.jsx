@@ -56,6 +56,23 @@ function resolveTheme(prefTheme) {
 const initials = (firstName, lastName) =>
   `${(firstName || " ")[0] || ""}${(lastName || " ")[0] || ""}`.toUpperCase();
 
+// ✅ Helper to construct the complete formatted name
+const getFullName = (emp) => {
+  if (!emp) return "Unknown Employee";
+  return [
+    emp.prefixTitle,
+    emp.firstName,
+    emp.middleName,
+    emp.lastName,
+    emp.nameExtension,
+    emp.postfixTitle,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const getStatusPill = (status, resolvedTheme) => {
   const s = status || "Active";
   const isDark = resolvedTheme === "dark";
@@ -156,7 +173,6 @@ const getDivisionBadgeStyle = (division, resolvedTheme) => {
    UI COMPONENTS
 ========================= */
 
-// ✅ New EmployeeTypeBadge to differentiate Organic vs JO
 const EmployeeTypeBadge = ({ type, resolvedTheme }) => {
   if (!type) return null;
   const isDark = resolvedTheme === "dark";
@@ -552,7 +568,7 @@ const DivisionBadge = ({ division, resolvedTheme }) => {
 };
 
 /* =========================
-   EMPLOYEE CARD
+   EMPLOYEE CARD (Mobile/Tablet)
 ========================= */
 const EmployeeCard = ({
   emp,
@@ -645,28 +661,19 @@ const EmployeeCard = ({
           </div>
 
           <div className="min-w-0 flex-1">
+            {/* ✅ Updated to use formatted full name */}
             <h4
               className="text-sm font-bold truncate leading-5 transition-colors duration-300 ease-out"
               style={{ color: "var(--app-text)" }}
             >
-              {emp?.firstName} {emp?.lastName}
+              {getFullName(emp)}
             </h4>
 
-            {/* ✅ Added EmployeeTypeBadge below the name in the card */}
             <div className="mt-1 flex items-center gap-2">
               <EmployeeTypeBadge
                 type={emp?.employeeType}
                 resolvedTheme={resolvedTheme}
               />
-
-              {emp?.username && (
-                <span
-                  className="text-[10px] font-mono truncate transition-colors duration-300 ease-out"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  @{emp.username}
-                </span>
-              )}
             </div>
 
             <div
@@ -834,7 +841,7 @@ const EmployeeCard = ({
 const EmployeeDirectory = () => {
   const navigate = useNavigate();
 
-  // ✅ Permissions integration
+  // Permissions integration
   const { can } = usePermissions();
   const canCreateEmployee = can("employees.create");
   const canEditEmployee = can("employees.edit");
@@ -1143,7 +1150,6 @@ const EmployeeDirectory = () => {
                   </p>
                 </div>
 
-                {/* ✅ Hide Add Employee button if user lacks permission */}
                 {canCreateEmployee && (
                   <button
                     type="button"
@@ -1487,14 +1493,14 @@ const EmployeeDirectory = () => {
                                     {initials(emp.firstName, emp.lastName)}
                                   </div>
                                   <div className="min-w-0">
+                                    {/* ✅ Formatted Full Name */}
                                     <p
                                       className="text-sm font-semibold truncate transition-colors duration-300 ease-out"
                                       style={{ color: "var(--app-text)" }}
                                     >
-                                      {emp.firstName} {emp.lastName}
+                                      {getFullName(emp)}
                                     </p>
 
-                                    {/* ✅ Added EmployeeTypeBadge below the name in the desktop table */}
                                     <div className="flex items-center gap-2 mt-1">
                                       <EmployeeTypeBadge
                                         type={emp.employeeType}
@@ -1505,16 +1511,6 @@ const EmployeeDirectory = () => {
                                         style={{ color: "var(--app-muted)" }}
                                       >
                                         {emp.email || "No email"}
-                                        {emp.username ? (
-                                          <span
-                                            className="ml-2 font-mono text-[11px] transition-colors duration-300 ease-out"
-                                            style={{
-                                              color: "var(--app-muted)",
-                                            }}
-                                          >
-                                            @{emp.username}
-                                          </span>
-                                        ) : null}
                                       </p>
                                     </div>
                                   </div>
@@ -1875,7 +1871,7 @@ const EmployeeDirectory = () => {
       {isRoleModalOpen && selectedEmployee && (
         <Modal
           isOpen={isRoleModalOpen}
-          title={`Change Role - ${selectedEmployee.firstName} ${selectedEmployee.lastName}`}
+          title={`Change Role - ${getFullName(selectedEmployee)}`} // ✅ Updated Modal Title
           showFooter={false}
           maxWidth="max-w-lg"
           canClose={!roleBusy}

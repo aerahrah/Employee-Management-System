@@ -1,6 +1,6 @@
 // src/components/employees/addEmployee/addEmployeeForm.jsx
 import React, { useEffect, useMemo, useRef } from "react";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ import {
 } from "../../../api/employee";
 import { getRoles } from "../../../api/role";
 import { fetchProjectOptions } from "../../../api/project";
-import { fetchSalaryGrades } from "../../../api/salaryGrade"; // ✅ Imported Salary Grades API
+import { fetchSalaryGrades } from "../../../api/salaryGrade";
 import SelectDesignation from "./selectDesignation";
 import SelectProjectOptions from "./selectProject";
 
@@ -33,7 +33,8 @@ import {
   Hash,
   Mail,
   Shield,
-  Banknote,
+  PenLine,
+  GraduationCap,
 } from "lucide-react";
 
 /* =========================
@@ -54,6 +55,19 @@ function resolveTheme(prefTheme) {
 const DIVISIONS = ["AFD", "TOD", "ORD"];
 const STATUSES = ["Active", "Inactive", "Resigned", "Terminated"];
 const EMPLOYEE_TYPES = ["Organic", "JO"];
+
+const PREFIX_OPTIONS = [
+  "Atty.",
+  "Engr.",
+  "Dr.",
+  "Mr.",
+  "Ms.",
+  "Mrs.",
+  "Rev.",
+  "Hon.",
+];
+const EXTENSION_OPTIONS = ["Jr.", "Sr.", "II", "III", "IV", "V"];
+const POSTFIX_OPTIONS = ["PECE", "PhD", "MIT", "CPA", "RN", "MD", "MBA"];
 
 /* =========================
    HELPERS (sanitize / normalize)
@@ -86,6 +100,20 @@ const pickId = (v) => {
 
 const pickProjectId = (p) => pickId(p);
 const pickDesignationId = (d) => pickId(d);
+
+const mapToSelect = (value, options) => {
+  const v = normalizeText(value);
+  if (!v) return "";
+  if (options.includes(v)) return v;
+  return "Others";
+};
+
+const mapToCustom = (value, options) => {
+  const v = normalizeText(value);
+  if (!v) return "";
+  if (options.includes(v)) return "";
+  return v;
+};
 
 /* =========================
    Skeleton UI
@@ -281,220 +309,7 @@ const FormSkeleton = ({
                   />
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Sk
-                    className="w-9 h-9 rounded-xl"
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <SkText
-                    w="w-40"
-                    h="h-4"
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <div className="hidden md:block flex-1">
-                    <Sk
-                      className="h-px w-full rounded-none"
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <SkInput
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <SkInput
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                </div>
-
-                <SkInput
-                  style={{
-                    backgroundColor: skeletonColors.baseColor,
-                    borderColor: borderColor,
-                  }}
-                />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <SkInput
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <SkInput
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                </div>
-
-                <SkInput
-                  style={{
-                    backgroundColor: skeletonColors.baseColor,
-                    borderColor: borderColor,
-                  }}
-                />
-              </div>
             </div>
-
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Sk
-                    className="w-9 h-9 rounded-xl"
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <SkText
-                    w="w-40"
-                    h="h-4"
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <div className="hidden md:block flex-1">
-                    <Sk
-                      className="h-px w-full rounded-none"
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div
-                  className="p-5 rounded-2xl border space-y-4"
-                  style={{
-                    backgroundColor: softPanel,
-                    borderColor: borderColor,
-                  }}
-                >
-                  <SkInput
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <SkInput
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                    <SkInput
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Sk
-                    className="w-9 h-9 rounded-xl"
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <SkText
-                    w="w-44"
-                    h="h-4"
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <div className="hidden md:block flex-1">
-                    <Sk
-                      className="h-px w-full rounded-none"
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div
-                  className="p-5 rounded-2xl border space-y-4"
-                  style={{
-                    backgroundColor: emergencyPanel,
-                    borderColor:
-                      resolvedTheme === "dark"
-                        ? "rgba(244,63,94,0.18)"
-                        : "rgba(244,63,94,0.12)",
-                  }}
-                >
-                  <SkInput
-                    style={{
-                      backgroundColor: skeletonColors.baseColor,
-                      borderColor: borderColor,
-                    }}
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <SkInput
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                    <SkInput
-                      style={{
-                        backgroundColor: skeletonColors.baseColor,
-                        borderColor: borderColor,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 flex items-center justify-between">
-            <SkText
-              w="w-56"
-              h="h-3"
-              style={{
-                backgroundColor: skeletonColors.baseColor,
-                borderColor: borderColor,
-              }}
-            />
-            <SkText
-              w="w-24"
-              h="h-3"
-              style={{
-                backgroundColor: skeletonColors.baseColor,
-                borderColor: borderColor,
-              }}
-            />
           </div>
         </SkCard>
 
@@ -616,7 +431,7 @@ const SelectInput = ({
   );
 
   return (
-    <div className="pt-2">
+    <div className="pt-2 flex flex-col h-full w-full">
       <label
         className="block text-xs mb-1.5 flex items-center gap-1 transition-colors duration-300 ease-out"
         style={{ color: "var(--app-muted)" }}
@@ -624,14 +439,16 @@ const SelectInput = ({
         {label} {required && <span style={{ color: "#f43f5e" }}>*</span>}
       </label>
 
-      <Select
-        styles={customStyles}
-        options={selectOptions}
-        value={selectOptions.find((o) => o.value === value) || null}
-        onChange={(selected) => onChange(selected?.value || "")}
-        placeholder={`Select ${label}`}
-        isClearable
-      />
+      <div className="relative flex-grow">
+        <Select
+          styles={customStyles}
+          options={selectOptions}
+          value={selectOptions.find((o) => o.value === value) || null}
+          onChange={(selected) => onChange(selected?.value || "")}
+          placeholder={`Select ${label}`}
+          isClearable
+        />
+      </div>
 
       {error && (
         <p
@@ -654,7 +471,6 @@ const AddEmployeeForm = () => {
   const { id } = useParams();
   const isEditMode = Boolean(id);
 
-  // ✅ Get the currently logged-in user to check their permissions
   const currentUser = useAuth((s) => s.admin || s.user);
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
@@ -678,7 +494,7 @@ const AddEmployeeForm = () => {
     };
   }, [resolvedTheme]);
 
-  const addressPanelStyle = useMemo(
+  const panelStyle = useMemo(
     () => ({
       backgroundColor:
         resolvedTheme === "dark"
@@ -706,7 +522,7 @@ const AddEmployeeForm = () => {
   const submitLockRef = useRef(false);
 
   /* -------------------------
-     Project IDs set
+     Queries
   ------------------------- */
   const projectsQuery = useQuery({
     queryKey: ["projectOptions", "Active"],
@@ -721,27 +537,21 @@ const AddEmployeeForm = () => {
     return new Set(items.filter((p) => p?._id).map((p) => String(p._id)));
   }, [projectsQuery.data]);
 
-  /* -------------------------
-     Roles fetch & Security Guard
-  ------------------------- */
   const { data: roles } = useQuery({
     queryKey: ["roles"],
     queryFn: getRoles,
     staleTime: 5 * 60 * 1000,
   });
 
-  // Check if the current user possesses the wildcard "*" permission
   const isCurrentUserAdmin = useMemo(() => {
     const perms = currentUser?.role?.permissions || [];
     return perms.includes("*");
   }, [currentUser]);
 
-  // Safely map role options based on user's own permissions
   const roleOptions = useMemo(() => {
     if (!roles) return [];
     return roles
       .filter((r) => {
-        // If the logged-in user is NOT an admin, hide roles that contain the "*" permission
         const isRoleAdmin = r.permissions?.includes("*");
         if (isRoleAdmin && !isCurrentUserAdmin) return false;
         return true;
@@ -749,9 +559,6 @@ const AddEmployeeForm = () => {
       .map((r) => ({ value: r._id, label: r.name }));
   }, [roles, isCurrentUserAdmin]);
 
-  /* -------------------------
-     Salary Grades fetch (✅ NEW)
-  ------------------------- */
   const { data: salaryGradesRes } = useQuery({
     queryKey: ["salaryGrades"],
     queryFn: () => fetchSalaryGrades(),
@@ -777,18 +584,32 @@ const AddEmployeeForm = () => {
         .min(4, "Employee ID is too short")
         .required("Employee ID is required"),
 
-      username: yup
-        .string()
-        .transform((v) => normalizeText(v))
-        .min(4, "Min 4 characters")
-        .required("Username is required"),
+      prefixTitleSelect: yup.string().nullable().default(""),
+      prefixTitleCustom: yup.string().when("prefixTitleSelect", {
+        is: "Others",
+        then: (s) => s.required("Please specify the title"),
+        otherwise: (s) => s.nullable().default(""),
+      }),
+
+      nameExtensionSelect: yup.string().nullable().default(""),
+      nameExtensionCustom: yup.string().when("nameExtensionSelect", {
+        is: "Others",
+        then: (s) => s.required("Please specify the extension"),
+        otherwise: (s) => s.nullable().default(""),
+      }),
+
+      postfixTitleSelect: yup.string().nullable().default(""),
+      postfixTitleCustom: yup.string().when("postfixTitleSelect", {
+        is: "Others",
+        then: (s) => s.required("Please specify the postfix title"),
+        otherwise: (s) => s.nullable().default(""),
+      }),
 
       firstName: yup
         .string()
         .transform((v) => normalizeText(v))
         .required("First name is required"),
 
-      // ✅ Added Middle Name Validation
       middleName: yup
         .string()
         .transform((v) => normalizeText(v))
@@ -849,7 +670,6 @@ const AddEmployeeForm = () => {
         .oneOf(EMPLOYEE_TYPES, "Invalid employee type")
         .required("Employee Type is required"),
 
-      // ✅ Conditionally require Salary Grade only for Organic employees
       salary: yup.string().when("employeeType", {
         is: (val) => val === "Organic",
         then: (schema) =>
@@ -937,10 +757,15 @@ const AddEmployeeForm = () => {
   const defaultValues = useMemo(
     () => ({
       employeeId: "",
-      username: "",
+      prefixTitleSelect: "",
+      prefixTitleCustom: "",
       firstName: "",
-      middleName: "", // ✅ Added default
+      middleName: "",
       lastName: "",
+      nameExtensionSelect: "",
+      nameExtensionCustom: "",
+      postfixTitleSelect: "",
+      postfixTitleCustom: "",
       email: "",
       phone: "",
       position: "",
@@ -948,7 +773,7 @@ const AddEmployeeForm = () => {
       project: "",
       status: "Active",
       employeeType: "",
-      salary: "", // ✅ Added default
+      salary: "",
       role: "employee",
       designation: "",
       address: { street: "", city: "", province: "" },
@@ -970,8 +795,10 @@ const AddEmployeeForm = () => {
     mode: "onSubmit",
   });
 
-  // Watch employeeType to dynamically render Salary Grade dropdown
   const watchEmployeeType = watch("employeeType");
+  const watchPrefixSelect = watch("prefixTitleSelect");
+  const watchExtensionSelect = watch("nameExtensionSelect");
+  const watchPostfixSelect = watch("postfixTitleSelect");
 
   useEffect(() => {
     if (!isEditMode) return;
@@ -979,24 +806,36 @@ const AddEmployeeForm = () => {
 
     reset({
       employeeId: normalizeText(employee.employeeId),
-      username: normalizeText(employee.username),
+
+      prefixTitleSelect: mapToSelect(employee.prefixTitle, PREFIX_OPTIONS),
+      prefixTitleCustom: mapToCustom(employee.prefixTitle, PREFIX_OPTIONS),
+
       firstName: normalizeText(employee.firstName),
-      middleName: normalizeText(employee.middleName), // ✅ Resets value
+      middleName: normalizeText(employee.middleName),
       lastName: normalizeText(employee.lastName),
+
+      nameExtensionSelect: mapToSelect(
+        employee.nameExtension,
+        EXTENSION_OPTIONS,
+      ),
+      nameExtensionCustom: mapToCustom(
+        employee.nameExtension,
+        EXTENSION_OPTIONS,
+      ),
+
+      postfixTitleSelect: mapToSelect(employee.postfixTitle, POSTFIX_OPTIONS),
+      postfixTitleCustom: mapToCustom(employee.postfixTitle, POSTFIX_OPTIONS),
+
       email: normalizeEmail(employee.email),
       phone: digitsOnly(employee.phone),
       position: normalizeText(employee.position),
-
       division: safeEnumCI(employee.division, DIVISIONS),
       project: pickProjectId(employee.project),
       status: safeEnumCI(employee.status, STATUSES) || "Active",
-
       employeeType: safeEnumCI(employee.employeeType, EMPLOYEE_TYPES) || "JO",
-      salary: pickId(employee.salary), // ✅ Safely sets Salary Grade ID if exists
-
+      salary: pickId(employee.salary),
       role: normalizeText(employee.role || "employee"),
       designation: pickDesignationId(employee.designation),
-
       address: {
         street: normalizeText(employee.address?.street),
         city: normalizeText(employee.address?.city),
@@ -1015,26 +854,39 @@ const AddEmployeeForm = () => {
   ------------------------- */
   const mutation = useMutation({
     mutationFn: async (raw) => {
+      const finalPrefix =
+        raw.prefixTitleSelect === "Others"
+          ? raw.prefixTitleCustom
+          : raw.prefixTitleSelect;
+      const finalExtension =
+        raw.nameExtensionSelect === "Others"
+          ? raw.nameExtensionCustom
+          : raw.nameExtensionSelect;
+      const finalPostfix =
+        raw.postfixTitleSelect === "Others"
+          ? raw.postfixTitleCustom
+          : raw.postfixTitleSelect;
+
       const payload = {
         employeeId: isEditMode
           ? normalizeText(employee?.employeeId || raw.employeeId)
           : normalizeText(raw.employeeId),
 
-        username: normalizeText(raw.username),
+        prefixTitle: normalizeText(finalPrefix),
         firstName: normalizeText(raw.firstName),
-        middleName: normalizeText(raw.middleName), // ✅ Added to payload
+        middleName: normalizeText(raw.middleName),
         lastName: normalizeText(raw.lastName),
+        nameExtension: normalizeText(finalExtension),
+        postfixTitle: normalizeText(finalPostfix),
+
         email: normalizeEmail(raw.email),
         phone: digitsOnly(raw.phone),
-
         position: normalizeText(raw.position),
-
         division: safeEnum(normalizeText(raw.division), DIVISIONS),
         project: normalizeText(raw.project),
         status: safeEnum(normalizeText(raw.status), STATUSES),
         employeeType: safeEnum(normalizeText(raw.employeeType), EMPLOYEE_TYPES),
 
-        // ✅ Only send salary ID if type is Organic
         salary:
           safeEnum(normalizeText(raw.employeeType), EMPLOYEE_TYPES) ===
           "Organic"
@@ -1055,18 +907,15 @@ const AddEmployeeForm = () => {
         },
       };
 
-      // ✅ Use the safe, filtered roleOptions for strict validation
       const validRoleIds = roleOptions.map((r) => String(r.value));
 
       if (!isEditMode) {
         const roleValue = normalizeText(raw.role);
-
         if (!validRoleIds.includes(roleValue)) {
           throw new Error(
             "Invalid role selected. You do not have permission to assign this role.",
           );
         }
-
         payload.role = roleValue;
       }
 
@@ -1307,18 +1156,34 @@ const AddEmployeeForm = () => {
               icon={User}
               borderColor={borderColor}
             >
-              <InputField
-                label="Employee ID"
-                required
-                icon={<Hash size={14} style={{ color: "var(--app-muted)" }} />}
-                {...register("employeeId")}
-                error={errors.employeeId}
-                disabled={isEditMode}
-                borderColor={borderColor}
-              />
+              {/* Row 1: Primary Identifiers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField
+                  label="Employee ID"
+                  required
+                  icon={
+                    <Hash size={14} style={{ color: "var(--app-muted)" }} />
+                  }
+                  {...register("employeeId")}
+                  error={errors.employeeId}
+                  disabled={isEditMode}
+                  borderColor={borderColor}
+                />
+                <InputField
+                  label="Email Address"
+                  type="email"
+                  required
+                  icon={
+                    <Mail size={14} style={{ color: "var(--app-muted)" }} />
+                  }
+                  {...register("email")}
+                  error={errors.email}
+                  borderColor={borderColor}
+                />
+              </div>
 
-              {/* ✅ Updated to 3 columns for First, Middle, and Last Name */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Row 2: Core Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start pt-2">
                 <InputField
                   label="First Name"
                   required
@@ -1342,26 +1207,116 @@ const AddEmployeeForm = () => {
                 />
               </div>
 
-              <InputField
-                label="Username"
-                required
-                {...register("username")}
-                error={errors.username}
-                borderColor={borderColor}
-              />
+              {/* Row 3: Titles and Modifiers (Grouped visually) */}
+              <div
+                className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border mt-2 transition-colors duration-300 ease-out"
+                style={panelStyle}
+              >
+                <div className="flex flex-col gap-2">
+                  <Controller
+                    name="prefixTitleSelect"
+                    control={control}
+                    render={({ field }) => (
+                      <SelectInput
+                        label="Prefix (Optional)"
+                        options={[...PREFIX_OPTIONS, "Others"]}
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={errors.prefixTitleSelect}
+                        borderColor={borderColor}
+                        resolvedTheme={resolvedTheme}
+                      />
+                    )}
+                  />
+                  {watchPrefixSelect === "Others" && (
+                    <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                      <InputField
+                        label="Specify Prefix"
+                        icon={
+                          <PenLine
+                            size={14}
+                            style={{ color: "var(--app-muted)" }}
+                          />
+                        }
+                        {...register("prefixTitleCustom")}
+                        error={errors.prefixTitleCustom}
+                        borderColor={borderColor}
+                      />
+                    </div>
+                  )}
+                </div>
 
+                <div className="flex flex-col gap-2">
+                  <Controller
+                    name="nameExtensionSelect"
+                    control={control}
+                    render={({ field }) => (
+                      <SelectInput
+                        label="Extension (Optional)"
+                        options={[...EXTENSION_OPTIONS, "Others"]}
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={errors.nameExtensionSelect}
+                        borderColor={borderColor}
+                        resolvedTheme={resolvedTheme}
+                      />
+                    )}
+                  />
+                  {watchExtensionSelect === "Others" && (
+                    <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                      <InputField
+                        label="Specify Extension"
+                        icon={
+                          <PenLine
+                            size={14}
+                            style={{ color: "var(--app-muted)" }}
+                          />
+                        }
+                        {...register("nameExtensionCustom")}
+                        error={errors.nameExtensionCustom}
+                        borderColor={borderColor}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Controller
+                    name="postfixTitleSelect"
+                    control={control}
+                    render={({ field }) => (
+                      <SelectInput
+                        label="Postfix (Optional)"
+                        options={[...POSTFIX_OPTIONS, "Others"]}
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={errors.postfixTitleSelect}
+                        borderColor={borderColor}
+                        resolvedTheme={resolvedTheme}
+                      />
+                    )}
+                  />
+                  {watchPostfixSelect === "Others" && (
+                    <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                      <InputField
+                        label="Specify Postfix"
+                        icon={
+                          <GraduationCap
+                            size={14}
+                            style={{ color: "var(--app-muted)" }}
+                          />
+                        }
+                        {...register("postfixTitleCustom")}
+                        error={errors.postfixTitleCustom}
+                        borderColor={borderColor}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 4: Phone Number */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InputField
-                  label="Email Address"
-                  type="email"
-                  required
-                  icon={
-                    <Mail size={14} style={{ color: "var(--app-muted)" }} />
-                  }
-                  {...register("email")}
-                  error={errors.email}
-                  borderColor={borderColor}
-                />
                 <InputField
                   label="Phone Number"
                   type="tel"
@@ -1459,7 +1414,6 @@ const AddEmployeeForm = () => {
                 />
               </div>
 
-              {/* ✅ Conditionally render Salary Grade Dropdown ONLY for Organic */}
               {watchEmployeeType === "Organic" && (
                 <Controller
                   name="salary"
@@ -1575,7 +1529,7 @@ const AddEmployeeForm = () => {
             >
               <div
                 className="p-5 rounded-2xl border space-y-4 transition-colors duration-300 ease-out"
-                style={addressPanelStyle}
+                style={panelStyle}
               >
                 <InputField
                   label="Street / Building"
@@ -1692,7 +1646,7 @@ const InputField = React.forwardRef(
     },
     ref,
   ) => (
-    <div className="w-full pt-2">
+    <div className="w-full pt-2 flex flex-col h-full">
       <label
         className="block text-xs mb-1.5 transition-colors duration-300 ease-out"
         style={{ color: "var(--app-muted)" }}
@@ -1700,7 +1654,7 @@ const InputField = React.forwardRef(
         {label} {required && <span style={{ color: "#f43f5e" }}>*</span>}
       </label>
 
-      <div className="relative">
+      <div className="relative flex-grow">
         {icon ? (
           <div className="absolute left-3 top-1/2 -translate-y-1/2">{icon}</div>
         ) : null}

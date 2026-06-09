@@ -159,7 +159,7 @@ const buildAuditDetails = ({
        Employee Routes
     ========================= */
     case "Create Employee":
-      summary = `${actor} created new employee ${safe(after.username)} (ID: ${fmtId(
+      summary = `${actor} created new employee ${safe(after.email)} (ID: ${fmtId(
         after.id,
       )})`;
       break;
@@ -210,7 +210,7 @@ const buildAuditDetails = ({
       break;
 
     /* =========================
-       CTO Credit Routes (FIXED)
+       CTO Credit Routes
     ========================= */
     case "Add CTO Credit Request": {
       const memoNo = safe(after?.memoNo, "");

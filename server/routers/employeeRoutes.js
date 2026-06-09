@@ -146,7 +146,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    return (req.body.username || "unknown").toLowerCase().trim();
+    return req.body.email.toLowerCase().trim();
   },
   skipSuccessfulRequests: true,
   handler: (req, res) => {
@@ -221,7 +221,6 @@ router.post(
 // ==========================================
 // SALARY GRADE ROUTES (Must be above /:id)
 // ==========================================
-// ✅ Updated permissions to use salary_grades isolated access
 router.get(
   "/salary-grades",
   ...requirePerm("salary_grades.view"),

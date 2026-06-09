@@ -7,7 +7,7 @@ const auditLogSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
-    username: { type: String, default: "Guest" }, // actor's username
+    email: { type: String },
     method: { type: String, required: true },
     url: { type: String, required: true },
     endpoint: { type: String, required: true },

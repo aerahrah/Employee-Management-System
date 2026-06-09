@@ -29,8 +29,8 @@ const normalizeUrlForMap = (url) => {
 
 const getActorFromReq = (req) => {
   const actorId = req.user?.id || req.user?._id || "GuestID";
-  const actorUsername = req.user?.username || "Guest";
-  return { actorId, actorUsername, actor: `${actorUsername} (id: ${actorId})` };
+  const actorEmail = req.user?.email || "Guest";
+  return { actorId, actorEmail, actor: `${actorEmail} (id: ${actorId})` };
 };
 
 const safeJsonParse = (val, fallback) => {
@@ -43,7 +43,7 @@ const safeJsonParse = (val, fallback) => {
   }
 };
 
-// ✅ Since req.params is EMPTY in global middleware, extract IDs from URL
+// Since req.params is EMPTY in global middleware, extract IDs from URL
 const extractMongoId = (path, regex) => {
   const m = String(path || "").match(regex);
   if (!m) return null;
@@ -52,7 +52,6 @@ const extractMongoId = (path, regex) => {
 };
 
 const auditLogger = async (req, res, next) => {
-  // ✅ Allow preflight to pass cleanly
   if (req.method === "OPTIONS") return next();
 
   const url = req.originalUrl;
@@ -69,8 +68,7 @@ const auditLogger = async (req, res, next) => {
 
   if (EXCLUDED_ENDPOINTS.includes(endpoint)) return next();
 
-  // ✅ PREFETCH "BEFORE" DATA (must happen BEFORE next())
-  // NOTE: do NOT use req.params here (it is empty)
+  // PREFETCH "BEFORE" DATA (must happen BEFORE next())
   try {
     // 1) Update Employee Role: /employee/:id/role (POST)
     if (endpoint === "Update Employee Role") {
@@ -79,9 +77,9 @@ const auditLogger = async (req, res, next) => {
         /^\/employee\/([a-fA-F0-9]{24})\/role$/,
       );
       if (empId) {
-        const emp = await Employee.findById(empId).select("username role");
+        const emp = await Employee.findById(empId).select("email role");
         if (emp) {
-          res.locals.auditTargetUsers = [`${emp.username} (id: ${emp._id})`];
+          res.locals.auditTargetUsers = [`${emp.email} (id: ${emp._id})`];
           res.locals.auditBefore = { role: emp.role };
         }
       }
@@ -94,9 +92,9 @@ const auditLogger = async (req, res, next) => {
         /^\/employee\/([a-fA-F0-9]{24})$/,
       );
       if (empId) {
-        const emp = await Employee.findById(empId).select("username role");
+        const emp = await Employee.findById(empId).select("email role");
         if (emp) {
-          res.locals.auditTargetUsers = [`${emp.username} (id: ${emp._id})`];
+          res.locals.auditTargetUsers = [`${emp.email} (id: ${emp._id})`];
           res.locals.auditBefore = { role: emp.role };
         }
       }
@@ -159,21 +157,19 @@ const auditLogger = async (req, res, next) => {
 
   res.on("finish", async () => {
     try {
-      const { actorId, actorUsername, actor } = getActorFromReq(req);
+      const { actorId, actorEmail, actor } = getActorFromReq(req);
 
-      // ✅ If controller provided before/after (general settings), prefer those
       const effectiveBefore =
         res.locals.auditBefore !== undefined ? res.locals.auditBefore : null;
 
       const effectiveBody =
         res.locals.auditAfter !== undefined ? res.locals.auditAfter : req.body;
 
-      // ✅ Determine target users
       let targetUsers = Array.isArray(res.locals.auditTargetUsers)
         ? res.locals.auditTargetUsers
         : [];
 
-      // Bulk employees for CTO Credit (keep your existing logic)
+      // Bulk employees for CTO Credit
       if (
         req.body?.employees?.length &&
         endpoint === "Add CTO Credit Request"
@@ -189,10 +185,8 @@ const auditLogger = async (req, res, next) => {
         if (empIds.length) {
           const employees = await Employee.find({
             _id: { $in: empIds },
-          }).select("username role");
-          targetUsers = employees.map(
-            (emp) => `${emp.username} (id: ${emp._id})`,
-          );
+          }).select("email role");
+          targetUsers = employees.map((emp) => `${emp.email} (id: ${emp._id})`);
         }
       }
 
@@ -201,16 +195,16 @@ const auditLogger = async (req, res, next) => {
       const audit = buildAuditDetails({
         endpoint,
         method: req.method,
-        body: effectiveBody, // after
-        params: req.params, // can be empty; builder uses targetSummary mostly
+        body: effectiveBody,
+        params: req.params,
         actor,
         targetUser: targetSummary,
-        before: effectiveBefore, // before
+        before: effectiveBefore,
       });
 
       await auditLogService.createAuditLog({
         userId: actorId === "GuestID" ? null : actorId,
-        username: actorUsername,
+        email: actorEmail,
         method: req.method,
         endpoint,
         url: urlForMap,

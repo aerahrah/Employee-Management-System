@@ -370,12 +370,12 @@ const AuditLogTable = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  const [usernameInput, setUsernameInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [endpointInput, setEndpointInput] = useState("");
   const [statusInput, setStatusInput] = useState("");
 
-  const { debouncedValue: username, flush: flushUsername } = useDebounce(
-    usernameInput,
+  const { debouncedValue: email, flush: flushEmail } = useDebounce(
+    emailInput,
     350,
   );
   const { debouncedValue: endpoint, flush: flushEndpoint } = useDebounce(
@@ -395,14 +395,14 @@ const AuditLogTable = () => {
     () => ({
       page,
       limit,
-      username: username || undefined,
+      email: email || undefined, // ✅ Updated query parameter
       method: method === "All" ? undefined : method || undefined,
       endpoint: endpoint || undefined,
       statusCode: statusCode || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
     }),
-    [page, limit, username, method, endpoint, statusCode, startDate, endDate],
+    [page, limit, email, method, endpoint, statusCode, startDate, endDate],
   );
 
   const { data, isPending, isFetching, refetch, isPlaceholderData } = useQuery({
@@ -414,7 +414,7 @@ const AuditLogTable = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [limit, username, endpoint, statusCode, method, startDate, endDate]);
+  }, [limit, email, endpoint, statusCode, method, startDate, endDate]);
 
   const total = data?.total || 0;
   const totalPages = Math.max(Math.ceil(total / limit) || 1, 1);
@@ -431,7 +431,7 @@ const AuditLogTable = () => {
   const endItem = total === 0 ? 0 : Math.min(page * limit, total);
 
   const hasActiveFilters = Boolean(
-    username ||
+    email ||
     endpoint ||
     statusCode ||
     (method && method !== "All") ||
@@ -442,7 +442,7 @@ const AuditLogTable = () => {
   const rows = data?.data || [];
 
   const clearFilters = () => {
-    setUsernameInput("");
+    setEmailInput("");
     setEndpointInput("");
     setStatusInput("");
     setMethod("All");
@@ -453,12 +453,12 @@ const AuditLogTable = () => {
   };
 
   const handleRefresh = useCallback(async () => {
-    flushUsername();
+    flushEmail();
     flushEndpoint();
     flushStatus();
     await Promise.resolve();
     refetch({ cancelRefetch: false });
-  }, [flushUsername, flushEndpoint, flushStatus, refetch]);
+  }, [flushEmail, flushEndpoint, flushStatus, refetch]);
 
   return (
     <div
@@ -621,9 +621,9 @@ const AuditLogTable = () => {
               />
             </div>
 
-            {/* User */}
+            {/* User (Email) */}
             <div className="sm:col-span-1 xl:col-span-2">
-              <FieldLabel>User</FieldLabel>
+              <FieldLabel>User (Email)</FieldLabel>
               <div className="relative">
                 <Search
                   size={16}
@@ -632,10 +632,10 @@ const AuditLogTable = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Search username…"
+                  placeholder="Search email…"
                   maxLength={100}
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
                   className="w-full h-10 pl-9 pr-9 text-sm rounded-lg outline-none border transition-colors duration-200 ease-out"
                   style={inputStyle}
                   onFocus={(e) => {
@@ -648,9 +648,9 @@ const AuditLogTable = () => {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
-                {usernameInput && (
+                {emailInput && (
                   <button
-                    onClick={() => setUsernameInput("")}
+                    onClick={() => setEmailInput("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
                     style={{ color: "var(--app-muted)" }}
                     aria-label="Clear user"
@@ -724,7 +724,7 @@ const AuditLogTable = () => {
                 </span>
               ) : (
                 <>
-                  {username && <Chip>user: “{username}”</Chip>}
+                  {email && <Chip>user: “{email}”</Chip>}
                   {endpoint && <Chip>endpoint: {endpoint}</Chip>}
                   {statusCode && <Chip>status: {statusCode}</Chip>}
                   {method !== "All" && <Chip>method: {method}</Chip>}
@@ -897,7 +897,7 @@ const AuditLogTable = () => {
                           style={{ color: "var(--app-text)" }}
                         >
                           <span className="block max-w-[220px]">
-                            {log.username}
+                            {log.email || "Unknown user"}
                           </span>
                         </td>
 
@@ -1085,7 +1085,7 @@ const AuditLogTable = () => {
                           className="text-sm font-semibold truncate transition-colors duration-300 ease-out"
                           style={{ color: "var(--app-text)" }}
                         >
-                          {log.username || "Unknown user"}
+                          {log.email || "Unknown user"}
                         </div>
                         <div
                           className="text-xs whitespace-nowrap transition-colors duration-300 ease-out"

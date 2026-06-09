@@ -86,11 +86,11 @@ const Dashboard = () => {
   };
 
   const initials =
-    admin?.username
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase() || "A";
+    admin?.firstName && admin?.lastName
+      ? `${admin.firstName[0]}${admin.lastName[0]}`.toUpperCase()
+      : admin?.email
+        ? admin.email[0].toUpperCase()
+        : "U";
 
   // ==========================================
   // ✅ 1. UNREAD COUNT QUERY (Smart Polling)
@@ -573,11 +573,14 @@ const Dashboard = () => {
                 </div>
 
                 <div className="hidden sm:block text-left">
+                  {/* ✅ Switched to Display Name with Email as fallback */}
                   <p
-                    className="text-sm font-semibold leading-tight"
+                    className="text-sm font-semibold leading-tight truncate max-w-[150px]"
                     style={{ color: "var(--app-text, #0f172a)" }}
                   >
-                    {admin?.username || "User"}
+                    {admin?.firstName
+                      ? `${admin.firstName} ${admin.lastName}`
+                      : admin?.email || "User"}
                   </p>
                   <p
                     className="text-[10px] font-medium uppercase tracking-wider"
@@ -618,11 +621,13 @@ const Dashboard = () => {
                       Signed in as
                     </p>
                     <div className="flex items-center justify-between gap-2">
+                      {/* ✅ Switched to Email in dropdown header */}
                       <span
                         className="text-sm font-bold truncate"
                         style={{ color: "var(--app-text, #0f172a)" }}
+                        title={admin?.email}
                       >
-                        {admin?.username}
+                        {admin?.email || "User"}
                       </span>
                       <RoleBadge role={admin?.role} />
                     </div>

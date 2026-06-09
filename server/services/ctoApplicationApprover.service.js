@@ -106,7 +106,7 @@ async function canSend(key) {
 ========================= */
 
 const getApproverOptionsService = async () => {
-  // Fetch employees and project the needed fields, now including employeeType
+  // Fetch employees and project the needed fields
   const employees = await Employee.find(
     {},
     "_id firstName lastName position email employeeType",
@@ -114,12 +114,12 @@ const getApproverOptionsService = async () => {
     .sort({ lastName: 1, firstName: 1 })
     .lean();
 
-  // Calculate counts using the enum values you defined
+  // Calculate counts
   const organicCount = employees.filter(
     (e) => e.employeeType === "Organic",
   ).length;
   const jobOrderCount = employees.filter(
-    (e) => e.employeeType === "Job Order",
+    (e) => e.employeeType === "Job Order" || e.employeeType === "JO",
   ).length;
 
   return {
@@ -200,14 +200,13 @@ const getCtoApplicationsForApproverService = async (
       select:
         "employee approvals overallStatus requestedHours inclusiveDates reason createdAt",
       populate: [
-        { path: "employee", select: "firstName lastName position" },
+        { path: "employee", select: "firstName lastName position email" },
         {
           path: "approvals",
-          // ✅ Updated to pull `approverSnapshot` instead of just the signature
           select: "approver status level role approverSnapshot",
           populate: {
             path: "approver",
-            select: "firstName lastName position _id",
+            select: "firstName lastName position email _id",
           },
         },
       ],
@@ -332,9 +331,8 @@ const approveCtoApplicationService = async ({
   assertObjectId(safeApproverId, "Approver ID");
   assertObjectId(safeAppId, "Application ID");
 
-  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(safeApproverId)
-    .select("username firstName lastName position email signature")
+    .select("firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -353,7 +351,7 @@ const approveCtoApplicationService = async ({
   try {
     const application = await CtoApplication.findById(safeAppId)
       .populate("approvals")
-      .populate("employee", "_id username firstName lastName email balances")
+      .populate("employee", "_id firstName lastName email balances")
       .session(session);
 
     if (!application)
@@ -490,9 +488,9 @@ const approveCtoApplicationService = async ({
       approverId: safeApproverId,
       applicationId: safeAppId,
       level: currentStep.level,
-      approverName: `${approver?.username || "unknown"} (id: ${safeApproverId})`,
-      approverUsername: approver?.username || "unknown",
-      employeeName: `${application.employee.username} (id: ${application.employee._id})`,
+      approverName: `${approver?.email || "unknown"} (id: ${safeApproverId})`,
+      approverEmail: approver?.email || "unknown",
+      employeeName: `${application.employee.email} (id: ${application.employee._id})`,
     };
 
     const auditDetails = buildAuditDetails({
@@ -506,7 +504,7 @@ const approveCtoApplicationService = async ({
 
     await auditLogService.createAuditLog({
       userId: safeApproverId,
-      username: auditBody.approverUsername,
+      email: auditBody.approverEmail,
       method: "POST",
       endpoint: "Approve Application",
       url: `/cto/applications/approver/${application._id}/approve`,
@@ -566,7 +564,6 @@ const approveCtoApplicationService = async ({
       }
     }
 
-    // Refetch the fully populated, updated document to return
     return getCtoApplicationByIdService(safeAppId);
   } catch (err) {
     await session.abortTransaction();
@@ -586,9 +583,8 @@ const rejectCtoApplicationService = async ({
 
   const safeRemarks = sanitizeString(remarks, 1000) || "No remarks provided";
 
-  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(safeApproverId)
-    .select("username firstName lastName position email signature")
+    .select("firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -608,7 +604,7 @@ const rejectCtoApplicationService = async ({
     const application = await CtoApplication.findById(safeAppId)
       .populate("approvals")
       .populate("memo.memoId")
-      .populate("employee", "username firstName lastName email balances")
+      .populate("employee", "firstName lastName email balances")
       .session(session);
 
     if (!application)
@@ -725,9 +721,9 @@ const rejectCtoApplicationService = async ({
       approverId: safeApproverId,
       applicationId: safeAppId,
       level: currentStep.level,
-      approverName: `${approver?.username || "unknown"} (id: ${safeApproverId})`,
-      approverUsername: approver?.username || "unknown",
-      employeeName: `${application.employee.username} (id: ${application.employee._id})`,
+      approverName: `${approver?.email || "unknown"} (id: ${safeApproverId})`,
+      approverEmail: approver?.email || "unknown",
+      employeeName: `${application.employee.email} (id: ${application.employee._id})`,
     };
 
     const auditDetails = buildAuditDetails({
@@ -741,7 +737,7 @@ const rejectCtoApplicationService = async ({
 
     await auditLogService.createAuditLog({
       userId: safeApproverId,
-      username: auditBody.approverUsername,
+      email: auditBody.approverEmail,
       method: "POST",
       endpoint: "Reject Application",
       url: `/cto/applications/approver/${application._id}/reject`,
@@ -779,7 +775,6 @@ const rejectCtoApplicationService = async ({
       }
     }
 
-    // Refetch the fully populated, updated document to return
     return getCtoApplicationByIdService(safeAppId);
   } catch (err) {
     await session.abortTransaction();

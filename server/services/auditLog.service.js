@@ -50,7 +50,7 @@ const createAuditLog = async (data = {}) => {
   // Prevent mass assignment vulnerabilities by explicitly selecting allowed fields
   const {
     userId,
-    username,
+    email, // ✅ Fixed: Changed from username to email
     method,
     endpoint,
     url,
@@ -62,7 +62,7 @@ const createAuditLog = async (data = {}) => {
 
   return AuditLog.create({
     userId,
-    username,
+    email, // ✅ Fixed: Map email into the DB schema field
     method: method ? String(method).toUpperCase() : undefined,
     endpoint,
     url,
@@ -77,7 +77,7 @@ const getAuditLogs = async ({
   page = 1,
   limit = 10,
   userId,
-  username,
+  email, // ✅ Fixed: Changed from username to email
   method,
   endpoint,
   statusCode,
@@ -99,9 +99,10 @@ const getAuditLogs = async ({
     filter.userId = userId;
   }
 
-  if (username) {
-    const safeUsername = sanitizeSearch(username, 100);
-    if (safeUsername) filter.username = { $regex: safeUsername, $options: "i" };
+  // ✅ Fixed: Change filter and regex criteria to match email instead of username
+  if (email) {
+    const safeEmail = sanitizeSearch(email, 100);
+    if (safeEmail) filter.email = { $regex: safeEmail, $options: "i" };
   }
 
   if (method) {

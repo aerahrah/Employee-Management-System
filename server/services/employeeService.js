@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const path = require("path"); // Added for path resolution
+const path = require("path");
 
 const Employee = require("../models/employeeModel");
 const Project = require("../models/projectModel");
@@ -23,9 +23,12 @@ const MAX_SESSION_MINUTES = 60 * 24 * 30; // 30 days
 
 // Explicit allowlists to prevent mass assignment vulnerabilities
 const ALLOWED_PROFILE_UPDATES = Object.freeze([
+  "prefixTitle",
   "firstName",
-  "middleName", // ✅ Added middleName
+  "middleName",
   "lastName",
+  "nameExtension",
+  "postfixTitle",
   "email",
   "phone",
   "position",
@@ -40,7 +43,7 @@ const ALLOWED_ADMIN_UPDATES = Object.freeze([
   "contractType",
   "status",
   "employeeType",
-  "salary", // ✅ Added salary so admins can update it
+  "salary",
 ]);
 
 // --- HELPER FUNCTIONS ---
@@ -51,13 +54,9 @@ function httpError(message, statusCode = 400) {
   return err;
 }
 
-/**
- * Sanitizes input strings by removing null bytes and escaping regex characters.
- * Explicitly limits length to prevent ReDoS (Regular Expression Denial of Service).
- */
 function sanitizeSearch(str, limit = 100) {
   return String(str || "")
-    .replace(/\0/g, "") // Prevent Null Byte Injection
+    .replace(/\0/g, "")
     .slice(0, limit)
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -172,9 +171,6 @@ async function canSend(key) {
   return await isEmailEnabled(key);
 }
 
-/**
- * Generates a cryptographically secure temporary password.
- */
 function generateSecureTempPassword() {
   const lower = "abcdefghijklmnopqrstuvwxyz";
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -184,7 +180,6 @@ function generateSecureTempPassword() {
 
   const getChar = (charset) => charset[crypto.randomInt(0, charset.length)];
 
-  // Guarantee at least one character from each set
   const pwArr = [
     getChar(lower),
     getChar(upper),
@@ -192,12 +187,10 @@ function generateSecureTempPassword() {
     getChar(specials),
   ];
 
-  // Fill the remaining length to reach 12 characters total
   for (let i = 0; i < 8; i++) {
     pwArr.push(getChar(allChars));
   }
 
-  // Fisher-Yates shuffle using crypto.randomInt
   for (let i = pwArr.length - 1; i > 0; i--) {
     const j = crypto.randomInt(0, i + 1);
     [pwArr[i], pwArr[j]] = [pwArr[j], pwArr[i]];
@@ -211,11 +204,13 @@ function generateSecureTempPassword() {
 const createEmployeeService = async (employeeData = {}) => {
   const {
     employeeId,
-    username,
-    email,
+    email, // ✅ Email is now required as the primary login identifier
+    prefixTitle,
     firstName,
-    middleName, // ✅ Extracted middleName
+    middleName,
     lastName,
+    nameExtension,
+    postfixTitle,
     position,
     designation,
     division,
@@ -223,14 +218,15 @@ const createEmployeeService = async (employeeData = {}) => {
     role,
     contractType,
     employeeType,
-    salary, // ✅ Extracted salary
+    salary,
   } = employeeData;
 
+  // ✅ Added !email to required fields
   if (
     !employeeId ||
-    !username ||
+    !email ||
     !firstName ||
-    !middleName || // ✅ Required check
+    !middleName ||
     !lastName ||
     !designation ||
     !project ||
@@ -239,7 +235,6 @@ const createEmployeeService = async (employeeData = {}) => {
     throw httpError("Missing required fields for employee creation", 400);
   }
 
-  // ✅ Salary Grade validation based on employeeType
   let resolvedSalaryId = null;
   if (employeeType === "Organic") {
     if (!salary) {
@@ -251,19 +246,16 @@ const createEmployeeService = async (employeeData = {}) => {
     resolvedSalaryId = salary;
   }
 
+  // ✅ Uniqueness check only for ID and Email
   const existing = await Employee.findOne({
     $or: [
       { employeeId: String(employeeId).trim() },
-      { username: String(username).trim() },
-      ...(email ? [{ email: String(email).trim() }] : []),
+      { email: String(email).trim().toLowerCase() },
     ],
   }).lean();
 
   if (existing) {
-    throw httpError(
-      "Employee with this ID, username, or email already exists",
-      409,
-    );
+    throw httpError("Employee with this ID or email already exists", 409);
   }
 
   const projectId = await resolveProjectIdOrThrow(project);
@@ -279,11 +271,13 @@ const createEmployeeService = async (employeeData = {}) => {
 
   const employee = new Employee({
     employeeId: String(employeeId).trim(),
-    username: String(username).trim(),
-    email: email ? String(email).trim() : undefined,
+    email: String(email).trim().toLowerCase(),
+    prefixTitle: prefixTitle ? String(prefixTitle).trim() : "",
     firstName: String(firstName).trim(),
-    middleName: String(middleName).trim(), // ✅ Saved to DB
+    middleName: String(middleName).trim(),
     lastName: String(lastName).trim(),
+    nameExtension: nameExtension ? String(nameExtension).trim() : "",
+    postfixTitle: postfixTitle ? String(postfixTitle).trim() : "",
     division: division ? String(division).trim() : undefined,
     project: projectId,
     designation: designationId,
@@ -291,8 +285,8 @@ const createEmployeeService = async (employeeData = {}) => {
     role: resolvedRoleId,
     contractType: contractType || "Permanent",
     employeeType: employeeType,
-    salary: resolvedSalaryId, // ✅ Saved to DB (null if JO)
-    password: tempPassword, // Will be hashed by pre-save hook
+    salary: resolvedSalaryId,
+    password: tempPassword,
     balances: {
       wellnessDays: !contractType || contractType === "Permanent" ? 5 : 0,
       vlHours: 0,
@@ -310,7 +304,7 @@ const createEmployeeService = async (employeeData = {}) => {
     if (enabled) {
       const tpl = employeeWelcomeEmail({
         firstName: employee.firstName,
-        username: employee.username,
+        email: employee.email,
         tempPassword,
         loginUrl: `${frontendUrl}`,
         brandName: "HRMS",
@@ -319,13 +313,12 @@ const createEmployeeService = async (employeeData = {}) => {
     }
   }
 
-  // Convert to plain object and remove sensitive data before returning
   const safeEmployee = employee.toObject();
   delete safeEmployee.password;
   delete safeEmployee.loginAttempts;
   delete safeEmployee.lockUntil;
 
-  return { employee: safeEmployee };
+  return { employee: safeEmployee, tempPassword }; // Ensure tempPassword returns
 };
 
 const getEmployeesService = async ({
@@ -354,7 +347,6 @@ const getEmployeesService = async ({
 
   const q = String(search || "").trim();
   if (q) {
-    // Strictly limit search length to 100 characters and escape regex
     const safeSearch = sanitizeSearch(q, 100);
     query.$or = [
       { firstName: { $regex: safeSearch, $options: "i" } },
@@ -369,9 +361,12 @@ const getEmployeesService = async ({
   const skip = (pg - 1) * lim;
 
   const projection = {
+    prefixTitle: 1,
     firstName: 1,
-    middleName: 1, // ✅ Projected
+    middleName: 1,
     lastName: 1,
+    nameExtension: 1,
+    postfixTitle: 1,
     email: 1,
     designation: 1,
     division: 1,
@@ -380,7 +375,7 @@ const getEmployeesService = async ({
     status: 1,
     position: 1,
     employeeType: 1,
-    salary: 1, // ✅ Projected
+    salary: 1,
   };
 
   const [data, total] = await Promise.all([
@@ -391,7 +386,7 @@ const getEmployeesService = async ({
       .populate("designation", "name status")
       .populate("project", "name status")
       .populate("role", "name permissions isSystem")
-      .populate("salary") // ✅ Populated salary grade
+      .populate("salary")
       .lean(),
     Employee.countDocuments(query),
   ]);
@@ -408,23 +403,23 @@ const getEmployeeByIdService = async (id) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
-    .populate("salary") // ✅ Populated salary grade
+    .populate("salary")
     .lean();
 
   if (!employee) throw httpError(`Employee not found`, 404);
   return employee;
 };
 
-const signInEmployeeService = async (username, password) => {
-  const safeUsername = String(username).trim();
-  const safePassword = String(password); // Prevent NoSQL Injection Object `{ $ne: null }`
+const signInEmployeeService = async (email, password) => {
+  const safeEmail = String(email).trim().toLowerCase();
+  const safePassword = String(password);
 
-  const employee = await Employee.findOne({ username: safeUsername })
+  const employee = await Employee.findOne({ email: safeEmail })
     .select("+password +loginAttempts +lockUntil")
     .populate("role")
     .populate("designation");
 
-  if (!employee) throw httpError("Invalid username or password", 401);
+  if (!employee) throw httpError("Invalid email or password", 401);
 
   if (
     employee.lockUntil &&
@@ -444,7 +439,7 @@ const signInEmployeeService = async (username, password) => {
       employee.loginAttempts = 0;
     }
     await employee.save();
-    throw httpError("Invalid username or password", 401);
+    throw httpError("Invalid email or password", 401);
   }
 
   employee.loginAttempts = 0;
@@ -457,7 +452,7 @@ const signInEmployeeService = async (username, password) => {
 
   const tokenPayload = {
     id: employee._id,
-    username: employee.username,
+    email: employee.email,
     designation: employee.designation,
     role: employee.role,
     employeeType:
@@ -490,8 +485,11 @@ const signInEmployeeService = async (username, password) => {
 
   const responsePayload = {
     ...tokenPayload,
+    prefixTitle: employee.prefixTitle,
     firstName: employee.firstName,
     lastName: employee.lastName,
+    nameExtension: employee.nameExtension,
+    postfixTitle: employee.postfixTitle,
     preferences: {
       theme: employee.preferences?.theme ?? "system",
       accent: employee.preferences?.accent ?? "blue",
@@ -509,22 +507,14 @@ const updateEmployeeService = async (id, updateData = {}) => {
   const employee = await Employee.findById(id);
   if (!employee) throw httpError(`Employee not found`, 404);
 
-  // Email / Username Uniqueness Check
-  if (updateData.email || updateData.username) {
+  if (updateData.email) {
     const conflict = await Employee.findOne({
       _id: { $ne: id },
-      $or: [
-        ...(updateData.email
-          ? [{ email: String(updateData.email).trim() }]
-          : []),
-        ...(updateData.username
-          ? [{ username: String(updateData.username).trim() }]
-          : []),
-      ],
+      email: String(updateData.email).trim().toLowerCase(),
     })
       .select("_id")
       .lean();
-    if (conflict) throw httpError("Email or username already in use", 409);
+    if (conflict) throw httpError("Email already in use", 409);
   }
 
   // Resolve Relations
@@ -550,7 +540,6 @@ const updateEmployeeService = async (id, updateData = {}) => {
   // Prevent Mass Assignment Vulnerabilities
   ALLOWED_ADMIN_UPDATES.forEach((field) => {
     if (updateData[field] !== undefined) {
-      // Treat text fields explicitly as strings to prevent injection objects
       employee[field] =
         typeof updateData[field] === "string"
           ? updateData[field].trim()
@@ -558,16 +547,14 @@ const updateEmployeeService = async (id, updateData = {}) => {
     }
   });
 
-  // ✅ Enforce Employee Type constraints after updating fields
   if (employee.employeeType === "Organic" && !employee.salary) {
     throw httpError("Salary Grade is required for Organic personnel.", 400);
   }
-  // Automatically clear salary if changed to JO
+
   if (employee.employeeType === "JO") {
     employee.salary = undefined;
   }
 
-  // Handle nested object specific fields explicitly
   if (updateData.balances && typeof updateData.balances === "object") {
     const allowedBalances = ["wellnessDays", "vlHours", "slHours", "ctoHours"];
     if (!employee.balances) employee.balances = {};
@@ -585,7 +572,7 @@ const updateEmployeeService = async (id, updateData = {}) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
-    .populate("salary") // ✅ Populated salary grade
+    .populate("salary")
     .lean();
 };
 
@@ -653,7 +640,7 @@ const getProfile = async (employeeId) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
-    .populate("salary") // ✅ Populated salary grade
+    .populate("salary")
     .lean();
 
   if (!employee) throw httpError("Employee not found", 404);
@@ -677,7 +664,7 @@ const updateProfile = async (employeeId, updateData = {}) => {
   if (filteredData.email) {
     const conflict = await Employee.findOne({
       _id: { $ne: employeeId },
-      email: filteredData.email,
+      email: String(filteredData.email).trim().toLowerCase(),
     })
       .select("_id")
       .lean();
@@ -688,7 +675,6 @@ const updateProfile = async (employeeId, updateData = {}) => {
     filteredData.project = await resolveProjectIdOrThrow(filteredData.project);
   }
 
-  // Use $set to prevent accidental overwrites
   const updatedEmployee = await Employee.findByIdAndUpdate(
     employeeId,
     { $set: filteredData },
@@ -698,7 +684,7 @@ const updateProfile = async (employeeId, updateData = {}) => {
     .populate("designation", "name status")
     .populate("project", "name status")
     .populate("role", "name permissions isSystem")
-    .populate("salary") // ✅ Populated salary grade
+    .populate("salary")
     .lean();
 
   if (!updatedEmployee) throw httpError("Employee not found", 404);
@@ -710,14 +696,9 @@ const uploadSignatureService = async (employeeId, signaturePath) => {
     throw httpError("Invalid Employee ID", 400);
   }
 
-  // ✅ 1. Strip the long absolute path and get just the filename
-  // (e.g., changes "C:/.../123.jpg" -> "123.jpg")
   const safeFileName = path.basename(signaturePath);
-
-  // ✅ 2. Construct the clean, relative database path
   const cleanDbPath = `uploads/signatures/${safeFileName}`;
 
-  // 3. Fetch the existing employee to check if they exist
   const existingEmployee = await Employee.findById(employeeId)
     .select("_id")
     .lean();
@@ -726,7 +707,6 @@ const uploadSignatureService = async (employeeId, signaturePath) => {
     throw httpError("Employee not found", 404);
   }
 
-  // 4. Update the database with the CLEAN path, leaving the old file safely on the hard drive
   const updatedEmployee = await Employee.findByIdAndUpdate(
     employeeId,
     { $set: { signature: cleanDbPath } },
@@ -742,7 +722,6 @@ const resetPassword = async (employeeId, oldPassword, newPassword) => {
   if (!mongoose.isValidObjectId(employeeId))
     throw httpError("Invalid Employee ID", 400);
 
-  // Cast inputs to string explicitly to prevent NoSQL object injections
   const safeOldPassword = String(oldPassword || "");
   const safeNewPassword = String(newPassword || "");
 
@@ -757,8 +736,6 @@ const resetPassword = async (employeeId, oldPassword, newPassword) => {
   if (!isMatch) throw httpError("Old password is incorrect", 400);
 
   employee.password = safeNewPassword;
-
-  // Optionally reset lockout thresholds on successful manual reset
   employee.loginAttempts = 0;
   employee.lockUntil = undefined;
 

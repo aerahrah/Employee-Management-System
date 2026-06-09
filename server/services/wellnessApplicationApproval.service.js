@@ -136,14 +136,12 @@ const getWellnessApplicationsForApproverService = async (
   const approvalSteps = await ApprovalStep.find({ approver: approverId })
     .populate({
       path: "wellnessApplication",
-      // ✅ Included ALL CSC Form 6 fields so approvers can render the organic PDF
       select:
         "employee approvals overallStatus inclusiveDates totalDays reason createdAt employeeType commutation applicantSignatureUrl certificationOfLeaveCredits actionDetails",
       populate: [
         { path: "employee", select: "firstName lastName position signature" },
         {
           path: "approvals",
-          // ✅ Updated to use approverSnapshot instead of approverSignature
           select: "approver status level role approverSnapshot",
           populate: {
             path: "approver",
@@ -242,7 +240,6 @@ const getWellnessApplicationsForApproverService = async (
 
   const data = appsAfterStatus.slice(startIndex, startIndex + safeLimit);
 
-  // Tag with type for the frontend
   const formattedData = data.map((app) => {
     const appObj = app.toObject ? app.toObject() : { ...app };
     appObj.type = "WELLNESS";
@@ -264,11 +261,12 @@ const getWellnessApplicationByIdService = async (wellnessApplicationId) => {
   const application = await WellnessApplication.findById(wellnessApplicationId)
     .populate({
       path: "employee",
-      select: "firstName lastName position department signature employeeId",
+      select:
+        "firstName lastName position department signature employeeId email",
     })
     .populate({
       path: "approvals",
-      select: "-__v", // ✅ Ensure role and approverSnapshot flow through
+      select: "-__v",
       populate: {
         path: "approver",
         select: "firstName lastName position email",
@@ -292,9 +290,8 @@ const approveWellnessApplicationService = async ({
   assertObjectId(approverId, "approverId");
   assertObjectId(applicationId, "applicationId");
 
-  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(approverId)
-    .select("username firstName lastName position email signature")
+    .select("firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -338,7 +335,6 @@ const approveWellnessApplicationService = async ({
         400,
       );
 
-    // ✅ Update approval step securely, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
@@ -372,7 +368,6 @@ const approveWellnessApplicationService = async ({
     if (allApproved) {
       application.overallStatus = "APPROVED";
       await application.save({ session });
-      // Wellness Days were already deducted on submission, so no balances need adjusting here
     }
 
     await session.commitTransaction();
@@ -382,9 +377,9 @@ const approveWellnessApplicationService = async ({
       approverId,
       applicationId,
       level: currentStep.level,
-      approverName: `${approver?.username || "unknown"} (id: ${approverId})`,
-      approverUsername: approver?.username || "unknown",
-      employeeName: `${application.employee.username} (id: ${application.employee._id})`,
+      approverName: `${approver?.email || "unknown"} (id: ${approverId})`,
+      approverEmail: approver?.email || "unknown",
+      employeeName: `${application.employee.email} (id: ${application.employee._id})`,
     };
 
     const auditDetails = buildAuditDetails({
@@ -398,7 +393,7 @@ const approveWellnessApplicationService = async ({
 
     await auditLogService.createAuditLog({
       userId: approverId,
-      username: auditBody.approverUsername,
+      email: auditBody.approverEmail,
       method: "POST",
       endpoint: "Approve Wellness Application",
       url: `/wellness/applications/approver/${application._id}/approve`,
@@ -430,7 +425,6 @@ const approveWellnessApplicationService = async ({
     }
 
     if (allApproved) {
-      // ✅ EMAIL: Final Approval Email to Employee
       try {
         const enabled = await canSend(EMAIL_KEYS.WELLNESS_FINAL_APPROVAL);
         if (application.employee.email && enabled) {
@@ -474,7 +468,6 @@ const approveWellnessApplicationService = async ({
           );
         }
 
-        // ✅ EMAIL: Approval Request to Next Approver
         try {
           const nextApproverUser = await Employee.findById(nextStep.approver)
             .select("firstName lastName email")
@@ -520,9 +513,8 @@ const rejectWellnessApplicationService = async ({
   assertObjectId(approverId, "approverId");
   assertObjectId(applicationId, "applicationId");
 
-  // ✅ Fetch approver early (including position) to validate and snapshot
   const approver = await Employee.findById(approverId)
-    .select("username firstName lastName position email signature")
+    .select("firstName lastName position email signature")
     .lean();
 
   if (!approver) {
@@ -541,7 +533,7 @@ const rejectWellnessApplicationService = async ({
   try {
     const application = await WellnessApplication.findById(applicationId)
       .populate("approvals")
-      .populate("employee", "username firstName lastName email balances")
+      .populate("employee", "firstName lastName email balances")
       .session(session);
 
     if (!application) throw httpError("Wellness Application not found.", 404);
@@ -578,7 +570,6 @@ const rejectWellnessApplicationService = async ({
       { session },
     );
 
-    // ✅ Update approval step securely, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
@@ -623,13 +614,14 @@ const rejectWellnessApplicationService = async ({
     await session.commitTransaction();
     session.endSession();
 
+    // ✅ Switched logging context completely to "email" values
     const auditBody = {
       approverId,
       applicationId,
       level: currentStep.level,
-      approverName: `${approver?.username || "unknown"} (id: ${approverId})`,
-      approverUsername: approver?.username || "unknown",
-      employeeName: `${application.employee.username} (id: ${application.employee._id})`,
+      approverName: `${approver?.email || "unknown"} (id: ${approverId})`,
+      approverEmail: approver?.email || "unknown",
+      employeeName: `${application.employee.email} (id: ${application.employee._id})`,
     };
 
     const auditDetails = buildAuditDetails({
@@ -643,7 +635,7 @@ const rejectWellnessApplicationService = async ({
 
     await auditLogService.createAuditLog({
       userId: approverId,
-      username: auditBody.approverUsername,
+      email: auditBody.approverEmail,
       method: "POST",
       endpoint: "Reject Wellness Application",
       url: `/wellness/applications/approver/${application._id}/reject`,
@@ -670,7 +662,6 @@ const rejectWellnessApplicationService = async ({
       );
     }
 
-    // ✅ EMAIL: Send Rejection Email to Employee
     try {
       const enabled = await canSend(EMAIL_KEYS.WELLNESS_REJECTION);
       if (application.employee.email && enabled) {

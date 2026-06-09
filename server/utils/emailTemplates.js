@@ -202,27 +202,26 @@ function formatDateLikeHuman(d) {
 function formatHours(hours) {
   const n = Number(hours);
   if (!Number.isFinite(n)) return "0";
-  // keep up to 2 decimals, trim trailing zeros
   return String(Math.round(n * 100) / 100);
 }
 
 // ───────────────────────────────────────────────────────────────
-// ABOVE EMAIL (Employee creation welcome email)
+// WELCOME EMAIL (Employee creation welcome email)
 // ───────────────────────────────────────────────────────────────
 function employeeWelcomeEmail({
   firstName,
-  username,
+  email,
   tempPassword,
   loginUrl,
   brandName = "HRMS",
 }) {
   const safeFirstName = escapeHtml(firstName || "there");
-  const safeUsername = escapeHtml(username || "");
+  const safeEmail = escapeHtml(email || ""); // ✅ Updated
   const safeTempPass = escapeHtml(tempPassword || "");
   const safeLoginUrl = sanitizeUrl(loginUrl);
 
   const details = `
-    ${detailRow("Username", safeUsername || "<em>(not provided)</em>")}
+    ${detailRow("Email Address", safeEmail || "<em>(not provided)</em>")} 
     ${detailRow(
       "Temporary Password",
       safeTempPass

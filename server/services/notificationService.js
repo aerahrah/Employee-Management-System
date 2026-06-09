@@ -65,7 +65,7 @@ class NotificationService {
 
     const [notifications, total, unreadCount] = await Promise.all([
       Notification.find(filter)
-        .populate("actor", "firstName lastName username role")
+        .populate("actor", "firstName lastName email role")
         .select("-__v") // Exclude internal version key
         .sort({ createdAt: -1 })
         .skip(skip)

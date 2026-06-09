@@ -1,16 +1,8 @@
-import React, {
-  useMemo,
-  useState,
-  useRef,
-  useEffect,
-  forwardRef,
-  useImperativeHandle,
-} from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getEmployeeById, updateEmployeeById } from "../../api/employee";
+import React, { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getEmployeeById } from "../../api/employee";
 import { StatusBadge, RoleBadge } from "../statusUtils";
 import { useParams, useNavigate } from "react-router-dom";
-import Modal from "../modal";
 import Breadcrumbs from "../breadCrumbs";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -47,12 +39,6 @@ function resolveTheme(prefTheme) {
 /* =========================
    Utils
 ========================= */
-const isEmail = (v) =>
-  typeof v === "string" &&
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
-
-const normalize = (v) => String(v ?? "").trim();
-
 const formatDate = (dateString, opts = {}) => {
   if (!dateString) return "-";
   const d = new Date(dateString);
@@ -261,372 +247,6 @@ const EmployeeTypeBadge = ({ type, resolvedTheme }) => {
 };
 
 /* =========================
-   Secure Edit Form
-========================= */
-const EmployeeEditForm = forwardRef(
-  (
-    {
-      employeeId,
-      initialEmployee,
-      onPendingChange,
-      onDirtyChange,
-      onSaved,
-      borderColor,
-      resolvedTheme,
-    },
-    ref,
-  ) => {
-    const queryClient = useQueryClient();
-
-    const submitLockRef = useRef(false);
-    const submittedSuccessRef = useRef(false);
-    const [lockAfterSuccess, setLockAfterSuccess] = useState(false);
-
-    const initial = useMemo(() => {
-      const e = initialEmployee || {};
-      return {
-        firstName: normalize(e.firstName),
-        lastName: normalize(e.lastName),
-        email: normalize(e.email),
-        phone: normalize(e.phone),
-        department: normalize(e.department),
-        position: normalize(e.position),
-        employeeType: normalize(e.employeeType) || "JO", // Default to JO if missing
-        employeeId: normalize(e.employeeId),
-        addressStreet: normalize(e.address?.street),
-        addressCity: normalize(e.address?.city),
-        addressProvince: normalize(e.address?.province),
-      };
-    }, [initialEmployee]);
-
-    const [form, setForm] = useState(initial);
-
-    useEffect(() => {
-      setForm(initial);
-      submitLockRef.current = false;
-      submittedSuccessRef.current = false;
-      setLockAfterSuccess(false);
-    }, [initial]);
-
-    const dirty = useMemo(() => {
-      const keys = Object.keys(initial);
-      return keys.some((k) => normalize(form[k]) !== normalize(initial[k]));
-    }, [form, initial]);
-
-    useEffect(() => {
-      onDirtyChange?.(dirty);
-    }, [dirty, onDirtyChange]);
-
-    const mutation = useMutation({
-      mutationFn: (payload) => updateEmployeeById(employeeId, payload),
-      retry: 0,
-      onSuccess: () => {
-        toast.success("Profile updated successfully");
-        queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
-        queryClient.invalidateQueries({ queryKey: ["employees"] });
-
-        submittedSuccessRef.current = true;
-        setLockAfterSuccess(true);
-        onSaved?.();
-      },
-      onError: (error) => {
-        toast.error(
-          error?.response?.data?.message ||
-            error?.message ||
-            "Failed to update profile",
-        );
-      },
-      onSettled: () => {
-        submitLockRef.current = false;
-        onPendingChange?.(false);
-      },
-    });
-
-    const busy =
-      mutation.isPending || submitLockRef.current || lockAfterSuccess;
-
-    useEffect(() => {
-      onPendingChange?.(busy);
-    }, [busy, onPendingChange]);
-
-    const setField = (name) => (e) => {
-      const value = e?.target?.value ?? "";
-      setForm((p) => ({ ...p, [name]: value }));
-    };
-
-    const sanitizeAndValidate = () => {
-      const payload = {
-        firstName: normalize(form.firstName),
-        lastName: normalize(form.lastName),
-        email: normalize(form.email).toLowerCase(),
-        phone: normalize(form.phone),
-        department: normalize(form.department),
-        position: normalize(form.position),
-        employeeType: normalize(form.employeeType), // ✅ Append to payload
-        employeeId: normalize(form.employeeId),
-        address: {
-          street: normalize(form.addressStreet),
-          city: normalize(form.addressCity),
-          province: normalize(form.addressProvince),
-        },
-      };
-
-      if (!payload.firstName || !payload.lastName) {
-        toast.error("First name and last name are required.");
-        return { ok: false };
-      }
-
-      if (payload.email && !isEmail(payload.email)) {
-        toast.error("Please enter a valid email address.");
-        return { ok: false };
-      }
-
-      return { ok: true, payload };
-    };
-
-    const submit = async () => {
-      if (submittedSuccessRef.current) return;
-      if (busy) return;
-
-      if (submitLockRef.current) return;
-      submitLockRef.current = true;
-      onPendingChange?.(true);
-
-      if (!dirty) {
-        toast.info("No changes to save.");
-        submitLockRef.current = false;
-        onPendingChange?.(false);
-        return;
-      }
-
-      const { ok, payload } = sanitizeAndValidate();
-      if (!ok) {
-        submitLockRef.current = false;
-        onPendingChange?.(false);
-        return;
-      }
-
-      try {
-        await mutation.mutateAsync(payload);
-      } catch {
-        // handled by mutation
-      }
-    };
-
-    useImperativeHandle(ref, () => ({
-      submit,
-      isLoading: busy,
-      isDirty: dirty,
-      reset: () => setForm(initial),
-    }));
-
-    return (
-      <div className="max-w-3xl">
-        <div className="flex items-center justify-between mb-4">
-          <div
-            className="text-xs transition-colors duration-300 ease-out"
-            style={{ color: "var(--app-muted)" }}
-          >
-            Edit fields
-          </div>
-          <div
-            className="text-xs flex items-center gap-1 transition-colors duration-300 ease-out"
-            style={{ color: "var(--app-muted)" }}
-          >
-            <AlertCircle size={14} style={{ color: "var(--app-muted)" }} />
-            {dirty ? "Unsaved changes" : "No changes"}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field
-            label="First Name"
-            value={form.firstName}
-            onChange={setField("firstName")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-          <Field
-            label="Last Name"
-            value={form.lastName}
-            onChange={setField("lastName")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-
-          <Field
-            label="Email"
-            value={form.email}
-            onChange={setField("email")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-          <Field
-            label="Phone"
-            value={form.phone}
-            onChange={setField("phone")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-
-          <Field
-            label="Department"
-            value={form.department}
-            onChange={setField("department")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-          <Field
-            label="Position"
-            value={form.position}
-            onChange={setField("position")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-
-          <SelectField
-            label="Employee Type"
-            value={form.employeeType}
-            onChange={setField("employeeType")}
-            disabled={busy}
-            options={[
-              { value: "Organic", label: "Organic" },
-              { value: "JO", label: "Job Order (JO)" },
-            ]}
-            borderColor={borderColor}
-          />
-          <Field
-            label="Employee ID"
-            value={form.employeeId}
-            onChange={setField("employeeId")}
-            disabled={busy}
-            borderColor={borderColor}
-          />
-
-          <div className="md:col-span-2">
-            <div
-              className="text-xs mb-2 transition-colors duration-300 ease-out"
-              style={{ color: "var(--app-muted)" }}
-            >
-              Address
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Field
-                label="Street"
-                value={form.addressStreet}
-                onChange={setField("addressStreet")}
-                disabled={busy}
-                borderColor={borderColor}
-              />
-              <Field
-                label="City"
-                value={form.addressCity}
-                onChange={setField("addressCity")}
-                disabled={busy}
-                borderColor={borderColor}
-              />
-              <Field
-                label="Province"
-                value={form.addressProvince}
-                onChange={setField("addressProvince")}
-                disabled={busy}
-                borderColor={borderColor}
-              />
-            </div>
-          </div>
-        </div>
-
-        {lockAfterSuccess && (
-          <div
-            className="mt-5 p-4 rounded-2xl border text-sm"
-            style={toneStyle("emerald", resolvedTheme)}
-          >
-            Saved. Editing is locked for safety. Close this window to continue.
-          </div>
-        )}
-      </div>
-    );
-  },
-);
-
-const Field = ({ label, value, onChange, disabled, borderColor }) => (
-  <label className="block">
-    <div
-      className="text-xs mb-1 transition-colors duration-300 ease-out"
-      style={{ color: "var(--app-muted)" }}
-    >
-      {label}
-    </div>
-    <input
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      className="w-full h-11 px-3 rounded-xl text-sm outline-none transition disabled:opacity-60"
-      style={{
-        backgroundColor: disabled
-          ? "var(--app-surface-2)"
-          : "var(--app-surface)",
-        color: "var(--app-text)",
-        border: `1px solid ${borderColor}`,
-      }}
-      onFocus={(e) => {
-        e.currentTarget.style.borderColor = "var(--accent)";
-        e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.borderColor = borderColor;
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    />
-  </label>
-);
-
-const SelectField = ({
-  label,
-  value,
-  onChange,
-  disabled,
-  options,
-  borderColor,
-}) => (
-  <label className="block">
-    <div
-      className="text-xs mb-1 transition-colors duration-300 ease-out"
-      style={{ color: "var(--app-muted)" }}
-    >
-      {label}
-    </div>
-    <select
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      className="w-full h-11 px-3 rounded-xl text-sm outline-none transition disabled:opacity-60 cursor-pointer"
-      style={{
-        backgroundColor: disabled
-          ? "var(--app-surface-2)"
-          : "var(--app-surface)",
-        color: "var(--app-text)",
-        border: `1px solid ${borderColor}`,
-      }}
-      onFocus={(e) => {
-        e.currentTarget.style.borderColor = "var(--accent)";
-        e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.borderColor = borderColor;
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  </label>
-);
-
-/* =========================
    Main: EmployeeInformation
 ========================= */
 const EmployeeInformation = () => {
@@ -634,7 +254,7 @@ const EmployeeInformation = () => {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  // ✅ Permissions integration
+  // Permissions integration
   const { can } = usePermissions();
   const canEditEmployee = can("employees.edit");
 
@@ -652,10 +272,6 @@ const EmployeeInformation = () => {
   }, []);
 
   const [activeTab, setActiveTab] = useState("overview");
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const editFormRef = useRef(null);
-  const [editBusy, setEditBusy] = useState(false);
-  const [editDirty, setEditDirty] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["employee", id],
@@ -668,11 +284,6 @@ const EmployeeInformation = () => {
 
   const onRetry = () =>
     queryClient.refetchQueries({ queryKey: ["employee", id] });
-
-  const closeEdit = () => {
-    if (editBusy) return;
-    setIsEditOpen(false);
-  };
 
   const copyToClipboard = async (text, label) => {
     if (!text) return;
@@ -715,6 +326,18 @@ const EmployeeInformation = () => {
   const initials = `${emp?.firstName?.[0] ?? ""}${emp?.lastName?.[0] ?? ""}`
     .trim()
     .toUpperCase();
+
+  // ✅ Construct full name with titles and extension
+  const fullName = [
+    emp?.prefixTitle,
+    emp?.firstName,
+    emp?.middleName,
+    emp?.lastName,
+    emp?.nameExtension,
+    emp?.postfixTitle,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -759,7 +382,7 @@ const EmployeeInformation = () => {
                         className="text-2xl md:text-3xl font-semibold tracking-tight truncate transition-colors duration-300 ease-out"
                         style={{ color: "var(--app-text)" }}
                       >
-                        {emp?.firstName} {emp?.lastName}
+                        {fullName}
                       </h1>
                       <EmployeeTypeBadge
                         type={emp?.employeeType}
@@ -809,11 +432,11 @@ const EmployeeInformation = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                {/* ✅ Wrapped Update Profile button with permission check */}
+                {/* Redirect to the Edit Page when clicked */}
                 {canEditEmployee && (
                   <button
                     type="button"
-                    onClick={() => setIsEditOpen(true)}
+                    onClick={() => navigate(`/app/employees/${id}/update`)}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition"
                     style={{
                       backgroundColor: "var(--accent)",
@@ -992,13 +615,10 @@ const EmployeeInformation = () => {
                     borderColor={borderColor}
                   >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
+                      <DataBlock label="Full Name" value={fullName} />
                       <DataBlock
-                        label="Full Name"
-                        value={`${emp?.firstName ?? ""} ${emp?.lastName ?? ""}`.trim()}
-                      />
-                      <DataBlock
-                        label="Username"
-                        value={emp?.username ? `@${emp.username}` : "-"}
+                        label="Email Address"
+                        value={emp?.email || "-"}
                       />
 
                       <div
@@ -1073,7 +693,6 @@ const EmployeeInformation = () => {
                       <DataBlock label="Department" value={emp?.department} />
                       <DataBlock label="Position" value={emp?.position} />
 
-                      {/* ✅ Added Employee Type here to the Job details tab */}
                       <DataBlock
                         label="Employee Type"
                         value={
@@ -1106,33 +725,6 @@ const EmployeeInformation = () => {
             </div>
           </div>
         </div>
-
-        <Modal
-          isOpen={isEditOpen}
-          onClose={closeEdit}
-          title="Edit Profile"
-          closeLabel="Cancel"
-          isBusy={editBusy}
-          preventCloseWhenBusy={true}
-          action={{
-            show: true,
-            variant: "save",
-            label: editBusy ? "Saving..." : "Save Changes",
-            disabled: editBusy || !editDirty,
-            onClick: () => editFormRef.current?.submit?.(),
-          }}
-        >
-          <EmployeeEditForm
-            ref={editFormRef}
-            employeeId={id}
-            initialEmployee={emp}
-            onPendingChange={(v) => setEditBusy(!!v)}
-            onDirtyChange={(v) => setEditDirty(!!v)}
-            onSaved={() => setIsEditOpen(false)}
-            borderColor={borderColor}
-            resolvedTheme={resolvedTheme}
-          />
-        </Modal>
       </div>
     </div>
   );
@@ -1355,7 +947,7 @@ const DataBlock = ({ label, value, icon }) => (
 /* =========================
    States
 ========================= */
-const EmptyState = ({ borderColor }) => (
+const EmptyState = ({ borderColor, resolvedTheme }) => (
   <div
     className="min-h-screen p-6 flex items-center justify-center transition-colors duration-300 ease-out"
     style={{ backgroundColor: "var(--app-bg)" }}
@@ -1449,7 +1041,7 @@ const ErrorState = ({ onRetry, borderColor, resolvedTheme }) => (
   </div>
 );
 
-const EmployeeSkeleton = ({ borderColor }) => (
+const EmployeeSkeleton = ({ borderColor, resolvedTheme }) => (
   <div
     className="min-h-screen p-6 md:p-10 animate-pulse transition-colors duration-300 ease-out"
     style={{ backgroundColor: "var(--app-bg)" }}
