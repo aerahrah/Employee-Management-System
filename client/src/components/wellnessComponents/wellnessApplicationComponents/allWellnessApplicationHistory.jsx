@@ -24,7 +24,7 @@ import {
   HeartPulse,
 } from "lucide-react";
 import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
-
+import FullHeightCardContainer from "../../pageContainer";
 import { useAuth } from "../../../store/authStore";
 
 const pageSizeOptions = [20, 50, 100];
@@ -39,7 +39,7 @@ const useDebouncedValue = (value, delay = 500) => {
   return debounced;
 };
 
-/* ------------------ Resolve theme (no tailwind dark class dependency) ------------------ */
+/* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -49,7 +49,7 @@ function resolveTheme(prefTheme) {
   return prefTheme === "dark" ? "dark" : "light";
 }
 
-/* ✅ Reactive resolved theme for system mode (prevents skeleton flashing light) */
+/* ✅ Reactive resolved theme for system mode */
 function useResolvedTheme(prefTheme) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined")
@@ -82,7 +82,7 @@ function useResolvedTheme(prefTheme) {
 }
 
 /* =========================
-   StatCard (dark-mode ready)
+   StatCard
 ========================= */
 const StatCard = ({
   title,
@@ -149,7 +149,7 @@ const StatCard = ({
 };
 
 /* =========================
-   Per-row action menu (table) - dark-mode ready
+   Per-row action menu
 ========================= */
 const ApplicationActionMenu = ({ app, onViewDetails, borderColor }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -251,7 +251,7 @@ const formatCoveredDates = (dates = []) => {
 };
 
 /* =========================
-   Cards (dark-mode ready)
+   Cards (Mobile/Tablet)
 ========================= */
 const ApplicationCard = ({
   app,
@@ -474,7 +474,7 @@ const statusTabs = (statusCounts = {}, totalFallback = 0) => {
 };
 
 /* =========================
-   Compact Pagination (dark-mode ready)
+   Compact Pagination
 ========================= */
 const CompactPagination = ({
   page,
@@ -573,6 +573,13 @@ const CompactPagination = ({
             disabled={page === 1 || total === 0}
             className="p-1.5 rounded-md disabled:opacity-30 transition-colors duration-200 ease-out"
             style={{ color: "var(--app-muted)" }}
+            onMouseEnter={(e) => {
+              if (e.currentTarget.disabled) return;
+              e.currentTarget.style.backgroundColor = "var(--app-surface)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -588,6 +595,13 @@ const CompactPagination = ({
             disabled={page >= safeTotalPages || total === 0}
             className="p-1.5 rounded-md disabled:opacity-30 transition-colors duration-200 ease-out"
             style={{ color: "var(--app-muted)" }}
+            onMouseEnter={(e) => {
+              if (e.currentTarget.disabled) return;
+              e.currentTarget.style.backgroundColor = "var(--app-surface)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -598,7 +612,6 @@ const CompactPagination = ({
 };
 
 const AllWellnessApplicationsHistory = () => {
-  // ✅ Theme vars + skeleton colors
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
@@ -628,7 +641,7 @@ const AllWellnessApplicationsHistory = () => {
 
   // ---- Filters / pagination ----
   const [statusFilter, setStatusFilter] = useState("");
-  const [employeeTypeFilter, setEmployeeTypeFilter] = useState(""); // ✅ Added type filter
+  const [employeeTypeFilter, setEmployeeTypeFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 500);
 
@@ -659,7 +672,7 @@ const AllWellnessApplicationsHistory = () => {
   // reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter, employeeTypeFilter, limit]); // ✅ Included employeeTypeFilter
+  }, [debouncedSearch, statusFilter, employeeTypeFilter, limit]);
 
   // ---- Data fetching ----
   const { data, isLoading } = useQuery({
@@ -669,7 +682,7 @@ const AllWellnessApplicationsHistory = () => {
       limit,
       statusFilter,
       debouncedSearch,
-      employeeTypeFilter, // ✅ Included employeeTypeFilter
+      employeeTypeFilter,
     ],
     queryFn: () =>
       fetchAllWellnessApplications({
@@ -677,18 +690,16 @@ const AllWellnessApplicationsHistory = () => {
         limit,
         status: statusFilter || undefined,
         search: debouncedSearch || undefined,
-        employeeType: employeeTypeFilter || undefined, // ✅ Passed to backend
+        employeeType: employeeTypeFilter || undefined,
       }),
     keepPreviousData: true,
   });
 
-  // ✅ Correctly reading `data.applications` based on backend response
   const applications = useMemo(
     () => data?.applications || data?.data || [],
     [data],
   );
 
-  // ✅ Correctly reading pagination details
   const pagination = useMemo(
     () => ({
       page: data?.page || data?.pagination?.page || 1,
@@ -720,7 +731,7 @@ const AllWellnessApplicationsHistory = () => {
   const handleResetFilters = useCallback(() => {
     setSearchInput("");
     setStatusFilter("");
-    setEmployeeTypeFilter(""); // ✅ Reset type filter
+    setEmployeeTypeFilter("");
     setPage(1);
   }, []);
 
@@ -768,676 +779,653 @@ const AllWellnessApplicationsHistory = () => {
       : "-";
 
   return (
-    <div
-      className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
-      style={{
-        backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
-        color: "var(--app-text, #0f172a)",
-      }}
-    >
-      <SkeletonTheme
-        baseColor={skeletonColors.baseColor}
-        highlightColor={skeletonColors.highlightColor}
+    <FullHeightCardContainer>
+      <div
+        className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
+          color: "var(--app-text, #0f172a)",
+        }}
       >
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto md:contents cto-scrollbar pb-24 md:pb-0 touch-pan-y"
+        <SkeletonTheme
+          baseColor={skeletonColors.baseColor}
+          highlightColor={skeletonColors.highlightColor}
         >
-          {/* HEADER */}
-          <div className="pt-2 pb-3 md:pb-6 px-1">
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-              <div className="flex items-start gap-4 flex-1 min-w-0">
-                <div className="min-w-0">
-                  <Breadcrumbs rootLabel="home" rootTo="/app" />
-                  <h1
-                    className="text-2xl md:text-3xl font-bold tracking-tight font-sans"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    All Wellness Applications
-                  </h1>
-                  <p
-                    className="text-sm mt-1 max-w-2xl"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    View and manage all employee wellness leave applications
-                  </p>
-                </div>
-              </div>
-
-              {/* Stat cards */}
-              <div className="w-full md:w-auto flex-1 lg:flex-none flex flex-col gap-3 md:ml-4">
-                <div className="hidden lg:grid lg:grid-cols-2 xl:grid-cols-4 gap-3 items-stretch">
-                  <StatCard
-                    title="Total Requests"
-                    value={String(totalRequests || 0)}
-                    icon={LayoutGrid}
-                    hint="All applications"
-                    tone="blue"
-                    borderColor={borderColor}
-                  />
-                  <StatCard
-                    title="Total Pending"
-                    value={String(statPending || 0)}
-                    icon={AlertCircle}
-                    hint="Awaiting action"
-                    tone="amber"
-                    borderColor={borderColor}
-                  />
-                  <StatCard
-                    title="Total Approved"
-                    value={String(statApproved || 0)}
-                    icon={CheckCircle2}
-                    hint="Approved requests"
-                    tone="green"
-                    borderColor={borderColor}
-                  />
-                  <StatCard
-                    title="Total Rejected"
-                    value={String(statRejected || 0)}
-                    icon={XCircle}
-                    hint="Rejected requests"
-                    tone="red"
-                    borderColor={borderColor}
-                  />
+          {/* 1. THE WRAPPER: Handles mobile scrolling, disappears on desktop */}
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
+          >
+            {/* HEADER */}
+            <div className="pt-2 pb-3 md:pb-6 px-1">
+              <div className="flex flex-col 2xl:flex-row 2xl:items-start justify-between gap-4">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="min-w-0">
+                    <Breadcrumbs rootLabel="home" rootTo="/app" />
+                    <h1
+                      className="text-2xl md:text-3xl font-bold tracking-tight font-sans"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      All Wellness Applications
+                    </h1>
+                    <p
+                      className="text-sm mt-1 max-w-2xl"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      View and manage all employee wellness leave applications
+                    </p>
+                  </div>
                 </div>
 
-                {/* Mobile compact */}
-                <div className="flex lg:hidden flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Total", value: totalRequests || 0 },
-                      { label: "Pending", value: statPending || 0 },
-                      { label: "Approved", value: statApproved || 0 },
-                      { label: "Rejected", value: statRejected || 0 },
-                    ].map((it) => (
-                      <div
-                        key={it.label}
-                        className="border rounded-lg p-2 flex justify-between items-center transition-colors duration-300 ease-out"
-                        style={{
-                          backgroundColor: "var(--app-surface)",
-                          borderColor: borderColor,
-                        }}
-                      >
-                        <div
-                          className="text-[10px] uppercase font-bold"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          {it.label}
-                        </div>
-                        <div
-                          className="text-sm font-bold"
-                          style={{ color: "var(--app-text)" }}
-                        >
-                          {it.value}
-                        </div>
-                      </div>
-                    ))}
+                {/* Stat Cards Layout Update */}
+                <div className="w-full lg:w-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-stretch">
+                    <StatCard
+                      title="Total Requests"
+                      value={String(totalRequests || 0)}
+                      icon={LayoutGrid}
+                      hint="All applications"
+                      tone="blue"
+                      borderColor={borderColor}
+                    />
+                    <StatCard
+                      title="Total Pending"
+                      value={String(statPending || 0)}
+                      icon={AlertCircle}
+                      hint="Awaiting action"
+                      tone="amber"
+                      borderColor={borderColor}
+                    />
+                    <StatCard
+                      title="Total Approved"
+                      value={String(statApproved || 0)}
+                      icon={CheckCircle2}
+                      hint="Approved requests"
+                      tone="green"
+                      borderColor={borderColor}
+                    />
+                    <StatCard
+                      title="Total Rejected"
+                      value={String(statRejected || 0)}
+                      icon={XCircle}
+                      hint="Rejected requests"
+                      tone="red"
+                      borderColor={borderColor}
+                    />
                   </div>
                 </div>
               </div>
-              {/* end stats */}
             </div>
-          </div>
 
-          {/* MAIN surface */}
-          <div
-            className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
-            style={{
-              backgroundColor: "var(--app-surface)",
-              border: `1px solid ${borderColor}`,
-            }}
-          >
-            {/* Toolbar */}
+            {/* 2. MAIN SURFACE: Expands on mobile, locks to screen height on desktop */}
             <div
-              className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
+              className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
               style={{
-                backgroundColor: "var(--app-surface-2)",
-                borderColor: borderColor,
+                backgroundColor: "var(--app-surface)",
+                border: `1px solid ${borderColor}`,
               }}
             >
-              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                {/* Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  {statusTabs(statusCounts, pagination.total).map((tab) => {
-                    const isActive = statusFilter === tab.id;
-                    const Icon = tab.icon;
+              {/* 3. TOOLBAR: Sticky on mobile, Static on desktop */}
+              <div
+                className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  {/* Tabs */}
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    {statusTabs(statusCounts, pagination.total).map((tab) => {
+                      const isActive = statusFilter === tab.id;
+                      const Icon = tab.icon;
 
-                    return (
-                      <button
-                        key={tab.id || "all-status"}
-                        onClick={() => {
-                          setStatusFilter(tab.id);
-                          setPage(1);
-                        }}
-                        className={`px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2
-                          ${
-                            isActive
-                              ? tab.activeColor
-                              : "bg-[color:var(--app-surface)] text-[color:var(--app-muted)] border-[color:var(--app-border)] hover:bg-[color:var(--app-surface-2)]"
-                          }`}
-                        aria-pressed={isActive}
-                        type="button"
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{tab.label}</span>
-                        <span
-                          className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
-                          style={{
-                            backgroundColor: isActive
-                              ? "var(--app-surface)"
-                              : "var(--app-surface-2)",
-                            color: isActive
-                              ? "var(--app-text)"
-                              : "var(--app-muted)",
+                      return (
+                        <button
+                          key={tab.id || "all-status"}
+                          onClick={() => {
+                            setStatusFilter(tab.id);
+                            setPage(1);
                           }}
+                          className={`px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2
+                            ${
+                              isActive
+                                ? tab.activeColor
+                                : "bg-[color:var(--app-surface)] text-[color:var(--app-muted)] border-[color:var(--app-border)] hover:bg-[color:var(--app-surface-2)]"
+                            }`}
+                          aria-pressed={isActive}
+                          type="button"
                         >
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                          <span
+                            className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
+                            style={{
+                              backgroundColor: isActive
+                                ? "var(--app-surface)"
+                                : "var(--app-surface-2)",
+                              color: isActive
+                                ? "var(--app-text)"
+                                : "var(--app-muted)",
+                            }}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                {/* ✅ Refactored Search + filters to use flex-wrap like the CTO component */}
-                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search employee..."
-                      value={searchInput}
-                      maxLength={100}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    />
-                    {searchInput && (
-                      <button
-                        onClick={() => setSearchInput("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
+                  {/* Search + limits/filters */}
+                  <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
                         style={{ color: "var(--app-muted)" }}
-                        aria-label="Clear search"
-                        title="Clear"
-                        type="button"
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    className="flex items-center gap-2 pl-3 border-l"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Type
-                    </span>
-                    <select
-                      value={employeeTypeFilter}
-                      onChange={(e) => {
-                        setEmployeeTypeFilter(e.target.value);
-                        setPage(1);
-                      }}
-                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    >
-                      <option value="">All Types</option>
-                      <option value="Organic">Organic</option>
-                      <option value="Job Order">Job Order</option>
-                    </select>
-                  </div>
-
-                  <div
-                    className="flex items-center gap-2 pl-3 border-l"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Show
-                    </span>
-                    <select
-                      value={limit}
-                      onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    >
-                      {pageSizeOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Active chips + reset */}
-              {isFiltered && (
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="text-[10px] font-bold uppercase"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Active:
-                    </span>
-                    {debouncedSearch && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        "{debouncedSearch}"
-                      </span>
-                    )}
-                    {statusFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        {statusFilter}
-                      </span>
-                    )}
-                    {employeeTypeFilter && ( // ✅ Added chip for employee type
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        {employeeTypeFilter}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleResetFilters}
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase"
-                    style={{ color: "var(--accent)" }}
-                    type="button"
-                  >
-                    <RotateCcw size={10} /> Reset
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Data region */}
-            <div
-              className="min-h-[calc(100dvh-26rem)] md:min-h-0 md:flex-1 md:overflow-y-auto w-full overflow-x-hidden lg:overflow-x-auto touch-pan-y transition-colors duration-300 ease-out cto-scrollbar"
-              style={{ backgroundColor: "var(--app-bg)" }}
-            >
-              {!isLoading && applications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
-                  <div
-                    className="p-6 rounded-full mb-4 ring-1"
-                    style={{
-                      backgroundColor: "var(--app-surface)",
-                      borderColor: borderColor,
-                    }}
-                  >
-                    <Inbox
-                      className="w-10 h-10"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                  </div>
-                  <h3
-                    className="text-lg font-bold"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    No Results Found
-                  </h3>
-                  <p
-                    className="text-sm max-w-xs mt-1"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Try adjusting your search or filters to find what you're
-                    looking for.
-                  </p>
-                  {isFiltered && (
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="mt-6 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold border rounded-lg transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--app-surface-2)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--app-surface)")
-                      }
-                    >
-                      <RotateCcw size={12} /> Clear Filters
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Mobile: cards */}
-                  <div className="block md:hidden p-4">
-                    <div className="space-y-3">
-                      {isLoading
-                        ? [...Array(Math.min(limit, 6))].map((_, i) => (
-                            <div
-                              key={`sk-m-${i}`}
-                              className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
-                              style={{
-                                backgroundColor: "var(--app-surface)",
-                                borderColor: borderColor,
-                              }}
-                            >
-                              <Skeleton height={18} />
-                              <div className="mt-3">
-                                <Skeleton height={12} count={2} />
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-2">
-                                <Skeleton height={52} />
-                                <Skeleton height={52} />
-                              </div>
-                              <div className="mt-4">
-                                <Skeleton height={40} />
-                              </div>
-                            </div>
-                          ))
-                        : applications.map((app) => (
-                            <ApplicationCard
-                              key={app._id}
-                              app={app}
-                              borderColor={borderColor}
-                              leftStripClassName={getStatusStripClass(
-                                app.overallStatus,
-                              )}
-                              onViewDetails={() => setSelectedApp(app)}
-                            />
-                          ))}
-                    </div>
-                  </div>
-
-                  {/* Tablet: 2 cards */}
-                  <div className="hidden md:block lg:hidden p-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      {isLoading
-                        ? [...Array(Math.min(limit, 6))].map((_, i) => (
-                            <div
-                              key={`sk-t-${i}`}
-                              className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
-                              style={{
-                                backgroundColor: "var(--app-surface)",
-                                borderColor: borderColor,
-                              }}
-                            >
-                              <Skeleton height={18} />
-                              <div className="mt-3">
-                                <Skeleton height={12} count={2} />
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-2">
-                                <Skeleton height={52} />
-                                <Skeleton height={52} />
-                              </div>
-                              <div className="mt-4">
-                                <Skeleton height={40} />
-                              </div>
-                            </div>
-                          ))
-                        : applications.map((app) => (
-                            <ApplicationCard
-                              key={app._id}
-                              app={app}
-                              borderColor={borderColor}
-                              leftStripClassName={getStatusStripClass(
-                                app.overallStatus,
-                              )}
-                              onViewDetails={() => setSelectedApp(app)}
-                            />
-                          ))}
-                    </div>
-                  </div>
-
-                  {/* Desktop: table */}
-                  <div className="hidden lg:block w-full align-middle">
-                    <table className="w-full text-left">
-                      <thead
-                        className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search employee..."
+                        value={searchInput}
+                        maxLength={100}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
                         style={{
                           backgroundColor: "var(--app-surface)",
                           borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      />
+                      {searchInput && (
+                        <button
+                          onClick={() => setSearchInput("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
+                          style={{ color: "var(--app-muted)" }}
+                          aria-label="Clear search"
+                          title="Clear"
+                          type="button"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2 pl-3 border-l"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Type
+                      </span>
+                      <select
+                        value={employeeTypeFilter}
+                        onChange={(e) => {
+                          setEmployeeTypeFilter(e.target.value);
+                          setPage(1);
+                        }}
+                        className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
                         }}
                       >
-                        <tr
-                          className="text-[10px] uppercase tracking-[0.12em] font-bold"
-                          style={{ color: "var(--app-muted)" }}
+                        <option value="">All Types</option>
+                        <option value="Organic">Organic</option>
+                        <option value="Job Order">Job Order</option>
+                      </select>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2 pl-3 border-l"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Show
+                      </span>
+                      <select
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      >
+                        {pageSizeOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active chips + reset */}
+                {isFiltered && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-[10px] font-bold uppercase"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Active:
+                      </span>
+                      {debouncedSearch && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
                         >
-                          <th className="px-6 py-4 font-bold">Requestor</th>
-                          <th className="px-6 py-4 font-bold">Request ID</th>
-                          <th className="px-6 py-4 text-center">Total Days</th>
-                          <th className="px-6 py-4 text-center">Status</th>
-                          <th className="px-6 py-4 text-center">Submitted</th>
-                          <th className="px-6 py-4">Dates Covered</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
+                          "{debouncedSearch}"
+                        </span>
+                      )}
+                      {statusFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
+                        >
+                          {statusFilter}
+                        </span>
+                      )}
+                      {employeeTypeFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
+                        >
+                          {employeeTypeFilter}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleResetFilters}
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase"
+                      style={{ color: "var(--accent)" }}
+                      type="button"
+                    >
+                      <RotateCcw size={10} /> Reset
+                    </button>
+                  </div>
+                )}
+              </div>
 
-                      <tbody>
+              {/* 4. DATA REGION: Expands on mobile, handles all scrolling on desktop */}
+              <div
+                className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-y-auto transition-colors duration-300 ease-out cto-scrollbar"
+                style={{ backgroundColor: "var(--app-bg)" }}
+              >
+                {!isLoading && applications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
+                    <div
+                      className="p-6 rounded-full mb-4 ring-1"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        borderColor: borderColor,
+                      }}
+                    >
+                      <Inbox
+                        className="w-10 h-10"
+                        style={{ color: "var(--app-muted)" }}
+                      />
+                    </div>
+                    <h3
+                      className="text-lg font-bold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      No Results Found
+                    </h3>
+                    <p
+                      className="text-sm max-w-xs mt-1"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Try adjusting your search or filters to find what you're
+                      looking for.
+                    </p>
+                    {isFiltered && (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="mt-6 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold border rounded-lg transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            "var(--app-surface-2)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            "var(--app-surface)")
+                        }
+                      >
+                        <RotateCcw size={12} /> Clear Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile: cards */}
+                    <div className="block md:hidden p-4">
+                      <div className="space-y-3">
                         {isLoading
-                          ? [...Array(8)].map((_, i) => (
-                              <tr key={i}>
-                                {[...Array(7)].map((__, j) => (
-                                  <td key={j} className="px-6 py-4">
-                                    <Skeleton />
-                                  </td>
-                                ))}
-                              </tr>
+                          ? [...Array(Math.min(limit, 6))].map((_, i) => (
+                              <div
+                                key={`sk-m-${i}`}
+                                className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
+                                style={{
+                                  backgroundColor: "var(--app-surface)",
+                                  borderColor: borderColor,
+                                }}
+                              >
+                                <Skeleton height={18} />
+                                <div className="mt-3">
+                                  <Skeleton height={12} count={2} />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <Skeleton height={52} />
+                                  <Skeleton height={52} />
+                                </div>
+                                <div className="mt-4">
+                                  <Skeleton height={40} />
+                                </div>
+                              </div>
                             ))
-                          : applications.map((app, i) => {
-                              const employeeType =
-                                app.category || app.employeeType || "Unknown";
+                          : applications.map((app) => (
+                              <ApplicationCard
+                                key={app._id}
+                                app={app}
+                                borderColor={borderColor}
+                                leftStripClassName={getStatusStripClass(
+                                  app.overallStatus,
+                                )}
+                                onViewDetails={() => setSelectedApp(app)}
+                              />
+                            ))}
+                      </div>
+                    </div>
 
-                              const bg =
-                                i % 2 === 0
-                                  ? "var(--app-surface)"
-                                  : "var(--app-surface-2)";
+                    {/* Tablet: 2 cards */}
+                    <div className="hidden md:block lg:hidden p-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        {isLoading
+                          ? [...Array(Math.min(limit, 6))].map((_, i) => (
+                              <div
+                                key={`sk-t-${i}`}
+                                className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
+                                style={{
+                                  backgroundColor: "var(--app-surface)",
+                                  borderColor: borderColor,
+                                }}
+                              >
+                                <Skeleton height={18} />
+                                <div className="mt-3">
+                                  <Skeleton height={12} count={2} />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <Skeleton height={52} />
+                                  <Skeleton height={52} />
+                                </div>
+                                <div className="mt-4">
+                                  <Skeleton height={40} />
+                                </div>
+                              </div>
+                            ))
+                          : applications.map((app) => (
+                              <ApplicationCard
+                                key={app._id}
+                                app={app}
+                                borderColor={borderColor}
+                                leftStripClassName={getStatusStripClass(
+                                  app.overallStatus,
+                                )}
+                                onViewDetails={() => setSelectedApp(app)}
+                              />
+                            ))}
+                      </div>
+                    </div>
 
-                              return (
-                                <tr
-                                  key={app._id}
-                                  className="transition-colors duration-200 ease-out"
-                                  style={{ backgroundColor: bg }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                      "var(--accent-soft)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = bg;
-                                  }}
-                                >
-                                  <td className="px-6 py-4">
-                                    <div className="flex flex-col items-start">
-                                      <span
-                                        className="font-semibold text-sm"
-                                        style={{ color: "var(--app-text)" }}
-                                      >
-                                        {app?.employee?.firstName || ""}{" "}
-                                        {app?.employee?.lastName || ""}
-                                      </span>
-                                      <div className="flex items-center gap-2 mt-0.5">
+                    {/* Desktop: table */}
+                    <div className="hidden lg:block w-full align-middle overflow-x-auto md:min-w-0">
+                      <table className="w-full text-left min-w-[800px]">
+                        <thead
+                          className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                          style={{
+                            backgroundColor: "var(--app-surface)",
+                            borderColor: borderColor,
+                          }}
+                        >
+                          <tr
+                            className="text-[10px] uppercase tracking-[0.12em] font-bold"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            <th className="px-6 py-4 font-bold">Requestor</th>
+                            <th className="px-6 py-4 font-bold">Request ID</th>
+                            <th className="px-6 py-4 text-center">
+                              Total Days
+                            </th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                            <th className="px-6 py-4 text-center">Submitted</th>
+                            <th className="px-6 py-4">Dates Covered</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {isLoading
+                            ? [...Array(8)].map((_, i) => (
+                                <tr key={i}>
+                                  {[...Array(7)].map((__, j) => (
+                                    <td key={j} className="px-6 py-4">
+                                      <Skeleton />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))
+                            : applications.map((app, i) => {
+                                const employeeType =
+                                  app.category || app.employeeType || "Unknown";
+
+                                const bg =
+                                  i % 2 === 0
+                                    ? "var(--app-surface)"
+                                    : "var(--app-surface-2)";
+
+                                return (
+                                  <tr
+                                    key={app._id}
+                                    className="transition-colors duration-200 ease-out"
+                                    style={{ backgroundColor: bg }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--accent-soft)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        bg;
+                                    }}
+                                  >
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col items-start">
                                         <span
-                                          className="text-[10px] font-mono"
+                                          className="font-semibold text-sm"
+                                          style={{ color: "var(--app-text)" }}
+                                        >
+                                          {app?.employee?.firstName || ""}{" "}
+                                          {app?.employee?.lastName || ""}
+                                        </span>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span
+                                            className="text-[10px] font-mono"
+                                            style={{
+                                              color: "var(--app-muted)",
+                                            }}
+                                          >
+                                            {app?.employee?.position || "-"}
+                                          </span>
+                                          <span
+                                            className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
+                                            style={{
+                                              backgroundColor:
+                                                "var(--app-surface-2)",
+                                              color: "var(--app-muted)",
+                                              borderColor: borderColor,
+                                            }}
+                                          >
+                                            {employeeType}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col">
+                                        <span
+                                          className="text-xs font-mono mt-0.5"
                                           style={{ color: "var(--app-muted)" }}
                                         >
-                                          {app?.employee?.position || "-"}
-                                        </span>
-                                        <span
-                                          className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
-                                          style={{
-                                            backgroundColor:
-                                              "var(--app-surface-2)",
-                                            color: "var(--app-muted)",
-                                            borderColor: borderColor,
-                                          }}
-                                        >
-                                          {employeeType}
+                                          ID:{" "}
+                                          {app._id
+                                            ? app._id.slice(-6).toUpperCase()
+                                            : "-"}
                                         </span>
                                       </div>
-                                    </div>
-                                  </td>
+                                    </td>
 
-                                  <td className="px-6 py-4">
-                                    <div className="flex flex-col">
+                                    <td className="px-6 py-4 text-center">
                                       <span
-                                        className="text-xs font-mono mt-0.5"
-                                        style={{ color: "var(--app-muted)" }}
+                                        className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
+                                        style={{
+                                          backgroundColor: "var(--app-surface)",
+                                          borderColor: borderColor,
+                                          color: "var(--app-text)",
+                                        }}
                                       >
-                                        ID:{" "}
-                                        {app._id
-                                          ? app._id.slice(-6).toUpperCase()
-                                          : "-"}
+                                        {Number(app?.totalDays || 0)}
                                       </span>
-                                    </div>
-                                  </td>
+                                    </td>
 
-                                  <td className="px-6 py-4 text-center">
-                                    <span
-                                      className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
-                                      style={{
-                                        backgroundColor: "var(--app-surface)",
-                                        borderColor: borderColor,
-                                        color: "var(--app-text)",
-                                      }}
+                                    <td className="px-6 py-4 text-center">
+                                      <StatusBadge status={app.overallStatus} />
+                                    </td>
+
+                                    <td
+                                      className="px-6 py-4 text-center text-sm"
+                                      style={{ color: "var(--app-muted)" }}
                                     >
-                                      {Number(app?.totalDays || 0)}
-                                    </span>
-                                  </td>
+                                      {formatSubmitted(app.createdAt)}
+                                    </td>
 
-                                  <td className="px-6 py-4 text-center">
-                                    <StatusBadge status={app.overallStatus} />
-                                  </td>
+                                    <td
+                                      className="px-6 py-4 text-sm"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <CalendarDays
+                                          size={14}
+                                          style={{ color: "var(--app-muted)" }}
+                                        />
+                                        <span className="truncate max-w-[250px]">
+                                          {formatCoveredDates(
+                                            app.inclusiveDates,
+                                          )}
+                                        </span>
+                                      </div>
+                                    </td>
 
-                                  <td
-                                    className="px-6 py-4 text-center text-sm"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    {formatSubmitted(app.createdAt)}
-                                  </td>
-
-                                  <td
-                                    className="px-6 py-4 text-sm"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <CalendarDays
-                                        size={14}
-                                        style={{ color: "var(--app-muted)" }}
+                                    <td className="px-6 py-4 text-right">
+                                      <ApplicationActionMenu
+                                        app={app}
+                                        borderColor={borderColor}
+                                        onViewDetails={() =>
+                                          setSelectedApp(app)
+                                        }
                                       />
-                                      <span className="truncate max-w-[250px]">
-                                        {formatCoveredDates(app.inclusiveDates)}
-                                      </span>
-                                    </div>
-                                  </td>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
 
-                                  <td className="px-6 py-4 text-right">
-                                    <ApplicationActionMenu
-                                      app={app}
-                                      borderColor={borderColor}
-                                      onViewDetails={() => setSelectedApp(app)}
-                                    />
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+              {/* Pagination */}
+              <CompactPagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                startItem={startItem}
+                endItem={endItem}
+                label="applications"
+                onPrev={() => setPage((p) => Math.max(p - 1, 1))}
+                onNext={() =>
+                  setPage((p) => Math.min(p + 1, pagination.totalPages))
+                }
+                borderColor={borderColor}
+              />
             </div>
-
-            {/* Pagination */}
-            <CompactPagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              startItem={startItem}
-              endItem={endItem}
-              label="applications"
-              onPrev={() => setPage((p) => Math.max(p - 1, 1))}
-              onNext={() =>
-                setPage((p) => Math.min(p + 1, pagination.totalPages))
-              }
-              borderColor={borderColor}
-            />
           </div>
-        </div>
 
-        {/* Back-to-top */}
-        {showScrollTop && (
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
-            style={{
-              backgroundColor: "var(--accent, #2563EB)",
-              color: "#fff",
-            }}
-            aria-label="Scroll to top"
-            title="Back to top"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-        )}
+          {/* Back-to-top */}
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
+              style={{
+                backgroundColor: "var(--accent, #2563EB)",
+                color: "#fff",
+              }}
+              aria-label="Scroll to top"
+              title="Back to top"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          )}
 
-        {/* Details modal */}
-        {selectedApp && (
-          <Modal
-            isOpen={!!selectedApp}
-            onClose={() => setSelectedApp(null)}
-            maxWidth="max-w-5xl"
-            title="Wellness Application Details"
-          >
-            <WellnessApplicationDetails app={selectedApp} />
-          </Modal>
-        )}
-      </SkeletonTheme>
-    </div>
+          {/* Details modal */}
+          {selectedApp && (
+            <Modal
+              isOpen={!!selectedApp}
+              onClose={() => setSelectedApp(null)}
+              maxWidth="max-w-5xl"
+              title="Wellness Application Details"
+            >
+              <WellnessApplicationDetails app={selectedApp} />
+            </Modal>
+          )}
+        </SkeletonTheme>
+      </div>
+    </FullHeightCardContainer>
   );
 };
 

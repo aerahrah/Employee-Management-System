@@ -34,9 +34,10 @@ import {
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
 
-// ✅ Import your Modals & Details
+// ✅ Import your Modals, Details, and Container
 import WellnessApplicationPdfModal from "./wellnessApplicationPDFModal";
 import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
+import FullHeightCardContainer from "../../pageContainer";
 
 const pageSizeOptions = [20, 50, 100];
 
@@ -773,428 +774,361 @@ const MyWellnessApplications = () => {
   ];
 
   return (
-    <div
-      className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
-      style={{
-        backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
-        color: "var(--app-text, #0f172a)",
-      }}
-    >
-      <SkeletonTheme
-        baseColor={skeletonColors.baseColor}
-        highlightColor={skeletonColors.highlightColor}
+    <FullHeightCardContainer>
+      <div
+        className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
+          color: "var(--app-text, #0f172a)",
+        }}
       >
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto w-full cto-scrollbar pb-24 md:pb-0 touch-pan-y"
+        <SkeletonTheme
+          baseColor={skeletonColors.baseColor}
+          highlightColor={skeletonColors.highlightColor}
         >
-          {/* HEADER */}
-          <div className="pt-2 pb-3 md:pb-6 px-1">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
-                <Breadcrumbs rootLabel="home" rootTo="/app" />
-                <h1
-                  className="text-2xl md:text-3xl font-bold tracking-tight font-sans"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  My Wellness Leave
-                </h1>
-                <p
-                  className="block text-sm mt-1 max-w-2xl"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  Manage your day-based wellness leave applications and track
-                  updates.
-                </p>
-              </div>
-
-              {can("wellness.manage_self") && (
-                <div className="w-full md:w-auto flex flex-row items-stretch md:items-center gap-3 rounded-xl">
-                  {/* Conditionally Route to Organic or Standard Form */}
-                  <button
-                    onClick={() =>
-                      navigate(
-                        isUserOrganic
-                          ? "/app/wellness-apply/organic"
-                          : "/app/wellness-apply/add",
-                      )
-                    }
-                    className="group relative inline-flex items-center gap-2 justify-center rounded-lg min-w-42 md:py-3.5 px-6 py-3 text-sm font-semibold shadow-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full"
-                    type="button"
-                    style={{
-                      backgroundColor: "var(--accent)",
-                      color: "#fff",
-                      border: "1px solid var(--accent)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.filter = "brightness(0.95)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.filter = "none";
-                    }}
-                  >
-                    <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-                    File Leave
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* MAIN */}
+          {/* ✅ Outer scrollable div - applied md:contents to ignore scroll on desktop */}
           <div
-            className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
-            style={{
-              backgroundColor: "var(--app-surface)",
-              border: `1px solid ${borderColor}`,
-            }}
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
           >
-            {/* Toolbar */}
-            <div
-              className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
-              style={{
-                backgroundColor: "var(--app-surface-2)",
-                borderColor: borderColor,
-              }}
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  {tabs.map((tab) => {
-                    const isActive = statusFilter === tab.id;
-                    const Icon = tab.icon;
-                    const t = tabTone[tab.tone] || tabTone.accent;
-
-                    return (
-                      <button
-                        type="button"
-                        key={tab.id || "all-status"}
-                        onClick={() => {
-                          setStatusFilter(tab.id);
-                          setPage(1);
-                        }}
-                        className="px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2"
-                        aria-pressed={isActive}
-                        style={{
-                          backgroundColor: isActive
-                            ? t.bg
-                            : "var(--app-surface)",
-                          color: isActive ? t.text : "var(--app-muted)",
-                          borderColor: isActive ? t.br : borderColor,
-                        }}
-                        onMouseEnter={(e) => {
-                          if (isActive) return;
-                          e.currentTarget.style.backgroundColor =
-                            "var(--app-surface-2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (isActive) return;
-                          e.currentTarget.style.backgroundColor =
-                            "var(--app-surface)";
-                        }}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{tab.label}</span>
-                        <span
-                          className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
-                          style={{
-                            backgroundColor: isActive
-                              ? "rgba(255,255,255,0.35)"
-                              : "var(--app-surface-2)",
-                            color: isActive
-                              ? "var(--app-text)"
-                              : "var(--app-muted)",
-                          }}
-                        >
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-3 w-full lg:w-auto">
-                  <div className="relative flex-1 lg:w-64">
-                    <Search
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search reasons..."
-                      value={searchInput}
-                      maxLength={100}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    />
-                    {searchInput && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchInput("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
-                        style={{ color: "var(--app-muted)" }}
-                        aria-label="Clear search"
-                        title="Clear"
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    className="hidden lg:flex items-center gap-2 pl-3 border-l"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Show
-                    </span>
-                    <select
-                      value={limit}
-                      onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    >
-                      {pageSizeOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div
-                    className="lg:hidden flex items-center gap-1.5 px-2 border-l ml-1"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="text-xs font-medium uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      shows
-                    </span>
-                    <FilterSelect
-                      label=""
-                      value={limit}
-                      onChange={(v) => {
-                        setLimit(v);
-                        setPage(1);
-                      }}
-                      options={pageSizeOptions}
-                      className="!mb-0 w-20 text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {isFiltered && (
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="text-[10px] font-bold uppercase"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Active:
-                    </span>
-                    {searchFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        "{searchFilter}"
-                      </span>
-                    )}
-                    {statusFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        {statusFilter}
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleResetFilters}
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    <RotateCcw size={10} /> Reset
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Data region */}
-            <div
-              className="min-h-[calc(100dvh-26rem)] md:min-h-0 md:flex-1 md:overflow-y-auto w-full overflow-x-hidden lg:overflow-x-auto touch-pan-y transition-colors duration-300 ease-out cto-scrollbar"
-              style={{ backgroundColor: "var(--app-bg)" }}
-            >
-              {!isLoading && applications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
-                  <div
-                    className="p-6 rounded-full mb-4 ring-1"
-                    style={{
-                      backgroundColor: "var(--app-surface)",
-                      borderColor: borderColor,
-                    }}
-                  >
-                    <Filter
-                      className="w-10 h-10"
-                      style={{ color: "var(--app-muted)", opacity: 0.6 }}
-                    />
-                  </div>
-                  <h3
-                    className="text-lg font-bold"
+            {/* HEADER */}
+            <div className="pt-2 pb-3 md:pb-6 px-1">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <Breadcrumbs rootLabel="home" rootTo="/app" />
+                  <h1
+                    className="text-2xl md:text-3xl font-bold tracking-tight font-sans"
                     style={{ color: "var(--app-text)" }}
                   >
-                    No Results Found
-                  </h3>
-                  {isFiltered && (
+                    My Wellness Leave
+                  </h1>
+                  <p
+                    className="block text-sm mt-1 max-w-2xl"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Manage your day-based wellness leave applications and track
+                    updates.
+                  </p>
+                </div>
+
+                {can("wellness.manage_self") && (
+                  <div className="w-full md:w-auto flex flex-row items-stretch md:items-center gap-3 rounded-xl">
+                    {/* Conditionally Route to Organic or Standard Form */}
                     <button
-                      onClick={handleResetFilters}
-                      className="mt-6 flex items-center gap-2 px-4 py-2 text-xs font-bold border rounded-lg transition-colors duration-200 ease-out"
+                      onClick={() =>
+                        navigate(
+                          isUserOrganic
+                            ? "/app/wellness-apply/organic"
+                            : "/app/wellness-apply/add",
+                        )
+                      }
+                      className="group relative inline-flex items-center gap-2 justify-center rounded-lg min-w-42 md:py-3.5 px-6 py-3 text-sm font-semibold shadow-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full"
                       type="button"
                       style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
+                        backgroundColor: "var(--accent)",
+                        color: "#fff",
+                        border: "1px solid var(--accent)",
                       }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--app-surface-2)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--app-surface)")
-                      }
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.filter = "brightness(0.95)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.filter = "none";
+                      }}
                     >
-                      <RotateCcw size={12} /> Clear Filters
+                      <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+                      File Leave
                     </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Mobile & Tablet cards */}
-                  <div className="block lg:hidden p-4">
-                    <div className="space-y-3">
-                      {isLoading
-                        ? [...Array(Math.min(limit, 6))].map((_, i) => (
-                            <div
-                              key={i}
-                              className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
-                              style={{
-                                backgroundColor: "var(--app-surface)",
-                                borderColor: borderColor,
-                              }}
-                            >
-                              <Skeleton height={18} />
-                              <div className="mt-3">
-                                <Skeleton height={12} count={2} />
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-2">
-                                <Skeleton height={52} />
-                                <Skeleton height={52} />
-                              </div>
-                              <div className="mt-4">
-                                <Skeleton height={40} />
-                              </div>
-                            </div>
-                          ))
-                        : applications.map((app) => {
-                            const cancelling =
-                              cancelMutation.isPending &&
-                              cancelMutation.variables === app._id;
+                  </div>
+                )}
+              </div>
+            </div>
 
-                            // ✅ Fixed: strictly checking application profile, not user
-                            const isAppOrganic =
-                              app?.employeeType === "Organic" ||
-                              app?.category === "Organic";
+            {/* MAIN CARD CONTAINER */}
+            <div
+              className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                border: `1px solid ${borderColor}`,
+              }}
+            >
+              {/* Toolbar */}
+              <div
+                className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    {tabs.map((tab) => {
+                      const isActive = statusFilter === tab.id;
+                      const Icon = tab.icon;
+                      const t = tabTone[tab.tone] || tabTone.accent;
 
-                            return (
-                              <ApplicationCard
-                                key={app._id}
-                                app={app}
-                                borderColor={borderColor}
-                                leftStripClassName={getStatusColor(
-                                  app.overallStatus,
-                                )}
-                                cancelling={cancelling}
-                                isOrganicApp={isAppOrganic}
-                                onViewDetails={() => setSelectedApp(app)}
-                                onViewOrganicForm={() => setOrganicPdfApp(app)}
-                                onCancel={() => openCancelModal(app)}
-                              />
-                            );
-                          })}
-                    </div>
+                      return (
+                        <button
+                          type="button"
+                          key={tab.id || "all-status"}
+                          onClick={() => {
+                            setStatusFilter(tab.id);
+                            setPage(1);
+                          }}
+                          className="px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2"
+                          aria-pressed={isActive}
+                          style={{
+                            backgroundColor: isActive
+                              ? t.bg
+                              : "var(--app-surface)",
+                            color: isActive ? t.text : "var(--app-muted)",
+                            borderColor: isActive ? t.br : borderColor,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (isActive) return;
+                            e.currentTarget.style.backgroundColor =
+                              "var(--app-surface-2)";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (isActive) return;
+                            e.currentTarget.style.backgroundColor =
+                              "var(--app-surface)";
+                          }}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                          <span
+                            className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
+                            style={{
+                              backgroundColor: isActive
+                                ? "rgba(255,255,255,0.35)"
+                                : "var(--app-surface-2)",
+                              color: isActive
+                                ? "var(--app-text)"
+                                : "var(--app-muted)",
+                            }}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Desktop table */}
-                  <div className="hidden lg:block w-full align-middle">
-                    <table className="w-full text-left">
-                      <thead
-                        className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                  <div className="flex items-center gap-3 w-full lg:w-auto">
+                    <div className="relative flex-1 lg:w-64">
+                      <Search
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                        style={{ color: "var(--app-muted)" }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search reasons..."
+                        value={searchInput}
+                        maxLength={100}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
                         style={{
                           backgroundColor: "var(--app-surface)",
                           borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      />
+                      {searchInput && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchInput("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
+                          style={{ color: "var(--app-muted)" }}
+                          aria-label="Clear search"
+                          title="Clear"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div
+                      className="hidden lg:flex items-center gap-2 pl-3 border-l"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Show
+                      </span>
+                      <select
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
                         }}
                       >
-                        <tr
-                          className="text-[10px] uppercase tracking-[0.12em] font-bold"
-                          style={{ color: "var(--app-muted)" }}
+                        {pageSizeOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div
+                      className="lg:hidden flex items-center gap-1.5 px-2 border-l ml-1"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="text-xs font-medium uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        shows
+                      </span>
+                      <FilterSelect
+                        label=""
+                        value={limit}
+                        onChange={(v) => {
+                          setLimit(v);
+                          setPage(1);
+                        }}
+                        options={pageSizeOptions}
+                        className="!mb-0 w-20 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {isFiltered && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-[10px] font-bold uppercase"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Active:
+                      </span>
+                      {searchFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
                         >
-                          <th className="px-6 py-4 font-bold">
-                            Dates (Inclusive)
-                          </th>
-                          <th className="px-6 py-4 text-center">Total Days</th>
-                          <th className="px-6 py-4 text-left">Reason</th>
-                          <th className="px-6 py-4 text-center">Status</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
+                          "{searchFilter}"
+                        </span>
+                      )}
+                      {statusFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
+                        >
+                          {statusFilter}
+                        </span>
+                      )}
+                    </div>
 
-                      <tbody>
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      <RotateCcw size={10} /> Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ✅ Internal Data Scroll Region */}
+              <div
+                className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-y-auto overflow-x-hidden lg:overflow-x-auto transition-colors duration-300 ease-out cto-scrollbar"
+                style={{ backgroundColor: "var(--app-bg)" }}
+              >
+                {!isLoading && applications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
+                    <div
+                      className="p-6 rounded-full mb-4 ring-1"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        borderColor: borderColor,
+                      }}
+                    >
+                      <Filter
+                        className="w-10 h-10"
+                        style={{ color: "var(--app-muted)", opacity: 0.6 }}
+                      />
+                    </div>
+                    <h3
+                      className="text-lg font-bold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      No Results Found
+                    </h3>
+                    {isFiltered && (
+                      <button
+                        onClick={handleResetFilters}
+                        className="mt-6 flex items-center gap-2 px-4 py-2 text-xs font-bold border rounded-lg transition-colors duration-200 ease-out"
+                        type="button"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            "var(--app-surface-2)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            "var(--app-surface)")
+                        }
+                      >
+                        <RotateCcw size={12} /> Clear Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile & Tablet cards */}
+                    <div className="block lg:hidden p-4">
+                      <div className="space-y-3">
                         {isLoading
-                          ? [...Array(8)].map((_, i) => (
-                              <tr key={i}>
-                                {[...Array(5)].map((__, j) => (
-                                  <td key={j} className="px-6 py-4">
-                                    <Skeleton />
-                                  </td>
-                                ))}
-                              </tr>
+                          ? [...Array(Math.min(limit, 6))].map((_, i) => (
+                              <div
+                                key={i}
+                                className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
+                                style={{
+                                  backgroundColor: "var(--app-surface)",
+                                  borderColor: borderColor,
+                                }}
+                              >
+                                <Skeleton height={18} />
+                                <div className="mt-3">
+                                  <Skeleton height={12} count={2} />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <Skeleton height={52} />
+                                  <Skeleton height={52} />
+                                </div>
+                                <div className="mt-4">
+                                  <Skeleton height={40} />
+                                </div>
+                              </div>
                             ))
-                          : applications.map((app, i) => {
-                              const bg =
-                                i % 2 === 0
-                                  ? "var(--app-surface)"
-                                  : "var(--app-surface-2)";
-
+                          : applications.map((app) => {
                               const cancelling =
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
@@ -1205,242 +1139,326 @@ const MyWellnessApplications = () => {
                                 app?.category === "Organic";
 
                               return (
-                                <tr
+                                <ApplicationCard
                                   key={app._id}
-                                  className="transition-colors duration-200 ease-out"
-                                  style={{ backgroundColor: bg }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                      "var(--accent-soft)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = bg;
-                                  }}
-                                >
-                                  <td className="px-6 py-4">
-                                    <div className="flex flex-col">
-                                      <span
-                                        className="font-semibold text-sm flex items-center gap-2"
-                                        style={{ color: "var(--app-text)" }}
-                                      >
-                                        <Calendar
-                                          size={14}
-                                          style={{ color: "var(--app-muted)" }}
-                                        />
-                                        <span className="truncate max-w-[250px]">
-                                          {formatCoveredDates(
-                                            app.inclusiveDates,
-                                          )}
-                                        </span>
-                                      </span>
-                                      <span
-                                        className="text-[10px] font-mono mt-1"
-                                        style={{ color: "var(--app-muted)" }}
-                                      >
-                                        ID:{" "}
-                                        {app._id
-                                          ? app._id.slice(-6).toUpperCase()
-                                          : "-"}
-                                      </span>
-                                    </div>
-                                  </td>
-
-                                  <td className="px-6 py-4 text-center">
-                                    <span
-                                      className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
-                                      style={{
-                                        backgroundColor: "var(--app-surface)",
-                                        borderColor: borderColor,
-                                        color: "var(--app-text)",
-                                      }}
-                                    >
-                                      {app.totalDays || 0} Day(s)
-                                    </span>
-                                  </td>
-
-                                  <td className="px-6 py-4 text-left max-w-xs">
-                                    <p
-                                      className="text-sm truncate"
-                                      style={{ color: "var(--app-text)" }}
-                                      title={app.reason}
-                                    >
-                                      {app.reason || "N/A"}
-                                    </p>
-                                  </td>
-
-                                  <td className="px-6 py-4 text-center">
-                                    <StatusBadge status={app.overallStatus} />
-                                  </td>
-
-                                  <td className="px-6 py-4 text-right">
-                                    <ApplicationActionMenu
-                                      app={app}
-                                      borderColor={borderColor}
-                                      isOrganicApp={isAppOrganic}
-                                      onViewDetails={() => setSelectedApp(app)}
-                                      onViewOrganicForm={() =>
-                                        setOrganicPdfApp(app)
-                                      }
-                                      onCancel={() => openCancelModal(app)}
-                                      cancelling={cancelling}
-                                    />
-                                  </td>
-                                </tr>
+                                  app={app}
+                                  borderColor={borderColor}
+                                  leftStripClassName={getStatusColor(
+                                    app.overallStatus,
+                                  )}
+                                  cancelling={cancelling}
+                                  isOrganicApp={isAppOrganic}
+                                  onViewDetails={() => setSelectedApp(app)}
+                                  onViewOrganicForm={() =>
+                                    setOrganicPdfApp(app)
+                                  }
+                                  onCancel={() => openCancelModal(app)}
+                                />
                               );
                             })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+                      </div>
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="hidden lg:block w-full align-middle">
+                      <table className="w-full text-left">
+                        <thead
+                          className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                          style={{
+                            backgroundColor: "var(--app-surface)",
+                            borderColor: borderColor,
+                          }}
+                        >
+                          <tr
+                            className="text-[10px] uppercase tracking-[0.12em] font-bold"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            <th className="px-6 py-4 font-bold">
+                              Dates (Inclusive)
+                            </th>
+                            <th className="px-6 py-4 text-center">
+                              Total Days
+                            </th>
+                            <th className="px-6 py-4 text-left">Reason</th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {isLoading
+                            ? [...Array(8)].map((_, i) => (
+                                <tr key={i}>
+                                  {[...Array(5)].map((__, j) => (
+                                    <td key={j} className="px-6 py-4">
+                                      <Skeleton />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))
+                            : applications.map((app, i) => {
+                                const bg =
+                                  i % 2 === 0
+                                    ? "var(--app-surface)"
+                                    : "var(--app-surface-2)";
+
+                                const cancelling =
+                                  cancelMutation.isPending &&
+                                  cancelMutation.variables === app._id;
+
+                                // ✅ Fixed: strictly checking application profile, not user
+                                const isAppOrganic =
+                                  app?.employeeType === "Organic" ||
+                                  app?.category === "Organic";
+
+                                return (
+                                  <tr
+                                    key={app._id}
+                                    className="transition-colors duration-200 ease-out"
+                                    style={{ backgroundColor: bg }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--accent-soft)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        bg;
+                                    }}
+                                  >
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col">
+                                        <span
+                                          className="font-semibold text-sm flex items-center gap-2"
+                                          style={{ color: "var(--app-text)" }}
+                                        >
+                                          <Calendar
+                                            size={14}
+                                            style={{
+                                              color: "var(--app-muted)",
+                                            }}
+                                          />
+                                          <span className="truncate max-w-[250px]">
+                                            {formatCoveredDates(
+                                              app.inclusiveDates,
+                                            )}
+                                          </span>
+                                        </span>
+                                        <span
+                                          className="text-[10px] font-mono mt-1"
+                                          style={{ color: "var(--app-muted)" }}
+                                        >
+                                          ID:{" "}
+                                          {app._id
+                                            ? app._id.slice(-6).toUpperCase()
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-center">
+                                      <span
+                                        className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
+                                        style={{
+                                          backgroundColor: "var(--app-surface)",
+                                          borderColor: borderColor,
+                                          color: "var(--app-text)",
+                                        }}
+                                      >
+                                        {app.totalDays || 0} Day(s)
+                                      </span>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-left max-w-xs">
+                                      <p
+                                        className="text-sm truncate"
+                                        style={{ color: "var(--app-text)" }}
+                                        title={app.reason}
+                                      >
+                                        {app.reason || "N/A"}
+                                      </p>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-center">
+                                      <StatusBadge status={app.overallStatus} />
+                                    </td>
+
+                                    <td className="px-6 py-4 text-right">
+                                      <ApplicationActionMenu
+                                        app={app}
+                                        borderColor={borderColor}
+                                        isOrganicApp={isAppOrganic}
+                                        onViewDetails={() =>
+                                          setSelectedApp(app)
+                                        }
+                                        onViewOrganicForm={() =>
+                                          setOrganicPdfApp(app)
+                                        }
+                                        onCancel={() => openCancelModal(app)}
+                                        cancelling={cancelling}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <CompactPagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                startItem={startItem}
+                endItem={endItem}
+                label="applications"
+                onPrev={() => setPage((p) => Math.max(p - 1, 1))}
+                onNext={() =>
+                  setPage((p) => Math.min(p + 1, pagination.totalPages))
+                }
+                borderColor={borderColor}
+              />
             </div>
-
-            <CompactPagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              startItem={startItem}
-              endItem={endItem}
-              label="applications"
-              onPrev={() => setPage((p) => Math.max(p - 1, 1))}
-              onNext={() =>
-                setPage((p) => Math.min(p + 1, pagination.totalPages))
-              }
-              borderColor={borderColor}
-            />
           </div>
-        </div>
 
-        {/* Back-to-top */}
-        {showScrollTop && (
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
-            style={{
-              backgroundColor: "var(--accent, #2563EB)",
-              color: "#fff",
-            }}
-            aria-label="Scroll to top"
-            title="Back to top"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-        )}
-
-        {/* Details Modal */}
-        {selectedApp && (
-          <Modal
-            isOpen={!!selectedApp}
-            onClose={() => setSelectedApp(null)}
-            title="Wellness Leave Details"
-            maxWidth="max-w-5xl"
-          >
-            {typeof WellnessApplicationDetails !== "undefined" ? (
-              <WellnessApplicationDetails app={selectedApp} />
-            ) : (
-              <div className="p-4 text-center">Details view not available.</div>
-            )}
-          </Modal>
-        )}
-
-        {/* ✅ Organic PDF Modal */}
-        <WellnessApplicationPdfModal
-          app={organicPdfApp}
-          isOpen={!!organicPdfApp}
-          onClose={() => setOrganicPdfApp(null)}
-        />
-
-        {/* Cancel Confirm Modal */}
-        <Modal
-          isOpen={cancelModal.isOpen}
-          onClose={closeCancelModal}
-          title="Cancel Wellness Leave"
-          maxWidth="max-w-lg"
-          preventCloseWhenBusy={true}
-          isBusy={cancelMutation.isPending}
-          action={{
-            show: true,
-            variant: "cancel",
-            label: cancelMutation.isPending ? "Cancelling..." : "Yes, Cancel",
-            onClick: async () => {
-              const app = cancelModal.app;
-              if (!app?._id) return;
-
-              const status = String(app?.overallStatus || "").toUpperCase();
-              if (status !== "PENDING") {
-                toast.error("Only PENDING applications can be cancelled.");
-                closeCancelModal();
-                return;
-              }
-
-              await cancelMutation.mutateAsync(app._id);
-            },
-            disabled: cancelMutation.isPending,
-          }}
-        >
-          <div className="p-2" style={{ color: "var(--app-text)" }}>
-            <div
-              className="mb-5 flex items-start gap-3 p-3 rounded-xl border"
+          {/* Back-to-top */}
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
               style={{
-                backgroundColor: "var(--app-surface-2)",
-                borderColor: borderColor,
+                backgroundColor: "var(--accent, #2563EB)",
+                color: "#fff",
               }}
+              aria-label="Scroll to top"
+              title="Back to top"
             >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Details Modal */}
+          {selectedApp && (
+            <Modal
+              isOpen={!!selectedApp}
+              onClose={() => setSelectedApp(null)}
+              title="Wellness Leave Details"
+              maxWidth="max-w-5xl"
+            >
+              {typeof WellnessApplicationDetails !== "undefined" ? (
+                <WellnessApplicationDetails app={selectedApp} />
+              ) : (
+                <div className="p-4 text-center">
+                  Details view not available.
+                </div>
+              )}
+            </Modal>
+          )}
+
+          {/* ✅ Organic PDF Modal */}
+          <WellnessApplicationPdfModal
+            app={organicPdfApp}
+            isOpen={!!organicPdfApp}
+            onClose={() => setOrganicPdfApp(null)}
+          />
+
+          {/* Cancel Confirm Modal */}
+          <Modal
+            isOpen={cancelModal.isOpen}
+            onClose={closeCancelModal}
+            title="Cancel Wellness Leave"
+            maxWidth="max-w-lg"
+            preventCloseWhenBusy={true}
+            isBusy={cancelMutation.isPending}
+            action={{
+              show: true,
+              variant: "cancel",
+              label: cancelMutation.isPending ? "Cancelling..." : "Yes, Cancel",
+              onClick: async () => {
+                const app = cancelModal.app;
+                if (!app?._id) return;
+
+                const status = String(app?.overallStatus || "").toUpperCase();
+                if (status !== "PENDING") {
+                  toast.error("Only PENDING applications can be cancelled.");
+                  closeCancelModal();
+                  return;
+                }
+
+                await cancelMutation.mutateAsync(app._id);
+              },
+              disabled: cancelMutation.isPending,
+            }}
+          >
+            <div className="p-2" style={{ color: "var(--app-text)" }}>
               <div
-                className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
+                className="mb-5 flex items-start gap-3 p-3 rounded-xl border"
                 style={{
-                  backgroundColor: "var(--app-surface)",
+                  backgroundColor: "var(--app-surface-2)",
                   borderColor: borderColor,
-                  color: "var(--app-muted)",
                 }}
               >
-                <Info size={16} />
-              </div>
-              <div className="min-w-0">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-wider"
-                  style={{ color: "var(--app-muted)" }}
+                <div
+                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
                 >
-                  You are about to cancel this request
-                </p>
-                <p
-                  className="text-sm font-bold break-words"
+                  <Info size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    You are about to cancel this request
+                  </p>
+                  <p
+                    className="text-sm font-bold break-words"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    Ref:{" "}
+                    {cancelModal.app?._id
+                      ? `#${cancelModal.app._id.slice(-6).toUpperCase()}`
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center py-2">
+                <div
+                  className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner"
+                  style={{
+                    backgroundColor: "rgba(239,68,68,0.12)",
+                    color: "#ef4444",
+                    borderColor: "rgba(239,68,68,0.20)",
+                  }}
+                >
+                  <Ban size={40} strokeWidth={3} />
+                </div>
+                <h2
+                  className="text-lg font-semibold"
                   style={{ color: "var(--app-text)" }}
                 >
-                  Ref:{" "}
-                  {cancelModal.app?._id
-                    ? `#${cancelModal.app._id.slice(-6).toUpperCase()}`
-                    : "-"}
+                  Are you sure you want to cancel this Wellness Leave?
+                </h2>
+                <p
+                  className="text-sm mt-2"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  This will stop the approval workflow immediately.
                 </p>
               </div>
             </div>
-
-            <div className="text-center py-2">
-              <div
-                className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner"
-                style={{
-                  backgroundColor: "rgba(239,68,68,0.12)",
-                  color: "#ef4444",
-                  borderColor: "rgba(239,68,68,0.20)",
-                }}
-              >
-                <Ban size={40} strokeWidth={3} />
-              </div>
-              <h2
-                className="text-lg font-semibold"
-                style={{ color: "var(--app-text)" }}
-              >
-                Are you sure you want to cancel this Wellness Leave?
-              </h2>
-              <p className="text-sm mt-2" style={{ color: "var(--app-muted)" }}>
-                This will stop the approval workflow immediately.
-              </p>
-            </div>
-          </div>
-        </Modal>
-      </SkeletonTheme>
-    </div>
+          </Modal>
+        </SkeletonTheme>
+      </div>
+    </FullHeightCardContainer>
   );
 };
 

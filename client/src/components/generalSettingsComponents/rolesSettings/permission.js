@@ -106,16 +106,6 @@ export const PERMISSION_GROUPS = [
         label: "Dashboard: Personal",
         hint: "Access the personal CTO dashboard.",
       },
-      {
-        id: "cto.dashboard.hr_view",
-        label: "Dashboard: HR",
-        hint: "Access HR summaries.",
-      },
-      {
-        id: "cto.dashboard.admin_view",
-        label: "Dashboard: Admin",
-        hint: "Access global summary dashboard.",
-      },
     ],
   },
   {

@@ -14,7 +14,7 @@ import Modal from "../../modal";
 import { toast } from "react-toastify";
 import Breadcrumbs from "../../breadCrumbs";
 import FilterSelect from "../../filterSelect";
-
+import FullHeightCardContainer from "../../pageContainer";
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
 
@@ -671,636 +671,645 @@ const WellnessCreditHistory = () => {
   );
 
   return (
-    <div
-      className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
-      style={{
-        backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
-        color: "var(--app-text, #0f172a)",
-      }}
-    >
-      <SkeletonTheme
-        baseColor={skeletonColors.baseColor}
-        highlightColor={skeletonColors.highlightColor}
+    <FullHeightCardContainer>
+      <div
+        className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
+          color: "var(--app-text, #0f172a)",
+        }}
       >
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
+        <SkeletonTheme
+          baseColor={skeletonColors.baseColor}
+          highlightColor={skeletonColors.highlightColor}
         >
-          <div className="pt-2 pb-3 md:pb-6 px-1">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
-                <Breadcrumbs rootLabel="home" rootTo="/app" />
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-sans">
-                  Wellness Credit History
-                </h1>
-                <p
-                  className="text-sm mt-1 max-w-2xl transition-colors duration-300 ease-out"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  Manage and monitor Wellness credits issued to employees
-                </p>
-              </div>
-
-              {canManageCredits && (
-                <button
-                  type="button"
-                  onClick={() => navigate("/app/wellness-credit/add")}
-                  className="group relative inline-flex items-center gap-2 justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 ease-out hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 w-full md:w-auto"
-                  style={{ backgroundColor: "var(--accent, #2563EB)" }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.filter = "brightness(0.95)")
-                  }
-                  onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
-                >
-                  <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-                  Credit Wellness
-                </button>
-              )}
-            </div>
-          </div>
-
           <div
-            className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
-            style={{
-              backgroundColor: "var(--app-surface)",
-              border: `1px solid ${borderColor}`,
-            }}
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
           >
-            <div
-              className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
-              style={{
-                backgroundColor: "var(--app-surface-2)",
-                borderColor: borderColor,
-              }}
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  {getStatusTabs(grandTotals).map((tab) => {
-                    const isActive = statusFilter === tab.id;
-                    const Icon = tab.icon;
-
-                    return (
-                      <button
-                        type="button"
-                        key={tab.id}
-                        onClick={() => {
-                          setStatusFilter(tab.id);
-                          setPage(1);
-                        }}
-                        className="px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2"
-                        style={
-                          isActive
-                            ? tab.activeStyle
-                            : {
-                                backgroundColor: "var(--app-surface)",
-                                color: "var(--app-muted)",
-                                borderColor: borderColor,
-                              }
-                        }
-                        aria-pressed={isActive}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{tab.label}</span>
-                        <span
-                          className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
-                          style={{
-                            backgroundColor: isActive
-                              ? "rgba(255,255,255,0.65)"
-                              : "var(--app-surface-2)",
-                            color: isActive ? "#0f172a" : "var(--app-muted)",
-                          }}
-                        >
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
+            <div className="pt-2 pb-3 md:pb-6 px-1">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <Breadcrumbs rootLabel="home" rootTo="/app" />
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-sans">
+                    Wellness Credit History
+                  </h1>
+                  <p
+                    className="text-sm mt-1 max-w-2xl transition-colors duration-300 ease-out"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Manage and monitor Wellness credits issued to employees
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-3 w-full lg:w-auto">
-                  <div className="relative flex-1 lg:w-64">
-                    <Search
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search memo..."
-                      value={searchInput}
-                      maxLength={100}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    />
-                    {searchInput && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchInput("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
-                        style={{ color: "var(--app-muted)" }}
-                        aria-label="Clear search"
-                        title="Clear"
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    className="hidden lg:flex items-center gap-2 pl-3 border-l"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Show
-                    </span>
-                    <select
-                      value={limit}
-                      onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    >
-                      {pageSizeOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div
-                    className="lg:hidden flex items-center gap-1.5 px-2 border-l ml-1"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="text-xs font-medium uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      shows
-                    </span>
-                    <FilterSelect
-                      label=""
-                      value={limit}
-                      onChange={(v) => {
-                        setLimit(v);
-                        setPage(1);
-                      }}
-                      options={pageSizeOptions}
-                      className="!mb-0 w-20 text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {isFiltered && (
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="text-[10px] font-bold uppercase"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Active:
-                    </span>
-                    {searchFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor: "var(--accent-soft2)",
-                        }}
-                      >
-                        "{searchFilter}"
-                      </span>
-                    )}
-                    {statusFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor: "var(--accent-soft2)",
-                        }}
-                      >
-                        {statusFilter}
-                      </span>
-                    )}
-                  </div>
-
+                {canManageCredits && (
                   <button
                     type="button"
-                    onClick={handleResetFilters}
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase"
-                    style={{ color: "var(--accent)" }}
+                    onClick={() => navigate("/app/wellness-credit/add")}
+                    className="group relative inline-flex items-center gap-2 justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 ease-out hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 w-full md:w-auto"
+                    style={{ backgroundColor: "var(--accent, #2563EB)" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.filter = "brightness(0.95)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.filter = "none")
+                    }
                   >
-                    <RotateCcw size={10} /> Reset
+                    <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+                    Credit Wellness
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div
-              className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-y-auto transition-colors duration-300 ease-out cto-scrollbar"
-              style={{ backgroundColor: "var(--app-bg)" }}
+              className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                border: `1px solid ${borderColor}`,
+              }}
             >
-              {!isLoading && credits.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
-                  <div
-                    className="p-6 rounded-full mb-4 ring-1 transition-colors duration-300 ease-out"
-                    style={{
-                      backgroundColor: "var(--app-surface)",
-                      borderColor: borderColor,
-                    }}
-                  >
-                    <Inbox
-                      className="w-10 h-10"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                  </div>
-                  <h3
-                    className="text-lg font-bold"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    No Credit History Found
-                  </h3>
-                  {isFiltered && (
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="mt-6 text-sm font-bold underline"
-                      style={{ color: "var(--accent)" }}
-                    >
-                      Clear all filters
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Mobile/Tablet cards */}
-                  <div className="block lg:hidden p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {(isLoading || isRollbackPending
-                        ? [...Array(Math.min(limit, 6))]
-                        : credits
-                      ).map((credit, idx) => {
-                        if (isLoading || isRollbackPending) {
-                          return (
-                            <div
-                              key={`sk-${idx}`}
-                              className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
-                              style={{
-                                backgroundColor: "var(--app-surface)",
-                                borderColor: borderColor,
-                              }}
-                            >
-                              <Skeleton height={18} />
-                              <div className="mt-3">
-                                <Skeleton height={12} count={2} />
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-2">
-                                <Skeleton height={52} />
-                                <Skeleton height={52} />
-                              </div>
-                              <div className="mt-4 flex gap-2">
-                                <Skeleton height={40} width={"100%"} />
-                              </div>
-                            </div>
-                          );
-                        }
+              <div
+                className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    {getStatusTabs(grandTotals).map((tab) => {
+                      const isActive = statusFilter === tab.id;
+                      const Icon = tab.icon;
 
-                        return (
-                          <CreditCard
-                            key={credit._id}
-                            credit={credit}
-                            isRollbackPending={isRollbackPending}
-                            formatDays={formatDays}
-                            formatDate={formatDate}
-                            leftStripClassName={getStatusStripClass(
-                              credit.status,
-                            )}
-                            borderColor={borderColor}
-                            canManageCredits={canManageCredits}
-                            onRollback={() => {
-                              if (isRollbackPending) return;
-                              setSelectedCreditId(credit._id);
-                              setIsConfirmRollback(true);
+                      return (
+                        <button
+                          type="button"
+                          key={tab.id}
+                          onClick={() => {
+                            setStatusFilter(tab.id);
+                            setPage(1);
+                          }}
+                          className="px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2"
+                          style={
+                            isActive
+                              ? tab.activeStyle
+                              : {
+                                  backgroundColor: "var(--app-surface)",
+                                  color: "var(--app-muted)",
+                                  borderColor: borderColor,
+                                }
+                          }
+                          aria-pressed={isActive}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                          <span
+                            className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
+                            style={{
+                              backgroundColor: isActive
+                                ? "rgba(255,255,255,0.65)"
+                                : "var(--app-surface-2)",
+                              color: isActive ? "#0f172a" : "var(--app-muted)",
                             }}
-                          />
-                        );
-                      })}
-                    </div>
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Desktop table */}
-                  <div className="hidden lg:block w-full align-middle">
-                    <table className="w-full text-left">
-                      <thead
-                        className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                  <div className="flex items-center gap-3 w-full lg:w-auto">
+                    <div className="relative flex-1 lg:w-64">
+                      <Search
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                        style={{ color: "var(--app-muted)" }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search memo..."
+                        value={searchInput}
+                        maxLength={100}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
                         style={{
                           backgroundColor: "var(--app-surface)",
                           borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      />
+                      {searchInput && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchInput("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
+                          style={{ color: "var(--app-muted)" }}
+                          aria-label="Clear search"
+                          title="Clear"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div
+                      className="hidden lg:flex items-center gap-2 pl-3 border-l"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Show
+                      </span>
+                      <select
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
                         }}
                       >
-                        <tr
-                          className="text-[10px] uppercase tracking-[0.12em] font-bold"
-                          style={{ color: "var(--app-muted)" }}
+                        {pageSizeOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div
+                      className="lg:hidden flex items-center gap-1.5 px-2 border-l ml-1"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="text-xs font-medium uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        shows
+                      </span>
+                      <FilterSelect
+                        label=""
+                        value={limit}
+                        onChange={(v) => {
+                          setLimit(v);
+                          setPage(1);
+                        }}
+                        options={pageSizeOptions}
+                        className="!mb-0 w-20 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {isFiltered && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-[10px] font-bold uppercase"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Active:
+                      </span>
+                      {searchFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor: "var(--accent-soft2)",
+                          }}
                         >
-                          <th className="px-6 py-4 font-bold">Employees</th>
-                          <th className="px-6 py-4 font-bold">
-                            REFERENCE / Memo
-                          </th>
-                          <th className="px-6 py-4 text-center">
-                            Days Credited
-                          </th>
-                          <th className="px-6 py-4 text-center">
-                            Date Approved
-                          </th>
-                          <th className="px-6 py-4 text-center">Status</th>
-                          {canManageCredits && (
-                            <th className="px-6 py-4 text-right">Actions</th>
-                          )}
-                        </tr>
-                      </thead>
+                          "{searchFilter}"
+                        </span>
+                      )}
+                      {statusFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor: "var(--accent-soft2)",
+                          }}
+                        >
+                          {statusFilter}
+                        </span>
+                      )}
+                    </div>
 
-                      <tbody>
-                        {isLoading
-                          ? [...Array(limit)].map((_, i) => (
-                              <tr key={i}>
-                                {[...Array(canManageCredits ? 6 : 5)].map(
-                                  (__, j) => (
-                                    <td key={j} className="px-6 py-4">
-                                      <Skeleton />
-                                    </td>
-                                  ),
-                                )}
-                              </tr>
-                            ))
-                          : credits.map((credit, i) => {
-                              const bg =
-                                i % 2 === 0
-                                  ? "var(--app-surface)"
-                                  : "var(--app-surface-2)";
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      <RotateCcw size={10} /> Reset
+                    </button>
+                  </div>
+                )}
+              </div>
 
-                              return (
-                                <tr
-                                  key={credit._id}
-                                  className="transition-colors duration-200 ease-out"
-                                  style={{ backgroundColor: bg }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                      "var(--accent-soft)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = bg;
-                                  }}
-                                >
-                                  <td className="px-6 py-4">
-                                    <span
-                                      className="font-semibold text-sm"
-                                      style={{ color: "var(--app-text)" }}
-                                    >
-                                      {credit.employees
-                                        .map((e) =>
-                                          `${e.employee?.firstName || ""} ${e.employee?.lastName || ""}`.trim(),
-                                        )
-                                        .filter(Boolean)
-                                        .join(", ")}
-                                    </span>
-                                  </td>
+              <div
+                className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-y-auto transition-colors duration-300 ease-out cto-scrollbar"
+                style={{ backgroundColor: "var(--app-bg)" }}
+              >
+                {!isLoading && credits.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
+                    <div
+                      className="p-6 rounded-full mb-4 ring-1 transition-colors duration-300 ease-out"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        borderColor: borderColor,
+                      }}
+                    >
+                      <Inbox
+                        className="w-10 h-10"
+                        style={{ color: "var(--app-muted)" }}
+                      />
+                    </div>
+                    <h3
+                      className="text-lg font-bold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      No Credit History Found
+                    </h3>
+                    {isFiltered && (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="mt-6 text-sm font-bold underline"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        Clear all filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile/Tablet cards */}
+                    <div className="block lg:hidden p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(isLoading || isRollbackPending
+                          ? [...Array(Math.min(limit, 6))]
+                          : credits
+                        ).map((credit, idx) => {
+                          if (isLoading || isRollbackPending) {
+                            return (
+                              <div
+                                key={`sk-${idx}`}
+                                className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
+                                style={{
+                                  backgroundColor: "var(--app-surface)",
+                                  borderColor: borderColor,
+                                }}
+                              >
+                                <Skeleton height={18} />
+                                <div className="mt-3">
+                                  <Skeleton height={12} count={2} />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <Skeleton height={52} />
+                                  <Skeleton height={52} />
+                                </div>
+                                <div className="mt-4 flex gap-2">
+                                  <Skeleton height={40} width={"100%"} />
+                                </div>
+                              </div>
+                            );
+                          }
 
-                                  <td className="px-6 py-4">
-                                    <div className="flex flex-col">
-                                      <span
-                                        className="font-medium"
-                                        style={{ color: "var(--app-text)" }}
-                                      >
-                                        {credit.memoNo}
-                                      </span>
-                                      <span
-                                        className="text-[10px] font-mono mt-0.5"
-                                        style={{ color: "var(--app-muted)" }}
-                                      >
-                                        ID:{" "}
-                                        {credit._id
-                                          ? credit._id.slice(-6).toUpperCase()
-                                          : "-"}
-                                      </span>
-                                    </div>
-                                  </td>
+                          return (
+                            <CreditCard
+                              key={credit._id}
+                              credit={credit}
+                              isRollbackPending={isRollbackPending}
+                              formatDays={formatDays}
+                              formatDate={formatDate}
+                              leftStripClassName={getStatusStripClass(
+                                credit.status,
+                              )}
+                              borderColor={borderColor}
+                              canManageCredits={canManageCredits}
+                              onRollback={() => {
+                                if (isRollbackPending) return;
+                                setSelectedCreditId(credit._id);
+                                setIsConfirmRollback(true);
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                                  <td
-                                    className="px-6 py-4 text-center"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    {formatDays(credit.days)}
-                                  </td>
+                    {/* Desktop table */}
+                    <div className="hidden lg:block w-full align-middle">
+                      <table className="w-full text-left">
+                        <thead
+                          className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                          style={{
+                            backgroundColor: "var(--app-surface)",
+                            borderColor: borderColor,
+                          }}
+                        >
+                          <tr
+                            className="text-[10px] uppercase tracking-[0.12em] font-bold"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            <th className="px-6 py-4 font-bold">Employees</th>
+                            <th className="px-6 py-4 font-bold">
+                              REFERENCE / Memo
+                            </th>
+                            <th className="px-6 py-4 text-center">
+                              Days Credited
+                            </th>
+                            <th className="px-6 py-4 text-center">
+                              Date Approved
+                            </th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                            {canManageCredits && (
+                              <th className="px-6 py-4 text-right">Actions</th>
+                            )}
+                          </tr>
+                        </thead>
 
-                                  <td
-                                    className="px-6 py-4 text-center"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    {formatDate(credit.dateApproved)}
-                                  </td>
-
-                                  <td className="px-6 py-4 text-center">
-                                    <StatusBadge status={credit.status} />
-                                  </td>
-
-                                  {canManageCredits && (
-                                    <td className="px-6 py-4 text-right">
-                                      <ActionMenu
-                                        credit={credit}
-                                        borderColor={borderColor}
-                                        isRollbackPending={isRollbackPending}
-                                        canManageCredits={canManageCredits}
-                                        onRollback={() => {
-                                          if (isRollbackPending) return;
-                                          setSelectedCreditId(credit._id);
-                                          setIsConfirmRollback(true);
-                                        }}
-                                      />
-                                    </td>
+                        <tbody>
+                          {isLoading
+                            ? [...Array(limit)].map((_, i) => (
+                                <tr key={i}>
+                                  {[...Array(canManageCredits ? 6 : 5)].map(
+                                    (__, j) => (
+                                      <td key={j} className="px-6 py-4">
+                                        <Skeleton />
+                                      </td>
+                                    ),
                                   )}
                                 </tr>
-                              );
-                            })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
+                              ))
+                            : credits.map((credit, i) => {
+                                const bg =
+                                  i % 2 === 0
+                                    ? "var(--app-surface)"
+                                    : "var(--app-surface-2)";
 
-            <CompactPagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              startItem={startItem}
-              endItem={endItem}
-              onPrev={() => setPage((p) => Math.max(p - 1, 1))}
-              onNext={() =>
-                setPage((p) => Math.min(p + 1, pagination.totalPages))
-              }
-              borderColor={borderColor}
-            />
-          </div>
-        </div>
+                                return (
+                                  <tr
+                                    key={credit._id}
+                                    className="transition-colors duration-200 ease-out"
+                                    style={{ backgroundColor: bg }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--accent-soft)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        bg;
+                                    }}
+                                  >
+                                    <td className="px-6 py-4">
+                                      <span
+                                        className="font-semibold text-sm"
+                                        style={{ color: "var(--app-text)" }}
+                                      >
+                                        {credit.employees
+                                          .map((e) =>
+                                            `${e.employee?.firstName || ""} ${e.employee?.lastName || ""}`.trim(),
+                                          )
+                                          .filter(Boolean)
+                                          .join(", ")}
+                                      </span>
+                                    </td>
 
-        {showScrollTop && (
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
-            style={{
-              backgroundColor: "var(--accent, #2563EB)",
-              color: "#fff",
-            }}
-            aria-label="Scroll to top"
-            title="Back to top"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-        )}
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col">
+                                        <span
+                                          className="font-medium"
+                                          style={{ color: "var(--app-text)" }}
+                                        >
+                                          {credit.memoNo}
+                                        </span>
+                                        <span
+                                          className="text-[10px] font-mono mt-0.5"
+                                          style={{ color: "var(--app-muted)" }}
+                                        >
+                                          ID:{" "}
+                                          {credit._id
+                                            ? credit._id.slice(-6).toUpperCase()
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                    </td>
 
-        <Modal
-          isOpen={isConfirmRollback}
-          onClose={() => {
-            if (isRollbackPending) return;
-            setIsConfirmRollback(false);
-          }}
-          title="Rollback Wellness Credit"
-          maxWidth="max-w-lg"
-          preventCloseWhenBusy={true}
-          isBusy={isRollbackPending}
-          action={{
-            show: true,
-            variant: "delete",
-            label: isRollbackPending ? "Rolling back..." : "Yes, Rollback",
-            onClick: async () => {
-              if (!selectedCreditId) return;
+                                    <td
+                                      className="px-6 py-4 text-center"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      {formatDays(credit.days)}
+                                    </td>
 
-              const credit = credits.find((c) => c._id === selectedCreditId);
-              const status = String(credit?.status || "").toUpperCase();
-              if (status !== "CREDITED") {
-                toast.error("Only CREDITED entries can be rolled back.");
-                setIsConfirmRollback(false);
-                return;
-              }
+                                    <td
+                                      className="px-6 py-4 text-center"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      {formatDate(credit.dateApproved)}
+                                    </td>
 
-              await startRollback(selectedCreditId);
-            },
-            disabled: isRollbackPending || !selectedCreditId,
-          }}
-        >
-          <div className="p-2">
-            <div
-              className="mb-5 flex items-start gap-3 p-3 rounded-xl border transition-colors duration-300 ease-out"
-              style={{
-                backgroundColor: "var(--app-surface-2)",
-                borderColor: borderColor,
-              }}
-            >
-              <div
-                className="mt-0.5 p-1.5 rounded-lg border shadow-sm transition-colors duration-300 ease-out"
-                style={{
-                  backgroundColor: "var(--app-surface)",
-                  borderColor: borderColor,
-                  color: "var(--app-muted)",
-                }}
-              >
-                <Clipboard size={16} />
+                                    <td className="px-6 py-4 text-center">
+                                      <StatusBadge status={credit.status} />
+                                    </td>
+
+                                    {canManageCredits && (
+                                      <td className="px-6 py-4 text-right">
+                                        <ActionMenu
+                                          credit={credit}
+                                          borderColor={borderColor}
+                                          isRollbackPending={isRollbackPending}
+                                          canManageCredits={canManageCredits}
+                                          onRollback={() => {
+                                            if (isRollbackPending) return;
+                                            setSelectedCreditId(credit._id);
+                                            setIsConfirmRollback(true);
+                                          }}
+                                        />
+                                      </td>
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="min-w-0">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-wider"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  You are about to rollback this Wellness credit
-                </p>
+              <CompactPagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                startItem={startItem}
+                endItem={endItem}
+                onPrev={() => setPage((p) => Math.max(p - 1, 1))}
+                onNext={() =>
+                  setPage((p) => Math.min(p + 1, pagination.totalPages))
+                }
+                borderColor={borderColor}
+              />
+            </div>
+          </div>
 
-                <p
-                  className="text-sm font-bold break-words"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  Ref:{" "}
-                  {selectedCreditId
-                    ? `#${selectedCreditId.slice(-6).toUpperCase()}`
-                    : "-"}
-                </p>
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
+              style={{
+                backgroundColor: "var(--accent, #2563EB)",
+                color: "#fff",
+              }}
+              aria-label="Scroll to top"
+              title="Back to top"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          )}
 
-                <p
-                  className="text-xs mt-1"
-                  style={{ color: "var(--app-muted)" }}
+          <Modal
+            isOpen={isConfirmRollback}
+            onClose={() => {
+              if (isRollbackPending) return;
+              setIsConfirmRollback(false);
+            }}
+            title="Rollback Wellness Credit"
+            maxWidth="max-w-lg"
+            preventCloseWhenBusy={true}
+            isBusy={isRollbackPending}
+            action={{
+              show: true,
+              variant: "delete",
+              label: isRollbackPending ? "Rolling back..." : "Yes, Rollback",
+              onClick: async () => {
+                if (!selectedCreditId) return;
+
+                const credit = credits.find((c) => c._id === selectedCreditId);
+                const status = String(credit?.status || "").toUpperCase();
+                if (status !== "CREDITED") {
+                  toast.error("Only CREDITED entries can be rolled back.");
+                  setIsConfirmRollback(false);
+                  return;
+                }
+
+                await startRollback(selectedCreditId);
+              },
+              disabled: isRollbackPending || !selectedCreditId,
+            }}
+          >
+            <div className="p-2">
+              <div
+                className="mb-5 flex items-start gap-3 p-3 rounded-xl border transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div
+                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
                 >
-                  Memo:{" "}
-                  <span
-                    className="font-semibold"
+                  <Clipboard size={16} />
+                </div>
+
+                <div className="min-w-0">
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    You are about to rollback this Wellness credit
+                  </p>
+
+                  <p
+                    className="text-sm font-bold break-words"
                     style={{ color: "var(--app-text)" }}
                   >
-                    {credits.find((c) => c._id === selectedCreditId)?.memoNo ||
-                      "-"}
-                  </span>
+                    Ref:{" "}
+                    {selectedCreditId
+                      ? `#${selectedCreditId.slice(-6).toUpperCase()}`
+                      : "-"}
+                  </p>
+
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Memo:{" "}
+                    <span
+                      className="font-semibold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      {credits.find((c) => c._id === selectedCreditId)
+                        ?.memoNo || "-"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center py-2">
+                <div
+                  className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner"
+                  style={{
+                    backgroundColor: "rgba(239,68,68,0.10)",
+                    borderColor: "rgba(239,68,68,0.18)",
+                    color: "#ef4444",
+                  }}
+                >
+                  <RotateCcw size={40} strokeWidth={3} />
+                </div>
+
+                <h2
+                  className="text-lg font-semibold"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  Are you sure you want to rollback this Wellness credit?
+                </h2>
+
+                <p
+                  className="text-sm mt-2"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  This will deduct the credited days from the employees&apos;
+                  balances and mark this credit as{" "}
+                  <span className="font-semibold">ROLLEDBACK</span>.
+                </p>
+              </div>
+
+              <div
+                className="mt-4 rounded-xl border p-3 transition-colors duration-300 ease-out"
+                style={{
+                  borderColor: "rgba(245,158,11,0.35)",
+                  backgroundColor: "rgba(245,158,11,0.10)",
+                  color: "rgba(245,158,11,0.95)",
+                }}
+              >
+                <p className="text-xs leading-relaxed">
+                  <span className="font-bold">Note:</span> Rollback will fail if
+                  any employee has already used or reserved days from this
+                  credit.
                 </p>
               </div>
             </div>
-
-            <div className="text-center py-2">
-              <div
-                className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner"
-                style={{
-                  backgroundColor: "rgba(239,68,68,0.10)",
-                  borderColor: "rgba(239,68,68,0.18)",
-                  color: "#ef4444",
-                }}
-              >
-                <RotateCcw size={40} strokeWidth={3} />
-              </div>
-
-              <h2
-                className="text-lg font-semibold"
-                style={{ color: "var(--app-text)" }}
-              >
-                Are you sure you want to rollback this Wellness credit?
-              </h2>
-
-              <p className="text-sm mt-2" style={{ color: "var(--app-muted)" }}>
-                This will deduct the credited days from the employees&apos;
-                balances and mark this credit as{" "}
-                <span className="font-semibold">ROLLEDBACK</span>.
-              </p>
-            </div>
-
-            <div
-              className="mt-4 rounded-xl border p-3 transition-colors duration-300 ease-out"
-              style={{
-                borderColor: "rgba(245,158,11,0.35)",
-                backgroundColor: "rgba(245,158,11,0.10)",
-                color: "rgba(245,158,11,0.95)",
-              }}
-            >
-              <p className="text-xs leading-relaxed">
-                <span className="font-bold">Note:</span> Rollback will fail if
-                any employee has already used or reserved days from this credit.
-              </p>
-            </div>
-          </div>
-        </Modal>
-      </SkeletonTheme>
-    </div>
+          </Modal>
+        </SkeletonTheme>
+      </div>
+    </FullHeightCardContainer>
   );
 };
 

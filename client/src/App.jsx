@@ -22,11 +22,12 @@ import SalaryGradesSettings from "./components/generalSettingsComponents/salaryG
 
 /* CTO Components */
 import CtoDashboard from "./components/ctoComponents/ctoDashboard";
-import CtoCredits from "./components/ctoComponents/ctoCredits";
 import AddCtoCreditForm from "./components/ctoComponents/ctoCreditComponents/forms/addCtoCreditForm";
-import CtoApplication from "./components/ctoComponents/ctoApplication";
-import MyCtoCredits from "./components/ctoComponents/myCtoCredits";
-import AllCtoApplications from "./components/ctoComponents/ctoAllApplications";
+import MyCtoApplications from "./components/ctoComponents/ctoApplicationComponents/myCtoApplicationHistory";
+import AllCtoApplicationsHistory from "./components/ctoComponents/ctoApplicationComponents/allCtoApplicationHistory";
+import MyCtoCreditHistory from "./components/ctoComponents/ctoCreditComponents/myCtoCreditHistory";
+import CtoCreditHistory from "./components/ctoComponents/ctoCreditComponents/recentCtoCreditHistory";
+
 import CtoApplicationApprovals from "./components/ctoComponents/ctoApplicationApprovals";
 import CtoApplicationDetails from "./components/ctoComponents/ctoApplicationApprovalsComponents/ctoApplicationsDetails";
 import CtoRecords from "./components/ctoComponents/ctoRecords";
@@ -191,11 +192,11 @@ function App() {
           <Route
             element={<ProtectedRoute requiredPermission="cto.view_self" />}
           >
-            <Route path="cto-my-credits" element={<MyCtoCredits />} />
+            <Route path="cto-my-credits" element={<MyCtoCreditHistory />} />
           </Route>
 
           <Route element={<ProtectedRoute requiredPermission="cto.create" />}>
-            <Route path="cto-apply" element={<CtoApplication />} />
+            <Route path="cto-apply" element={<MyCtoApplications />} />
             <Route path="cto-apply/add" element={<AddCtoApplicationForm />} />
             <Route
               path="cto-apply/organic"
@@ -262,7 +263,7 @@ function App() {
           <Route
             element={<ProtectedRoute requiredPermission="cto.credits_view" />}
           >
-            <Route path="cto-credit" element={<CtoCredits />} />
+            <Route path="cto-credit" element={<CtoCreditHistory />} />
             <Route path="cto-credit/add" element={<AddCtoCreditForm />} />
           </Route>
 
@@ -273,7 +274,7 @@ function App() {
           >
             <Route
               path="cto-all-applications"
-              element={<AllCtoApplications />}
+              element={<AllCtoApplicationsHistory />}
             />
           </Route>
 

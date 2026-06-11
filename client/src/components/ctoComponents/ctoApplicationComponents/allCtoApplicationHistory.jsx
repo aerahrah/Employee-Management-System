@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import FullHeightCardContainer from "../../pageContainer";
 import { StatusBadge } from "../../statusUtils";
 import { fetchAllCtoApplications } from "../../../api/cto";
 import Modal from "../../modal";
@@ -207,7 +208,7 @@ const ApplicationActionMenu = ({
           e.stopPropagation();
           setIsOpen((o) => !o);
         }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm text-xs font-bold transition-all duration-200 ease-out active:scale-95"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm text-xs cursor-pointer font-bold transition-all duration-200 ease-out active:scale-95"
         style={{
           backgroundColor: isOpen
             ? "var(--app-surface-2)"
@@ -943,750 +944,724 @@ const AllCtoApplicationsHistory = () => {
       .join(", ");
 
   return (
-    <div
-      className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
-      style={{
-        backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
-        color: "var(--app-text, #0f172a)",
-      }}
-    >
-      <SkeletonTheme
-        baseColor={skeletonColors.baseColor}
-        highlightColor={skeletonColors.highlightColor}
+    <FullHeightCardContainer>
+      <div
+        className="w-full h-full min-h-0 flex flex-col md:p-0 transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
+          color: "var(--app-text, #0f172a)",
+        }}
       >
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
+        <SkeletonTheme
+          baseColor={skeletonColors.baseColor}
+          highlightColor={skeletonColors.highlightColor}
         >
-          {/* HEADER */}
-          <div className="pt-2 pb-3 md:pb-6 px-1">
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-              <div className="flex items-start gap-4 flex-1 min-w-0">
-                <div className="min-w-0">
-                  <Breadcrumbs rootLabel="home" rootTo="/app" />
-                  <h1
-                    className="text-2xl md:text-3xl font-bold tracking-tight font-sans"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    All CTO Applications
-                  </h1>
-                  <p
-                    className="text-sm mt-1 max-w-2xl"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    View and manage all compensatory time-off applications
-                  </p>
-                </div>
-              </div>
-
-              {/* Stat cards */}
-              <div className="w-full md:w-auto flex-1 lg:flex-none flex flex-col gap-3 md:ml-4">
-                <div className="hidden lg:grid lg:grid-cols-2 xl:grid-cols-4 gap-3 items-stretch">
-                  <StatCard
-                    title="Total Requests"
-                    value={String(totalRequests || 0)}
-                    icon={LayoutGrid}
-                    hint="All applications"
-                    tone="blue"
-                    borderColor={borderColor}
-                  />
-                  <StatCard
-                    title="Total Pending"
-                    value={String(statPending || 0)}
-                    icon={AlertCircle}
-                    hint="Awaiting action"
-                    tone="amber"
-                    borderColor={borderColor}
-                  />
-                  <StatCard
-                    title="Total Approved"
-                    value={String(statApproved || 0)}
-                    icon={CheckCircle2}
-                    hint="Approved requests"
-                    tone="green"
-                    borderColor={borderColor}
-                  />
-                  <StatCard
-                    title="Total Rejected"
-                    value={String(statRejected || 0)}
-                    icon={XCircle}
-                    hint="Rejected requests"
-                    tone="red"
-                    borderColor={borderColor}
-                  />
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
+          >
+            {/* HEADER */}
+            <div className="pt-2 pb-3 md:pb-6 px-1">
+              <div className="flex flex-col 2xl:flex-row 2xl:items-start justify-between gap-4">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="min-w-0">
+                    <Breadcrumbs rootLabel="home" rootTo="/app" />
+                    <h1
+                      className="text-2xl md:text-3xl font-bold tracking-tight font-sans"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      All CTO Applications
+                    </h1>
+                    <p
+                      className="text-sm mt-1 max-w-2xl"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      View and manage all compensatory time-off applications
+                    </p>
+                  </div>
                 </div>
 
-                {/* Mobile compact */}
-                <div className="flex lg:hidden flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Total", value: totalRequests || 0 },
-                      { label: "Pending", value: statPending || 0 },
-                      { label: "Approved", value: statApproved || 0 },
-                      { label: "Rejected", value: statRejected || 0 },
-                    ].map((it) => (
-                      <div
-                        key={it.label}
-                        className="border rounded-lg p-2 flex justify-between items-center transition-colors duration-300 ease-out"
-                        style={{
-                          backgroundColor: "var(--app-surface)",
-                          borderColor: borderColor,
-                        }}
-                      >
-                        <div
-                          className="text-[10px] uppercase font-bold"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          {it.label}
-                        </div>
-                        <div
-                          className="text-sm font-bold"
-                          style={{ color: "var(--app-text)" }}
-                        >
-                          {it.value}
-                        </div>
-                      </div>
-                    ))}
+                {/* Stat Cards Layout Update */}
+                <div className="w-full lg:w-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-4  gap-3 items-stretch">
+                    <StatCard
+                      title="Total Requests"
+                      value={String(totalRequests || 0)}
+                      icon={LayoutGrid}
+                      hint="All applications"
+                      tone="blue"
+                      borderColor={borderColor}
+                    />
+                    <StatCard
+                      title="Total Pending"
+                      value={String(statPending || 0)}
+                      icon={AlertCircle}
+                      hint="Awaiting action"
+                      tone="amber"
+                      borderColor={borderColor}
+                    />
+                    <StatCard
+                      title="Total Approved"
+                      value={String(statApproved || 0)}
+                      icon={CheckCircle2}
+                      hint="Approved requests"
+                      tone="green"
+                      borderColor={borderColor}
+                    />
+                    <StatCard
+                      title="Total Rejected"
+                      value={String(statRejected || 0)}
+                      icon={XCircle}
+                      hint="Rejected requests"
+                      tone="red"
+                      borderColor={borderColor}
+                    />
                   </div>
                 </div>
               </div>
-              {/* end stats */}
             </div>
-          </div>
 
-          {/* MAIN surface */}
-          <div
-            className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
-            style={{
-              backgroundColor: "var(--app-surface)",
-              border: `1px solid ${borderColor}`,
-            }}
-          >
-            {/* Toolbar */}
+            {/* MAIN surface */}
             <div
-              className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
+              className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden transition-colors duration-300 ease-out"
               style={{
-                backgroundColor: "var(--app-surface-2)",
-                borderColor: borderColor,
+                backgroundColor: "var(--app-surface)",
+                border: `1px solid ${borderColor}`,
               }}
             >
-              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                {/* Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  {statusTabs(statusCounts, pagination.total).map((tab) => {
-                    const isActive = statusFilter === tab.id;
-                    const Icon = tab.icon;
+              {/* Toolbar */}
+              <div
+                className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  {/* Tabs */}
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    {statusTabs(statusCounts, pagination.total).map((tab) => {
+                      const isActive = statusFilter === tab.id;
+                      const Icon = tab.icon;
 
-                    return (
-                      <button
-                        key={tab.id || "all-status"}
-                        onClick={() => {
-                          setStatusFilter(tab.id);
-                          setPage(1);
-                        }}
-                        className={`px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2
-                          ${
-                            isActive
-                              ? tab.activeColor
-                              : "bg-[color:var(--app-surface)] text-[color:var(--app-muted)] border-[color:var(--app-border)] hover:bg-[color:var(--app-surface-2)]"
-                          }`}
-                        aria-pressed={isActive}
-                        type="button"
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{tab.label}</span>
-                        <span
-                          className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
-                          style={{
-                            backgroundColor: isActive
-                              ? "var(--app-surface)"
-                              : "var(--app-surface-2)",
-                            color: isActive
-                              ? "var(--app-text)"
-                              : "var(--app-muted)",
+                      return (
+                        <button
+                          key={tab.id || "all-status"}
+                          onClick={() => {
+                            setStatusFilter(tab.id);
+                            setPage(1);
                           }}
+                          className={`px-1.5 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-1
+                            ${
+                              isActive
+                                ? tab.activeColor
+                                : "bg-[color:var(--app-surface)] text-[color:var(--app-muted)] border-[color:var(--app-border)] hover:bg-[color:var(--app-surface-2)]"
+                            }`}
+                          aria-pressed={isActive}
+                          type="button"
                         >
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                          <span
+                            className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
+                            style={{
+                              backgroundColor: isActive
+                                ? "var(--app-surface)"
+                                : "var(--app-surface-2)",
+                              color: isActive
+                                ? "var(--app-text)"
+                                : "var(--app-muted)",
+                            }}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                {/* Search + limits/filters */}
-                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search memo..."
-                      value={searchInput}
-                      maxLength={100}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    />
-                    {searchInput && (
-                      <button
-                        onClick={() => setSearchInput("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
+                  {/* Search + limits/filters */}
+                  <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
                         style={{ color: "var(--app-muted)" }}
-                        aria-label="Clear search"
-                        title="Clear"
-                        type="button"
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    className="flex items-center gap-2 pl-3 border-l"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Type
-                    </span>
-                    <select
-                      value={employeeTypeFilter}
-                      onChange={(e) => {
-                        setEmployeeTypeFilter(e.target.value);
-                        setPage(1);
-                      }}
-                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    >
-                      <option value="">All Types</option>
-                      <option value="Organic">Organic</option>
-                      <option value="Job Order">Job Order</option>
-                    </select>
-                  </div>
-
-                  <div
-                    className="flex items-center gap-2 pl-3 border-l"
-                    style={{ borderColor: borderColor }}
-                  >
-                    <span
-                      className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Show
-                    </span>
-                    <select
-                      value={limit}
-                      onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                    >
-                      {pageSizeOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Active chips + reset */}
-              {isFiltered && (
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="text-[10px] font-bold uppercase"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      Active:
-                    </span>
-                    {debouncedSearch && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        "{debouncedSearch}"
-                      </span>
-                    )}
-                    {statusFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        {statusFilter}
-                      </span>
-                    )}
-                    {employeeTypeFilter && (
-                      <span
-                        className="px-2 py-0.5 rounded border text-[10px] font-medium"
-                        style={{
-                          backgroundColor: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          borderColor:
-                            "var(--accent-soft2, rgba(37,99,235,0.18))",
-                        }}
-                      >
-                        {employeeTypeFilter}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleResetFilters}
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase"
-                    style={{ color: "var(--accent)" }}
-                    type="button"
-                  >
-                    <RotateCcw size={10} /> Reset
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Data region */}
-            <div
-              className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-y-auto transition-colors duration-300 ease-out cto-scrollbar"
-              style={{ backgroundColor: "var(--app-bg)" }}
-            >
-              {!isLoading && applications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
-                  <div
-                    className="p-6 rounded-full mb-4 ring-1"
-                    style={{
-                      backgroundColor: "var(--app-surface)",
-                      borderColor: borderColor,
-                    }}
-                  >
-                    <Inbox
-                      className="w-10 h-10"
-                      style={{ color: "var(--app-muted)" }}
-                    />
-                  </div>
-                  <h3
-                    className="text-lg font-bold"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    No Results Found
-                  </h3>
-                  <p
-                    className="text-sm max-w-xs mt-1"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Try adjusting your search or filters to find what you're
-                    looking for.
-                  </p>
-                  {isFiltered && (
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="mt-6 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold border rounded-lg transition-colors duration-200 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor: borderColor,
-                        color: "var(--app-text)",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--app-surface-2)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--app-surface)")
-                      }
-                    >
-                      <RotateCcw size={12} /> Clear Filters
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Mobile: cards */}
-                  <div className="block md:hidden p-4">
-                    <div className="space-y-3">
-                      {isLoading
-                        ? [...Array(Math.min(limit, 6))].map((_, i) => (
-                            <div
-                              key={`sk-m-${i}`}
-                              className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
-                              style={{
-                                backgroundColor: "var(--app-surface)",
-                                borderColor: borderColor,
-                              }}
-                            >
-                              <Skeleton height={18} />
-                              <div className="mt-3">
-                                <Skeleton height={12} count={2} />
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-2">
-                                <Skeleton height={52} />
-                                <Skeleton height={52} />
-                              </div>
-                              <div className="mt-4">
-                                <Skeleton height={40} />
-                              </div>
-                            </div>
-                          ))
-                        : applications.map((app) => {
-                            const isAppOrganic =
-                              app?.employeeType === "Organic" ||
-                              app?.category === "Organic";
-                            return (
-                              <ApplicationCard
-                                key={app._id}
-                                app={app}
-                                borderColor={borderColor}
-                                isOrganicApp={isAppOrganic}
-                                leftStripClassName={getStatusStripClass(
-                                  app.overallStatus,
-                                )}
-                                onViewDetails={() => setSelectedApp(app)}
-                                onViewPdf={() => setPdfApp(app)}
-                                onViewCscForm6={() => setOrganicPdfApp(app)}
-                                onViewMemos={() => openMemoModal(app.memo)}
-                              />
-                            );
-                          })}
-                    </div>
-                  </div>
-
-                  {/* Tablet: 2 cards */}
-                  <div className="hidden md:block lg:hidden p-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      {isLoading
-                        ? [...Array(Math.min(limit, 6))].map((_, i) => (
-                            <div
-                              key={`sk-t-${i}`}
-                              className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
-                              style={{
-                                backgroundColor: "var(--app-surface)",
-                                borderColor: borderColor,
-                              }}
-                            >
-                              <Skeleton height={18} />
-                              <div className="mt-3">
-                                <Skeleton height={12} count={2} />
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-2">
-                                <Skeleton height={52} />
-                                <Skeleton height={52} />
-                              </div>
-                              <div className="mt-4">
-                                <Skeleton height={40} />
-                              </div>
-                            </div>
-                          ))
-                        : applications.map((app) => {
-                            const isAppOrganic =
-                              app?.employeeType === "Organic" ||
-                              app?.category === "Organic";
-                            return (
-                              <ApplicationCard
-                                key={app._id}
-                                app={app}
-                                borderColor={borderColor}
-                                isOrganicApp={isAppOrganic}
-                                leftStripClassName={getStatusStripClass(
-                                  app.overallStatus,
-                                )}
-                                onViewDetails={() => setSelectedApp(app)}
-                                onViewPdf={() => setPdfApp(app)}
-                                onViewCscForm6={() => setOrganicPdfApp(app)}
-                                onViewMemos={() => openMemoModal(app.memo)}
-                              />
-                            );
-                          })}
-                    </div>
-                  </div>
-
-                  {/* Desktop: table */}
-                  <div className="hidden lg:block w-full align-middle">
-                    <table className="w-full text-left">
-                      <thead
-                        className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search memo..."
+                        value={searchInput}
+                        maxLength={100}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-colors duration-200 ease-out border"
                         style={{
                           backgroundColor: "var(--app-surface)",
                           borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      />
+                      {searchInput && (
+                        <button
+                          onClick={() => setSearchInput("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors duration-200 ease-out"
+                          style={{ color: "var(--app-muted)" }}
+                          aria-label="Clear search"
+                          title="Clear"
+                          type="button"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2 pl-3 border-l"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Type
+                      </span>
+                      <select
+                        value={employeeTypeFilter}
+                        onChange={(e) => {
+                          setEmployeeTypeFilter(e.target.value);
+                          setPage(1);
+                        }}
+                        className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
                         }}
                       >
-                        <tr
-                          className="text-[10px] uppercase tracking-[0.12em] font-bold"
-                          style={{ color: "var(--app-muted)" }}
+                        <option value="">All Types</option>
+                        <option value="Organic">Organic</option>
+                        <option value="Job Order">Job Order</option>
+                      </select>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2 pl-3 border-l"
+                      style={{ borderColor: borderColor }}
+                    >
+                      <span
+                        className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Show
+                      </span>
+                      <select
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        className="border text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      >
+                        {pageSizeOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active chips + reset */}
+                {isFiltered && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-[10px] font-bold uppercase"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        Active:
+                      </span>
+                      {debouncedSearch && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
                         >
-                          <th className="px-6 py-4 font-bold">Requestor</th>
-                          <th className="px-6 py-4 font-bold">
-                            Reference / Memo
-                          </th>
-                          <th className="px-6 py-4 text-center">Hours</th>
-                          <th className="px-6 py-4 text-center">Status</th>
-                          <th className="px-6 py-4 text-center">Submitted</th>
-                          <th className="px-6 py-4">Dates Covered</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
+                          "{debouncedSearch}"
+                        </span>
+                      )}
+                      {statusFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
+                        >
+                          {statusFilter}
+                        </span>
+                      )}
+                      {employeeTypeFilter && (
+                        <span
+                          className="px-2 py-0.5 rounded border text-[10px] font-medium"
+                          style={{
+                            backgroundColor: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            borderColor:
+                              "var(--accent-soft2, rgba(37,99,235,0.18))",
+                          }}
+                        >
+                          {employeeTypeFilter}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleResetFilters}
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase"
+                      style={{ color: "var(--accent)" }}
+                      type="button"
+                    >
+                      <RotateCcw size={10} /> Reset
+                    </button>
+                  </div>
+                )}
+              </div>
 
-                      <tbody>
+              {/* Data region */}
+              <div
+                className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-y-auto transition-colors duration-300 ease-out cto-scrollbar"
+                style={{ backgroundColor: "var(--app-bg)" }}
+              >
+                {!isLoading && applications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
+                    <div
+                      className="p-6 rounded-full mb-4 ring-1"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        borderColor: borderColor,
+                      }}
+                    >
+                      <Inbox
+                        className="w-10 h-10"
+                        style={{ color: "var(--app-muted)" }}
+                      />
+                    </div>
+                    <h3
+                      className="text-lg font-bold"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      No Results Found
+                    </h3>
+                    <p
+                      className="text-sm max-w-xs mt-1"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Try adjusting your search or filters to find what you're
+                      looking for.
+                    </p>
+                    {isFiltered && (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="mt-6 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold border rounded-lg transition-colors duration-200 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            "var(--app-surface-2)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.backgroundColor =
+                            "var(--app-surface)")
+                        }
+                      >
+                        <RotateCcw size={12} /> Clear Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile: cards */}
+                    <div className="block md:hidden p-4">
+                      <div className="space-y-3">
                         {isLoading
-                          ? [...Array(8)].map((_, i) => (
-                              <tr key={i}>
-                                {[...Array(7)].map((__, j) => (
-                                  <td key={j} className="px-6 py-4">
-                                    <Skeleton />
-                                  </td>
-                                ))}
-                              </tr>
+                          ? [...Array(Math.min(limit, 6))].map((_, i) => (
+                              <div
+                                key={`sk-m-${i}`}
+                                className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
+                                style={{
+                                  backgroundColor: "var(--app-surface)",
+                                  borderColor: borderColor,
+                                }}
+                              >
+                                <Skeleton height={18} />
+                                <div className="mt-3">
+                                  <Skeleton height={12} count={2} />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <Skeleton height={52} />
+                                  <Skeleton height={52} />
+                                </div>
+                                <div className="mt-4">
+                                  <Skeleton height={40} />
+                                </div>
+                              </div>
                             ))
-                          : applications.map((app, i) => {
-                              const memoLabel =
-                                Array.isArray(app.memo) && app.memo.length
-                                  ? app.memo
-                                      .map((m) => m?.memoId?.memoNo)
-                                      .filter(Boolean)
-                                      .join(", ")
-                                  : "No Memo Attached";
-
-                              const employeeType =
-                                app.category || app.employeeType || "Unknown";
-
-                              const isAppOrganic = employeeType === "Organic";
-
-                              const bg =
-                                i % 2 === 0
-                                  ? "var(--app-surface)"
-                                  : "var(--app-surface-2)";
-
+                          : applications.map((app) => {
+                              const isAppOrganic =
+                                app?.employeeType === "Organic" ||
+                                app?.category === "Organic";
                               return (
-                                <tr
+                                <ApplicationCard
                                   key={app._id}
-                                  className="transition-colors duration-200 ease-out"
-                                  style={{ backgroundColor: bg }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor =
-                                      "var(--accent-soft)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = bg;
-                                  }}
-                                >
-                                  <td className="px-6 py-4">
-                                    <div className="flex flex-col items-start">
-                                      <span
-                                        className="font-semibold text-sm"
-                                        style={{ color: "var(--app-text)" }}
-                                      >
-                                        {app?.employee?.firstName || ""}{" "}
-                                        {app?.employee?.lastName || ""}
-                                      </span>
-                                      <div className="flex items-center gap-2 mt-0.5">
-                                        <span
-                                          className="text-[10px] font-mono"
-                                          style={{ color: "var(--app-muted)" }}
-                                        >
-                                          {app?.employee?.position || "-"}
-                                        </span>
-                                        <span
-                                          className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
-                                          style={{
-                                            backgroundColor:
-                                              "var(--app-surface-2)",
-                                            color: "var(--app-muted)",
-                                            borderColor: borderColor,
-                                          }}
-                                        >
-                                          {employeeType}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </td>
-
-                                  <td className="px-6 py-4">
-                                    <div className="flex flex-col">
-                                      <span
-                                        className="font-semibold text-sm"
-                                        style={{ color: "var(--app-text)" }}
-                                      >
-                                        {memoLabel}
-                                      </span>
-                                      <span
-                                        className="text-[10px] font-mono mt-0.5"
-                                        style={{ color: "var(--app-muted)" }}
-                                      >
-                                        ID:{" "}
-                                        {app._id
-                                          ? app._id.slice(-6).toUpperCase()
-                                          : "-"}
-                                      </span>
-                                    </div>
-                                  </td>
-
-                                  <td className="px-6 py-4 text-center">
-                                    <span
-                                      className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
-                                      style={{
-                                        backgroundColor: "var(--app-surface)",
-                                        borderColor: borderColor,
-                                        color: "var(--app-text)",
-                                      }}
-                                    >
-                                      {Number(app?.requestedHours || 0)}h
-                                    </span>
-                                  </td>
-
-                                  <td className="px-6 py-4 text-center">
-                                    <StatusBadge status={app.overallStatus} />
-                                  </td>
-
-                                  <td
-                                    className="px-6 py-4 text-center text-sm"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    {formatSubmitted(app.createdAt)}
-                                  </td>
-
-                                  <td
-                                    className="px-6 py-4 text-sm"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Calendar
-                                        size={14}
-                                        style={{ color: "var(--app-muted)" }}
-                                      />
-                                      <span className="truncate">
-                                        {formatCoveredDates(app.inclusiveDates)}
-                                      </span>
-                                    </div>
-                                  </td>
-
-                                  <td className="px-6 py-4 text-right">
-                                    <ApplicationActionMenu
-                                      app={app}
-                                      borderColor={borderColor}
-                                      isOrganicApp={isAppOrganic}
-                                      onViewDetails={() => setSelectedApp(app)}
-                                      onViewPdf={() => setPdfApp(app)}
-                                      onViewCscForm6={() =>
-                                        setOrganicPdfApp(app)
-                                      }
-                                      onViewMemos={() =>
-                                        openMemoModal(app.memo)
-                                      }
-                                    />
-                                  </td>
-                                </tr>
+                                  app={app}
+                                  borderColor={borderColor}
+                                  isOrganicApp={isAppOrganic}
+                                  leftStripClassName={getStatusStripClass(
+                                    app.overallStatus,
+                                  )}
+                                  onViewDetails={() => setSelectedApp(app)}
+                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewCscForm6={() => setOrganicPdfApp(app)}
+                                  onViewMemos={() => openMemoModal(app.memo)}
+                                />
                               );
                             })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+                      </div>
+                    </div>
+
+                    {/* Tablet: 2 cards */}
+                    <div className="hidden md:block lg:hidden p-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        {isLoading
+                          ? [...Array(Math.min(limit, 6))].map((_, i) => (
+                              <div
+                                key={`sk-t-${i}`}
+                                className="rounded-xl shadow-sm p-4 border transition-colors duration-300 ease-out"
+                                style={{
+                                  backgroundColor: "var(--app-surface)",
+                                  borderColor: borderColor,
+                                }}
+                              >
+                                <Skeleton height={18} />
+                                <div className="mt-3">
+                                  <Skeleton height={12} count={2} />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <Skeleton height={52} />
+                                  <Skeleton height={52} />
+                                </div>
+                                <div className="mt-4">
+                                  <Skeleton height={40} />
+                                </div>
+                              </div>
+                            ))
+                          : applications.map((app) => {
+                              const isAppOrganic =
+                                app?.employeeType === "Organic" ||
+                                app?.category === "Organic";
+                              return (
+                                <ApplicationCard
+                                  key={app._id}
+                                  app={app}
+                                  borderColor={borderColor}
+                                  isOrganicApp={isAppOrganic}
+                                  leftStripClassName={getStatusStripClass(
+                                    app.overallStatus,
+                                  )}
+                                  onViewDetails={() => setSelectedApp(app)}
+                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewCscForm6={() => setOrganicPdfApp(app)}
+                                  onViewMemos={() => openMemoModal(app.memo)}
+                                />
+                              );
+                            })}
+                      </div>
+                    </div>
+
+                    {/* Desktop: table */}
+                    <div className="hidden lg:block w-full align-middle">
+                      <table className="w-full text-left">
+                        <thead
+                          className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                          style={{
+                            backgroundColor: "var(--app-surface)",
+                            borderColor: borderColor,
+                          }}
+                        >
+                          <tr
+                            className="text-[10px] uppercase tracking-[0.12em] font-bold"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            <th className="px-6 py-4 font-bold">Requestor</th>
+                            <th className="px-6 py-4 font-bold">
+                              Reference / Memo
+                            </th>
+                            <th className="px-6 py-4 text-center">Hours</th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                            <th className="px-6 py-4 text-center">Submitted</th>
+                            <th className="px-6 py-4">Dates Covered</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {isLoading
+                            ? [...Array(8)].map((_, i) => (
+                                <tr key={i}>
+                                  {[...Array(7)].map((__, j) => (
+                                    <td key={j} className="px-6 py-4">
+                                      <Skeleton />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))
+                            : applications.map((app, i) => {
+                                const memoLabel =
+                                  Array.isArray(app.memo) && app.memo.length
+                                    ? app.memo
+                                        .map((m) => m?.memoId?.memoNo)
+                                        .filter(Boolean)
+                                        .join(", ")
+                                    : "No Memo Attached";
+
+                                const employeeType =
+                                  app.category || app.employeeType || "Unknown";
+
+                                const isAppOrganic = employeeType === "Organic";
+
+                                const bg =
+                                  i % 2 === 0
+                                    ? "var(--app-surface)"
+                                    : "var(--app-surface-2)";
+
+                                return (
+                                  <tr
+                                    key={app._id}
+                                    className="transition-colors duration-200 ease-out"
+                                    style={{ backgroundColor: bg }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--accent-soft)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor =
+                                        bg;
+                                    }}
+                                  >
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col items-start">
+                                        <span
+                                          className="font-semibold text-sm"
+                                          style={{ color: "var(--app-text)" }}
+                                        >
+                                          {app?.employee?.firstName || ""}{" "}
+                                          {app?.employee?.lastName || ""}
+                                        </span>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span
+                                            className="text-[10px] font-mono"
+                                            style={{
+                                              color: "var(--app-muted)",
+                                            }}
+                                          >
+                                            {app?.employee?.position || "-"}
+                                          </span>
+                                          <span
+                                            className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
+                                            style={{
+                                              backgroundColor:
+                                                "var(--app-surface-2)",
+                                              color: "var(--app-muted)",
+                                              borderColor: borderColor,
+                                            }}
+                                          >
+                                            {employeeType}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col">
+                                        <span
+                                          className="font-semibold text-sm"
+                                          style={{ color: "var(--app-text)" }}
+                                        >
+                                          {memoLabel}
+                                        </span>
+                                        <span
+                                          className="text-[10px] font-mono mt-0.5"
+                                          style={{ color: "var(--app-muted)" }}
+                                        >
+                                          ID:{" "}
+                                          {app._id
+                                            ? app._id.slice(-6).toUpperCase()
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-center">
+                                      <span
+                                        className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
+                                        style={{
+                                          backgroundColor: "var(--app-surface)",
+                                          borderColor: borderColor,
+                                          color: "var(--app-text)",
+                                        }}
+                                      >
+                                        {Number(app?.requestedHours || 0)}h
+                                      </span>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-center">
+                                      <StatusBadge status={app.overallStatus} />
+                                    </td>
+
+                                    <td
+                                      className="px-6 py-4 text-center text-sm"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      {formatSubmitted(app.createdAt)}
+                                    </td>
+
+                                    <td
+                                      className="px-6 py-4 text-sm"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Calendar
+                                          size={14}
+                                          style={{ color: "var(--app-muted)" }}
+                                        />
+                                        <span className="truncate">
+                                          {formatCoveredDates(
+                                            app.inclusiveDates,
+                                          )}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-right">
+                                      <ApplicationActionMenu
+                                        app={app}
+                                        borderColor={borderColor}
+                                        isOrganicApp={isAppOrganic}
+                                        onViewDetails={() =>
+                                          setSelectedApp(app)
+                                        }
+                                        onViewPdf={() => setPdfApp(app)}
+                                        onViewCscForm6={() =>
+                                          setOrganicPdfApp(app)
+                                        }
+                                        onViewMemos={() =>
+                                          openMemoModal(app.memo)
+                                        }
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Pagination */}
+              <CompactPagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                startItem={startItem}
+                endItem={endItem}
+                label="applications"
+                onPrev={() => setPage((p) => Math.max(p - 1, 1))}
+                onNext={() =>
+                  setPage((p) => Math.min(p + 1, pagination.totalPages))
+                }
+                borderColor={borderColor}
+              />
             </div>
-
-            {/* Pagination */}
-            <CompactPagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              startItem={startItem}
-              endItem={endItem}
-              label="applications"
-              onPrev={() => setPage((p) => Math.max(p - 1, 1))}
-              onNext={() =>
-                setPage((p) => Math.min(p + 1, pagination.totalPages))
-              }
-              borderColor={borderColor}
-            />
           </div>
-        </div>
 
-        {/* Back-to-top */}
-        {showScrollTop && (
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
-            style={{
-              backgroundColor: "var(--accent, #2563EB)",
-              color: "#fff",
-            }}
-            aria-label="Scroll to top"
-            title="Back to top"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-        )}
+          {/* Back-to-top */}
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="md:hidden fixed bottom-5 z-[1] h-10 w-10 rounded-full shadow-lg active:scale-95 transition-colors duration-200 ease-out flex items-center justify-center"
+              style={{
+                backgroundColor: "var(--accent, #2563EB)",
+                color: "#fff",
+              }}
+              aria-label="Scroll to top"
+              title="Back to top"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          )}
 
-        {/* General PDF Modal */}
-        <CtoApplicationPdfModal
-          app={pdfApp}
-          isOpen={!!pdfApp}
-          onClose={() => setPdfApp(null)}
-        />
-
-        {/* Organic PDF Modal */}
-        <OrganicApplicationPdfModal
-          app={organicPdfApp}
-          isOpen={!!organicPdfApp}
-          onClose={() => setOrganicPdfApp(null)}
-        />
-
-        {/* Details modal */}
-        {selectedApp && (
-          <Modal
-            isOpen={!!selectedApp}
-            onClose={() => setSelectedApp(null)}
-            maxWidth="max-w-5xl"
-            title="CTO Application Details"
-          >
-            <CtoApplicationDetails app={selectedApp} loading={!selectedApp} />
-          </Modal>
-        )}
-
-        {/* Memos modal */}
-        <Modal
-          isOpen={memoModal.isOpen}
-          onClose={closeMemoModal}
-          title="Memos Used"
-          closeLabel="Close"
-          maxWidth="max-w-5xl"
-        >
-          <MemoList
-            memos={memoModal.memos}
-            description={
-              "Read-only view of CTO memos attached to this request."
-            }
+          {/* General PDF Modal */}
+          <CtoApplicationPdfModal
+            app={pdfApp}
+            isOpen={!!pdfApp}
+            onClose={() => setPdfApp(null)}
           />
-        </Modal>
-      </SkeletonTheme>
-    </div>
+
+          {/* Organic PDF Modal */}
+          <OrganicApplicationPdfModal
+            app={organicPdfApp}
+            isOpen={!!organicPdfApp}
+            onClose={() => setOrganicPdfApp(null)}
+          />
+
+          {/* Details modal */}
+          {selectedApp && (
+            <Modal
+              isOpen={!!selectedApp}
+              onClose={() => setSelectedApp(null)}
+              maxWidth="max-w-5xl"
+              title="CTO Application Details"
+            >
+              <CtoApplicationDetails app={selectedApp} loading={!selectedApp} />
+            </Modal>
+          )}
+
+          {/* Memos modal */}
+          <Modal
+            isOpen={memoModal.isOpen}
+            onClose={closeMemoModal}
+            title="Memos Used"
+            closeLabel="Close"
+            maxWidth="max-w-5xl"
+          >
+            <MemoList
+              memos={memoModal.memos}
+              description={
+                "Read-only view of CTO memos attached to this request."
+              }
+            />
+          </Modal>
+        </SkeletonTheme>
+      </div>
+    </FullHeightCardContainer>
   );
 };
 
