@@ -307,7 +307,6 @@ const createEmployeeService = async (employeeData = {}) => {
         email: employee.email,
         tempPassword,
         loginUrl: `${frontendUrl}`,
-        brandName: "HRMS",
       });
       await safeSendEmail(employee.email, tpl.subject, tpl.html);
     }

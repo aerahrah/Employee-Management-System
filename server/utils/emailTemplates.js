@@ -2,13 +2,21 @@
 // Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit + Wellness)
 
 const BRAND = {
-  name: "CTO Management System",
-  primary: "#2563eb",
-  bg: "#f8fafc",
-  text: "#0f172a",
-  muted: "#64748b",
-  border: "#e2e8f0",
+  name: "DICT Wellness & CTO",
+  primary: "#2563eb", // Modern blue
+  primaryHover: "#1d4ed8",
+  bg: "#f1f5f9", // Softer slate background
+  surface: "#ffffff",
+  text: "#1e293b", // Slate 800
+  muted: "#64748b", // Slate 500
+  border: "#e2e8f0", // Slate 200
+  success: "#16a34a",
+  danger: "#dc2626",
+  warning: "#d97706",
 };
+
+// Fallback font stack favored by modern email clients
+const FONT_FAMILY = `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
 
 function escapeHtml(input) {
   return String(input ?? "")
@@ -19,12 +27,11 @@ function escapeHtml(input) {
     .replaceAll("'", "&#39;");
 }
 
-// Avoid `javascript:` links, keep only http/https. Returns "#" if unsafe.
 function sanitizeUrl(url) {
   const raw = String(url ?? "").trim();
   if (!raw) return "#";
   try {
-    const u = new URL(raw, "https://example.com"); // base helps relative parsing
+    const u = new URL(raw, "https://example.com");
     const isHttp = u.protocol === "http:" || u.protocol === "https:";
     return isHttp ? raw : "#";
   } catch {
@@ -32,39 +39,45 @@ function sanitizeUrl(url) {
   }
 }
 
+// ───────────────────────────────────────────────────────────────
+// MASTER LAYOUT
+// ───────────────────────────────────────────────────────────────
 function emailLayout({
   title,
   preheader,
-  greeting, // e.g. "Good day <strong>Marc</strong>,"
-  intro, // short paragraph
-  detailsRowsHtml, // <tr>...</tr>
-  cta, // { label, url } or null
-  outro, // closing paragraph
+  greeting,
+  intro,
+  detailsRowsHtml,
+  cta,
+  outro,
   brandName = BRAND.name,
-  footerNote = "This is an automated message. Please do not reply.",
+  footerNote = "This is an automated message. Please do not reply directly to this email.",
 }) {
   const safeTitle = escapeHtml(title);
   const safePreheader = escapeHtml(preheader || title);
 
   const ctaHtml = cta?.label
     ? `
-      <tr>
-        <td style="padding-top: 16px;">
-          <a href="${sanitizeUrl(cta.url)}" target="_blank" rel="noreferrer"
-            style="
-              display: inline-block;
-              background: ${BRAND.primary};
-              color: #ffffff;
-              text-decoration: none;
-              padding: 12px 18px;
-              border-radius: 8px;
-              font-weight: 700;
-              font-size: 14px;
-            ">
-            ${escapeHtml(cta.label)}
-          </a>
-        </td>
-      </tr>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 32px; margin-bottom: 32px;">
+        <tr>
+          <td align="center">
+            <a href="${sanitizeUrl(cta.url)}" target="_blank" rel="noreferrer"
+              style="
+                display: inline-block;
+                background-color: ${BRAND.primary};
+                color: #ffffff;
+                text-decoration: none;
+                padding: 14px 28px;
+                border-radius: 6px;
+                font-weight: 600;
+                font-size: 15px;
+                text-align: center;
+              ">
+              ${escapeHtml(cta.label)}
+            </a>
+          </td>
+        </tr>
+      </table>
     `
     : "";
 
@@ -76,43 +89,41 @@ function emailLayout({
     <meta name="x-apple-disable-message-reformatting" />
     <title>${safeTitle}</title>
   </head>
-  <body style="margin:0; padding:0; background:${BRAND.bg}; color:${BRAND.text};">
+  <body style="margin:0; padding:0; background-color:${BRAND.bg}; color:${BRAND.text}; font-family:${FONT_FAMILY}; -webkit-font-smoothing: antialiased;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
-      ${safePreheader}
+      ${safePreheader} &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
     </div>
 
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
-      style="background:${BRAND.bg}; padding: 24px 12px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${BRAND.bg}; padding: 40px 16px;">
       <tr>
         <td align="center">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600"
             style="
               width: 100%;
               max-width: 600px;
-              background: #ffffff;
+              background-color: ${BRAND.surface};
               border: 1px solid ${BRAND.border};
-              border-radius: 14px;
+              border-radius: 12px;
               overflow: hidden;
-              box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
             ">
 
             <tr>
-              <td style="background:${BRAND.primary}; padding: 18px 20px;">
-                <div style="color:#ffffff; font-weight:800; font-size:16px; letter-spacing:0.2px;">
+              <td style="padding: 24px 32px; border-bottom: 1px solid ${BRAND.border};">
+                <div style="color:${BRAND.primary}; font-weight:700; font-size:18px; letter-spacing:-0.3px;">
                   ${escapeHtml(brandName)}
                 </div>
               </td>
             </tr>
 
             <tr>
-              <td style="padding: 22px 20px;">
-                <h1 style="margin:0 0 10px; font-size: 20px; line-height: 1.25; color:${BRAND.text};">
+              <td style="padding: 32px;">
+                <h1 style="margin:0 0 16px; font-size: 22px; font-weight: 700; color:${BRAND.text}; letter-spacing: -0.5px;">
                   ${safeTitle}
                 </h1>
 
                 ${
                   greeting
-                    ? `<p style="margin: 10px 0 0; color:${BRAND.text}; font-size: 14px; line-height: 1.6;">
+                    ? `<p style="margin: 0 0 16px; color:${BRAND.text}; font-size: 16px; line-height: 24px;">
                   ${greeting}
                 </p>`
                     : ""
@@ -120,7 +131,7 @@ function emailLayout({
 
                 ${
                   intro
-                    ? `<p style="margin: 12px 0 0; color:${BRAND.text}; font-size: 14px; line-height: 1.6;">
+                    ? `<p style="margin: 0 0 24px; color:${BRAND.muted}; font-size: 15px; line-height: 24px;">
                   ${intro}
                 </p>`
                     : ""
@@ -130,44 +141,45 @@ function emailLayout({
                   detailsRowsHtml
                     ? `
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
-                    style="margin-top: 14px; border: 1px solid ${BRAND.border}; border-radius: 12px; overflow:hidden;">
+                    style="background-color: #f8fafc; border: 1px solid ${BRAND.border}; border-radius: 8px; margin-bottom: 24px;">
                     ${detailsRowsHtml}
                   </table>
                 `
                     : ""
                 }
 
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                  ${ctaHtml}
-                </table>
+                ${ctaHtml}
 
                 ${
                   outro
-                    ? `<p style="margin: 16px 0 0; color:${BRAND.text}; font-size: 14px; line-height: 1.6;">
+                    ? `<p style="margin: 0 0 24px; color:${BRAND.muted}; font-size: 15px; line-height: 24px;">
                   ${outro}
                 </p>`
                     : ""
                 }
 
-                <p style="margin: 18px 0 0; color:${BRAND.muted}; font-size: 13px; line-height: 1.6;">
-                  Regards,<br />
-                  <strong>${escapeHtml(brandName)}</strong>
-                </p>
-              </td>
-            </tr>
-
-            <tr>
-              <td style="background:#f1f5f9; padding: 14px 20px;">
-                <p style="margin:0; color:${BRAND.muted}; font-size: 12px; line-height: 1.5;">
-                  ${escapeHtml(footerNote)}
-                </p>
-                <p style="margin:6px 0 0; color:${BRAND.muted}; font-size: 12px;">
-                  &copy; ${new Date().getFullYear()} ${escapeHtml(brandName)}
+                <p style="margin: 0; color:${BRAND.text}; font-size: 15px; line-height: 24px;">
+                  Best regards,<br />
+                  <span style="font-weight: 600;">The Dev Team</span>
                 </p>
               </td>
             </tr>
 
           </table>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width: 100%; max-width: 600px;">
+            <tr>
+              <td style="padding: 24px 32px; text-align: center;">
+                <p style="margin:0 0 8px; color:${BRAND.muted}; font-size: 13px; line-height: 20px;">
+                  ${escapeHtml(footerNote)}
+                </p>
+                <p style="margin:0; color:${BRAND.muted}; font-size: 13px;">
+                  &copy; ${new Date().getFullYear()} ${escapeHtml(brandName)}. All rights reserved.
+                </p>
+              </td>
+            </tr>
+          </table>
+
         </td>
       </tr>
     </table>
@@ -175,13 +187,19 @@ function emailLayout({
 </html>`;
 }
 
-function detailRow(label, value) {
+// ───────────────────────────────────────────────────────────────
+// HELPERS
+// ───────────────────────────────────────────────────────────────
+function detailRow(label, value, isLast = false, valueColor = BRAND.text) {
+  const borderBottom = isLast
+    ? ""
+    : `border-bottom: 1px solid ${BRAND.border};`;
   return `
     <tr>
-      <td style="padding: 10px 12px; width: 38%; background:#f8fafc; border-bottom: 1px solid ${BRAND.border}; font-weight: 700; font-size: 13px; color:${BRAND.text};">
+      <td style="padding: 14px 16px; width: 35%; ${borderBottom} font-weight: 600; font-size: 14px; color:${BRAND.muted}; vertical-align: top;">
         ${escapeHtml(label)}
       </td>
-      <td style="padding: 10px 12px; border-bottom: 1px solid ${BRAND.border}; font-size: 13px; color:${BRAND.text};">
+      <td style="padding: 14px 16px; ${borderBottom} font-size: 14px; color:${valueColor}; font-weight: 500; vertical-align: top; line-height: 20px;">
         ${value}
       </td>
     </tr>
@@ -194,8 +212,8 @@ function formatDateLikeHuman(d) {
   if (Number.isNaN(dt.getTime())) return "—";
   return dt.toLocaleDateString("en-PH", {
     year: "numeric",
-    month: "short",
-    day: "2-digit",
+    month: "long",
+    day: "numeric",
   });
 }
 
@@ -206,17 +224,17 @@ function formatHours(hours) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// WELCOME EMAIL (Employee creation welcome email)
+// WELCOME EMAIL
 // ───────────────────────────────────────────────────────────────
 function employeeWelcomeEmail({
   firstName,
   email,
   tempPassword,
   loginUrl,
-  brandName = "HRMS",
+  brandName = BRAND.name,
 }) {
   const safeFirstName = escapeHtml(firstName || "there");
-  const safeEmail = escapeHtml(email || ""); // ✅ Updated
+  const safeEmail = escapeHtml(email || "");
   const safeTempPass = escapeHtml(tempPassword || "");
   const safeLoginUrl = sanitizeUrl(loginUrl);
 
@@ -225,29 +243,31 @@ function employeeWelcomeEmail({
     ${detailRow(
       "Temporary Password",
       safeTempPass
-        ? `<code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">${safeTempPass}</code>`
+        ? `<code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; color: ${BRAND.text};">${safeTempPass}</code>`
         : "<em>(not provided)</em>",
+      true,
     )}
   `;
 
   return {
-    subject: `Welcome to ${brandName} — Your account details`,
+    subject: `Welcome to ${brandName} — Your Account Details`,
     html: emailLayout({
-      title: "Your account has been created",
-      preheader: `Login details for ${brandName}`,
-      greeting: `Good day <strong>${safeFirstName}</strong>,`,
+      title: "Your account is ready",
+      preheader: `Login details for your new ${brandName} account`,
+      greeting: `Hi <strong>${safeFirstName}</strong>,`,
       intro:
-        "Your account is ready. Please use the details below to sign in. For security, change your password immediately after logging in.",
+        "An account has been created for you on the portal. Please use the credentials below to log in. We highly recommend changing your password immediately after your first sign-in.",
       detailsRowsHtml: details,
       cta:
         safeLoginUrl !== "#"
-          ? { label: "Log in", url: `${safeLoginUrl}` }
+          ? { label: "Sign In to Portal", url: `${safeLoginUrl}` }
           : null,
       outro:
-        "If you did not expect this email, please contact your HR administrator.",
+        "If you did not expect this email, please contact your administrator immediately.",
       brandName,
       footerNote:
-        "If you’re having trouble with the button above, copy and paste the login link into your browser.",
+        "If the button above does not work, copy and paste this link into your browser: " +
+        safeLoginUrl,
     }),
   };
 }
@@ -272,22 +292,23 @@ function ctoApprovalEmail({
 
   const details = `
     ${detailRow("Employee", safeEmployee)}
-    ${detailRow("Requested Hours", safeHours)}
+    ${detailRow("Requested Hours", `${safeHours} hrs`)}
     ${detailRow("Reason", safeReason)}
-    ${detailRow("Approval Level", `Level ${safeLevel}`)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`, true)}
   `;
 
   return {
-    subject: `CTO Approval Request (Level ${level}) — ${employeeName || "Pending"}`,
+    subject: `Action Required: CTO Application — ${employeeName || "Pending"}`,
     html: emailLayout({
-      title: `CTO Approval Request (Level ${safeLevel})`,
-      preheader: `Action required: CTO approval for ${employeeName || "an employee"}`,
-      greeting: `Good day <strong>${safeApprover}</strong>,`,
+      title: "Pending CTO Application",
+      preheader: `Review required for CTO request by ${employeeName}`,
+      greeting: `Hi <strong>${safeApprover}</strong>,`,
       intro:
-        "You have a pending CTO application awaiting your approval. Review the request details below and proceed using the button.",
+        "A Compensatory Time-Off (CTO) application requires your review and approval. Please verify the details below.",
       detailsRowsHtml: details,
-      cta: { label: "Review application", url: link },
-      outro: "If you believe this was sent in error, please ignore this email.",
+      cta: { label: "Review Application", url: link },
+      outro:
+        "Prompt action helps ensure smooth processing of employee leave records.",
       brandName,
     }),
   };
@@ -302,20 +323,22 @@ function ctoFinalApprovalEmail({
   const safeHours = escapeHtml(requestedHours ?? "0");
 
   const details = `
-    ${detailRow("Status", "<strong>Approved</strong>")}
-    ${detailRow("Approved Hours", safeHours)}
+    ${detailRow("Status", "Approved", false, BRAND.success)}
+    ${detailRow("Approved Hours", `${safeHours} hrs`, true)}
   `;
 
   return {
-    subject: "CTO Application Approved",
+    subject: "Approved: Your CTO Application",
     html: emailLayout({
-      title: "Your CTO application is approved",
-      preheader: "Your CTO request has been fully approved",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
-      intro: "Your CTO application has been <strong>fully approved</strong>.",
+      title: "CTO Application Approved",
+      preheader: "Your CTO request has been successfully approved.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Great news! Your Compensatory Time-Off (CTO) application has been fully approved by all required signatories.",
       detailsRowsHtml: details,
       cta: null,
-      outro: "You may now proceed based on the approved hours. Thank you.",
+      outro:
+        "Your hours have been deducted and the schedule is confirmed. Enjoy your time off.",
       brandName,
     }),
   };
@@ -323,25 +346,25 @@ function ctoFinalApprovalEmail({
 
 function ctoRejectionEmail({ employeeName, remarks, brandName = BRAND.name }) {
   const safeEmployee = escapeHtml(employeeName || "Employee");
-  const safeRemarks = escapeHtml(remarks || "No remarks provided");
+  const safeRemarks = escapeHtml(remarks || "No remarks provided.");
 
   const details = `
-    ${detailRow("Status", "<strong>Rejected</strong>")}
-    ${detailRow("Remarks", safeRemarks)}
+    ${detailRow("Status", "Rejected", false, BRAND.danger)}
+    ${detailRow("Remarks", safeRemarks, true)}
   `;
 
   return {
-    subject: "CTO Application Rejected",
+    subject: "Update: Your CTO Application",
     html: emailLayout({
-      title: "Your CTO application was rejected",
-      preheader: "Update on your CTO request",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "CTO Application Update",
+      preheader: "There has been an update regarding your CTO application.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "Your CTO application has been <strong>rejected</strong>. Please see the remarks below.",
+        "Your recent Compensatory Time-Off (CTO) application has unfortunately been declined. Please review the specific remarks below.",
       detailsRowsHtml: details,
       cta: null,
       outro:
-        "If you need clarification, please coordinate with your supervisor/approver.",
+        "If you require further clarification, please reach out directly to your approving supervisor.",
       brandName,
     }),
   };
@@ -369,23 +392,24 @@ function wellnessApprovalEmail({
 
   const details = `
     ${detailRow("Employee", safeEmployee)}
-    ${detailRow("Requested Days", safeDays)}
-    ${detailRow("Inclusive Dates", safeDates)}
+    ${detailRow("Requested Days", `${safeDays} day(s)`)}
+    ${detailRow("Dates Covered", safeDates)}
     ${detailRow("Reason", safeReason)}
-    ${detailRow("Approval Level", `Level ${safeLevel}`)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`, true)}
   `;
 
   return {
-    subject: `Wellness Leave Approval Request (Level ${level}) — ${employeeName || "Pending"}`,
+    subject: `Action Required: Wellness Leave — ${employeeName || "Pending"}`,
     html: emailLayout({
-      title: `Wellness Approval Request (Level ${safeLevel})`,
-      preheader: `Action required: Wellness leave approval for ${employeeName || "an employee"}`,
-      greeting: `Good day <strong>${safeApprover}</strong>,`,
+      title: "Pending Wellness Leave",
+      preheader: `Review required for Wellness Leave request by ${employeeName}`,
+      greeting: `Hi <strong>${safeApprover}</strong>,`,
       intro:
-        "You have a pending Wellness Leave application awaiting your approval. Review the request details below and proceed using the button.",
+        "A Wellness Leave application requires your review. Please verify the schedule and details provided below.",
       detailsRowsHtml: details,
-      cta: { label: "Review application", url: link },
-      outro: "If you believe this was sent in error, please ignore this email.",
+      cta: { label: "Review Application", url: link },
+      outro:
+        "Prompt action helps ensure smooth processing of employee leave records.",
       brandName,
     }),
   };
@@ -402,22 +426,23 @@ function wellnessFinalApprovalEmail({
   const safeDates = escapeHtml(inclusiveDates || "—");
 
   const details = `
-    ${detailRow("Status", "<strong>Approved</strong>")}
-    ${detailRow("Approved Days", safeDays)}
-    ${detailRow("Inclusive Dates", safeDates)}
+    ${detailRow("Status", "Approved", false, BRAND.success)}
+    ${detailRow("Approved Days", `${safeDays} day(s)`)}
+    ${detailRow("Dates Covered", safeDates, true)}
   `;
 
   return {
-    subject: "Wellness Leave Approved",
+    subject: "Approved: Your Wellness Leave",
     html: emailLayout({
-      title: "Your Wellness Leave is approved",
-      preheader: "Your Wellness Leave request has been fully approved",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "Wellness Leave Approved",
+      preheader: "Your Wellness Leave request has been successfully approved.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "Your Wellness Leave application has been <strong>fully approved</strong>.",
+        "Great news! Your Wellness Leave application has been fully approved.",
       detailsRowsHtml: details,
       cta: null,
-      outro: "You may now proceed based on the approved dates. Thank you.",
+      outro:
+        "Your leave balance has been adjusted accordingly. We hope you have a restful time off.",
       brandName,
     }),
   };
@@ -429,32 +454,33 @@ function wellnessRejectionEmail({
   brandName = BRAND.name,
 }) {
   const safeEmployee = escapeHtml(employeeName || "Employee");
-  const safeRemarks = escapeHtml(remarks || "No remarks provided");
+  const safeRemarks = escapeHtml(remarks || "No remarks provided.");
 
   const details = `
-    ${detailRow("Status", "<strong>Rejected</strong>")}
-    ${detailRow("Remarks", safeRemarks)}
+    ${detailRow("Status", "Rejected", false, BRAND.danger)}
+    ${detailRow("Remarks", safeRemarks, true)}
   `;
 
   return {
-    subject: "Wellness Leave Rejected",
+    subject: "Update: Your Wellness Leave",
     html: emailLayout({
-      title: "Your Wellness Leave application was rejected",
-      preheader: "Update on your Wellness request",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "Wellness Leave Update",
+      preheader:
+        "There has been an update regarding your Wellness Leave application.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "Your Wellness Leave application has been <strong>rejected</strong>. Please see the remarks below.",
+        "Your recent Wellness Leave application has unfortunately been declined. Please review the specific remarks below.",
       detailsRowsHtml: details,
       cta: null,
       outro:
-        "If you need clarification, please coordinate with your supervisor/approver.",
+        "If you require further clarification, please reach out directly to your approving supervisor.",
       brandName,
     }),
   };
 }
 
 // ───────────────────────────────────────────────────────────────
-// CTO CREDIT EMAILS (add credit + rollback credit)
+// CTO CREDIT EMAILS
 // ───────────────────────────────────────────────────────────────
 function ctoCreditAddedEmail({
   employeeName,
@@ -469,24 +495,23 @@ function ctoCreditAddedEmail({
   const safeDate = escapeHtml(formatDateLikeHuman(dateApproved));
 
   const details = `
-    ${detailRow("Status", "<strong>Credited</strong>")}
-    ${detailRow("Memo No.", safeMemoNo)}
+    ${detailRow("Status", "Credited", false, BRAND.primary)}
+    ${detailRow("Memo Ref.", safeMemoNo)}
     ${detailRow("Date Approved", safeDate)}
-    ${detailRow("Credited Hours", safeHours)}
+    ${detailRow("Credited Hours", `+${safeHours} hrs`, true, BRAND.success)}
   `;
 
   return {
-    subject: `CTO Credit Added — Memo ${memoNo || ""}`.trim(),
+    subject: `Notice: New CTO Credit Added (Memo ${memoNo || ""})`.trim(),
     html: emailLayout({
-      title: "CTO credit has been added to your balance",
-      preheader: "Your CTO hours have been credited",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "CTO Balance Updated",
+      preheader: "New compensatory hours have been added to your account.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "Your CTO balance has been updated. Please see the credit details below.",
+        "New Compensatory Time-Off (CTO) hours have been successfully credited to your balance.",
       detailsRowsHtml: details,
       cta: null,
-      outro:
-        "If you believe this update is incorrect, please contact your HR/Admin.",
+      outro: "You can view your updated total balance directly in the portal.",
       brandName,
     }),
   };
@@ -497,7 +522,7 @@ function ctoCreditRolledBackEmail({
   memoNo,
   rolledBackHours,
   dateRolledBack,
-  reason, // optional
+  reason,
   brandName = BRAND.name,
 }) {
   const safeEmployee = escapeHtml(employeeName || "Employee");
@@ -507,31 +532,32 @@ function ctoCreditRolledBackEmail({
   const safeReason = escapeHtml(reason || "—");
 
   const details = `
-    ${detailRow("Status", "<strong>Rolled Back</strong>")}
-    ${detailRow("Memo No.", safeMemoNo)}
-    ${detailRow("Date Rolled Back", safeDate)}
-    ${detailRow("Hours Removed", safeHours)}
-    ${detailRow("Reason", safeReason)}
+    ${detailRow("Status", "Rolled Back", false, BRAND.warning)}
+    ${detailRow("Memo Ref.", safeMemoNo)}
+    ${detailRow("Date Reversed", safeDate)}
+    ${detailRow("Hours Deducted", `-${safeHours} hrs`, false, BRAND.danger)}
+    ${detailRow("Reason", safeReason, true)}
   `;
 
   return {
-    subject: `CTO Credit Rolled Back — Memo ${memoNo || ""}`.trim(),
+    subject: `Notice: CTO Credit Reversal (Memo ${memoNo || ""})`.trim(),
     html: emailLayout({
-      title: "A CTO credit was rolled back",
-      preheader: "Your CTO balance was adjusted due to a rollback",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "CTO Credit Reversed",
+      preheader: "A previous CTO credit was rolled back from your account.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "A previously credited CTO memo was rolled back, and your CTO balance has been adjusted. Details are below.",
+        "A previously applied Compensatory Time-Off (CTO) credit has been rolled back, and your balance has been adjusted accordingly.",
       detailsRowsHtml: details,
       cta: null,
-      outro: "If you have questions, please contact your HR/Admin.",
+      outro:
+        "If you believe this adjustment was made in error, please contact HR/Administration immediately.",
       brandName,
     }),
   };
 }
 
 // ───────────────────────────────────────────────────────────────
-// WELLNESS CREDIT EMAILS (add credit + rollback credit)
+// WELLNESS CREDIT EMAILS
 // ───────────────────────────────────────────────────────────────
 function wellnessCreditAddedEmail({
   employeeName,
@@ -546,24 +572,24 @@ function wellnessCreditAddedEmail({
   const safeDate = escapeHtml(formatDateLikeHuman(dateApproved));
 
   const details = `
-    ${detailRow("Status", "<strong>Credited</strong>")}
-    ${detailRow("Memo No.", safeMemoNo)}
+    ${detailRow("Status", "Credited", false, BRAND.primary)}
+    ${detailRow("Memo Ref.", safeMemoNo)}
     ${detailRow("Date Approved", safeDate)}
-    ${detailRow("Credited Days", safeDays)}
+    ${detailRow("Credited Days", `+${safeDays} day(s)`, true, BRAND.success)}
   `;
 
   return {
-    subject: `Wellness Credit Added — Memo ${memoNo || ""}`.trim(),
+    subject:
+      `Notice: New Wellness Leave Credited (Memo ${memoNo || ""})`.trim(),
     html: emailLayout({
-      title: "Wellness days have been added to your balance",
-      preheader: "Your Wellness Leave balance has been updated",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "Wellness Balance Updated",
+      preheader: "New wellness days have been added to your account.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "Your Wellness Leave balance has been updated. Please see the credit details below.",
+        "New Wellness Leave days have been successfully credited to your balance.",
       detailsRowsHtml: details,
       cta: null,
-      outro:
-        "If you believe this update is incorrect, please contact your HR/Admin.",
+      outro: "You can view your updated leave balance directly in the portal.",
       brandName,
     }),
   };
@@ -574,7 +600,7 @@ function wellnessCreditRolledBackEmail({
   memoNo,
   rolledBackDays,
   dateRolledBack,
-  reason, // optional
+  reason,
   brandName = BRAND.name,
 }) {
   const safeEmployee = escapeHtml(employeeName || "Employee");
@@ -584,24 +610,26 @@ function wellnessCreditRolledBackEmail({
   const safeReason = escapeHtml(reason || "—");
 
   const details = `
-    ${detailRow("Status", "<strong>Rolled Back</strong>")}
-    ${detailRow("Memo No.", safeMemoNo)}
-    ${detailRow("Date Rolled Back", safeDate)}
-    ${detailRow("Days Removed", safeDays)}
-    ${detailRow("Reason", safeReason)}
+    ${detailRow("Status", "Rolled Back", false, BRAND.warning)}
+    ${detailRow("Memo Ref.", safeMemoNo)}
+    ${detailRow("Date Reversed", safeDate)}
+    ${detailRow("Days Deducted", `-${safeDays} day(s)`, false, BRAND.danger)}
+    ${detailRow("Reason", safeReason, true)}
   `;
 
   return {
-    subject: `Wellness Credit Rolled Back — Memo ${memoNo || ""}`.trim(),
+    subject: `Notice: Wellness Leave Reversal (Memo ${memoNo || ""})`.trim(),
     html: emailLayout({
-      title: "A Wellness credit was rolled back",
-      preheader: "Your Wellness Leave balance was adjusted due to a rollback",
-      greeting: `Good day <strong>${safeEmployee}</strong>,`,
+      title: "Wellness Credit Reversed",
+      preheader:
+        "A previous Wellness credit was rolled back from your account.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
       intro:
-        "A previously credited Wellness memo was rolled back, and your Wellness Leave balance has been adjusted. Details are below.",
+        "A previously applied Wellness Leave credit has been rolled back, and your balance has been adjusted accordingly.",
       detailsRowsHtml: details,
       cta: null,
-      outro: "If you have questions, please contact your HR/Admin.",
+      outro:
+        "If you believe this adjustment was made in error, please contact HR/Administration immediately.",
       brandName,
     }),
   };

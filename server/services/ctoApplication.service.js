@@ -577,7 +577,6 @@ const addCtoApplicationService = async ({
           reason: safeReason,
           level: 1,
           link: `${process.env.FRONTEND_URL}/app/cto-approvals/${newApplication._id}`,
-          brandName: "CTO Management System",
         });
 
         await safeSendEmail(approverUser.email, tpl.subject, tpl.html);

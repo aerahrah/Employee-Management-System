@@ -432,7 +432,6 @@ const approveWellnessApplicationService = async ({
             employeeName: `${application.employee.firstName} ${application.employee.lastName}`,
             requestedDays: application.totalDays,
             inclusiveDates: (application.inclusiveDates || []).join(", "),
-            brandName: "CTO Management System",
           });
           await safeSendEmail(
             application.employee.email,
@@ -483,7 +482,6 @@ const approveWellnessApplicationService = async ({
               reason: application.reason,
               level: nextStep.level,
               link: `${process.env.FRONTEND_URL}/app/wellness-approvals/${application._id}`,
-              brandName: "CTO Management System",
             });
             await safeSendEmail(nextApproverUser.email, tpl.subject, tpl.html);
           }
@@ -668,7 +666,6 @@ const rejectWellnessApplicationService = async ({
         const tpl = wellnessRejectionEmail({
           employeeName: `${application.employee.firstName} ${application.employee.lastName}`,
           remarks: remarks || "No remarks provided",
-          brandName: "CTO Management System",
         });
         await safeSendEmail(application.employee.email, tpl.subject, tpl.html);
       }

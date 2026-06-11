@@ -547,7 +547,6 @@ const approveCtoApplicationService = async ({
             reason: application.reason,
             level: nextStep.level,
             link: `${process.env.FRONTEND_URL}/app/cto-approvals/${application._id}`,
-            brandName: "CTO Management System",
           });
           await safeSendEmail(nextApprover.email, tpl.subject, tpl.html);
         }
@@ -558,7 +557,6 @@ const approveCtoApplicationService = async ({
         const tpl = ctoFinalApprovalEmail({
           employeeName: application.employee.firstName,
           requestedHours: application.requestedHours,
-          brandName: "CTO Management System",
         });
         await safeSendEmail(application.employee.email, tpl.subject, tpl.html);
       }
@@ -769,7 +767,6 @@ const rejectCtoApplicationService = async ({
         const tpl = ctoRejectionEmail({
           employeeName: application.employee.firstName,
           remarks: safeRemarks,
-          brandName: "CTO Management System",
         });
         await safeSendEmail(application.employee.email, tpl.subject, tpl.html);
       }

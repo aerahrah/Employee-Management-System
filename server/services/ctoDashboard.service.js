@@ -277,8 +277,11 @@ async function getSupervisorSummary(employeeId) {
   const allPendingRequests = Array.from(pendingApplicationsMap.values()).map(
     (app) => ({
       id: app._id,
-      employeeId: app.employee._id,
-      employeeName: `${app.employee.firstName} ${app.employee.lastName}`,
+      // ✅ FIXED: Safely access employee properties in case the employee was deleted
+      employeeId: app.employee?._id || null,
+      employeeName: app.employee
+        ? `${app.employee.firstName || ""} ${app.employee.lastName || ""}`.trim()
+        : "Unknown Employee",
       // ✅ ADDED: Exposed employeeType and commutation for the supervisor dashboard
       employeeType: app.employeeType,
       commutation: app.commutation,

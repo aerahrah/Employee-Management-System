@@ -21,8 +21,6 @@ const WELLNESS_CREDIT_STATUS = Object.freeze({
   EXHAUSTED: "EXHAUSTED",
 });
 
-const BRAND_NAME = "Wellness Management System";
-
 // --- HELPER FUNCTIONS ---
 
 function createServiceError(message, statusCode = 400) {
@@ -263,7 +261,6 @@ async function addCredit({
               memoNo: safeMemoNo,
               creditedDays: creditedDays,
               dateApproved: approvedDate,
-              brandName: BRAND_NAME,
             });
 
             await safeSendEmail(emp.email, tpl.subject, tpl.html);
@@ -387,7 +384,6 @@ async function rollbackCredit({ creditId, userId }) {
               rolledBackDays: row?.creditedDays || 0,
               dateRolledBack,
               reason: "Credit memo rolled back by admin.",
-              brandName: BRAND_NAME,
             });
 
             await safeSendEmail(emp.email, tpl.subject, tpl.html);
