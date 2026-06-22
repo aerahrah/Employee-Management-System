@@ -230,10 +230,11 @@ const addWellnessApplicationService = async ({
 
   try {
     // Deduct from wellnessDays directly
-    if ((employee.balances.wellnessDays || 0) < totalDays) {
+    const currentWellnessBalance = employee.balances?.wellnessDays || 0;
+    if (currentWellnessBalance < totalDays) {
       throw Object.assign(
         new Error(
-          `Insufficient Wellness Leave balance. Available: ${employee.balances.wellnessDays || 0}`,
+          `Insufficient Wellness Leave balance. Available: ${currentWellnessBalance}`,
         ),
         { status: 400 },
       );
@@ -264,6 +265,7 @@ const addWellnessApplicationService = async ({
         middleName: employee.middleName || "",
         lastName: employee.lastName || "",
         position: employee.position || "",
+        wellnessBalance: currentWellnessBalance, // ✅ Snapshots the balance BEFORE the deduction
       },
       inclusiveDates,
       totalDays,

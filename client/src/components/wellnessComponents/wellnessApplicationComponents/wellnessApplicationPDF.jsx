@@ -8,7 +8,6 @@ import {
   Image,
 } from "@react-pdf/renderer";
 
-// ✅ Import your buildApiUrl utility so the PDF can construct absolute URLs for the signatures
 import { buildApiUrl } from "../../../config/env";
 
 /* =========================
@@ -25,1005 +24,673 @@ function fmtDateLong(d) {
   });
 }
 
+function toMidnight(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function formatInclusiveDates(dates) {
   if (!Array.isArray(dates) || dates.length === 0) return "";
+
   const sorted = dates
-    .map((x) => new Date(x))
+    .map((x) => toMidnight(x))
     .filter((d) => !Number.isNaN(d.getTime()))
     .sort((a, b) => a.getTime() - b.getTime());
 
   if (sorted.length === 0) return "";
-  if (sorted.length === 1) return fmtDateLong(sorted[0]);
 
-  return `${fmtDateLong(sorted[0])} to ${fmtDateLong(sorted[sorted.length - 1])}`;
+  const ranges = [];
+  let start = sorted[0];
+  let end = sorted[0];
+
+  const isNextDay = (a, b) => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    return toMidnight(b).getTime() - toMidnight(a).getTime() === dayMs;
+  };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i];
+    if (isNextDay(end, cur)) {
+      end = cur;
+    } else {
+      ranges.push([start, end]);
+      start = cur;
+      end = cur;
+    }
+  }
+  ranges.push([start, end]);
+
+  const monthLong = (d) => d.toLocaleDateString("en-US", { month: "long" });
+  const monthShort = (d) => d.toLocaleDateString("en-US", { month: "short" });
+
+  const fmtRange = (s, e) => {
+    const sameDay = s.getTime() === e.getTime();
+    const sameMonth =
+      s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+    const sameYear = s.getFullYear() === e.getFullYear();
+
+    if (sameDay) {
+      return `${monthLong(s)} ${s.getDate()}, ${s.getFullYear()}`;
+    }
+    if (sameMonth) {
+      return `${monthLong(s)} ${s.getDate()}-${e.getDate()}, ${s.getFullYear()}`;
+    }
+    if (sameYear) {
+      return `${monthShort(s)} ${s.getDate()} - ${monthShort(e)} ${e.getDate()}, ${s.getFullYear()}`;
+    }
+    return `${monthShort(s)} ${s.getDate()}, ${s.getFullYear()} - ${monthShort(e)} ${e.getDate()}, ${e.getFullYear()}`;
+  };
+
+  return ranges.map(([s, e]) => fmtRange(s, e)).join(", ");
 }
 
-// ✅ Safe URL Wrapper to prevent Buffer errors on relative signature paths
+function safeNumber(n) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : 0;
+}
+
 function safeImageUrl(url) {
   if (!url) return null;
-  // If it's already an absolute HTTP URL, return it. Otherwise, prepend backend URL.
   return url.startsWith("http") ? url : buildApiUrl(url);
 }
 
+function getApproverDetails(approval, fallbackName = "") {
+  if (!approval) {
+    return { name: fallbackName, sigUrl: null, text: null };
+  }
+
+  const snap = approval.approverSnapshot;
+  const live = approval.approver;
+
+  const firstName = snap?.firstName || live?.firstName || "";
+  const lastName = snap?.lastName || live?.lastName || "";
+
+  let name = fallbackName;
+  if (firstName || lastName) {
+    name = `${firstName} ${lastName}`.trim().toUpperCase();
+  }
+
+  let sigUrl = null;
+  let text = null;
+
+  if (approval.status === "APPROVED") {
+    sigUrl = safeImageUrl(
+      snap?.signatureUrl || approval.approverSignature?.signatureUrl,
+    );
+    if (!sigUrl) {
+      text = `Digitally signed\nby ${lastName}\n${firstName}`;
+    }
+  }
+
+  return { name, sigUrl, text };
+}
+
+function ledgerRowLabel(item) {
+  const record = item?.wellnessId || item?.recordId || item || {};
+  const days =
+    record?.daysEarned ??
+    record?.earnedDays ??
+    record?.totalDays ??
+    item?.appliedDays ??
+    "";
+
+  const date =
+    record?.earnedDate ||
+    record?.creditDate ||
+    record?.dateEarned ||
+    record?.createdAt ||
+    "";
+
+  const dateStr = date
+    ? new Date(date).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+      })
+    : "";
+
+  const daysStr = days !== "" ? `${days} days` : "";
+  if (!dateStr && !daysStr) return "";
+  return [dateStr, daysStr].filter(Boolean).join(" – ");
+}
+
 /* =========================
-   Styles
+   Underlined field components
+========================= */
+function UnderlineBox({
+  value,
+  width,
+  flex = 1,
+  align = "center",
+  minHeight = 12,
+  paddingBottom = 1,
+  textStyle,
+  boxStyle,
+  signatureText,
+  signatureUrl,
+}) {
+  return (
+    <View
+      style={[
+        styles.underlineBox,
+        { flex, width: width ?? undefined, minHeight, paddingBottom },
+        boxStyle,
+      ]}
+    >
+      {signatureUrl ? (
+        <Image src={signatureUrl} style={styles.signatureImageBox} />
+      ) : signatureText ? (
+        <Text style={styles.digitalSignatureText}>{signatureText}</Text>
+      ) : null}
+      <Text style={[styles.underlineText, { textAlign: align }, textStyle]}>
+        {String(value || "")}
+      </Text>
+    </View>
+  );
+}
+
+function LabeledUnderlineRow({
+  label,
+  value,
+  lineWidth,
+  lineFlex = 1,
+  labelStyle,
+  align = "center",
+}) {
+  return (
+    <View style={styles.fieldRow}>
+      <Text style={[styles.label, styles.fieldLabel, labelStyle]}>{label}</Text>
+      <UnderlineBox
+        value={value}
+        width={lineWidth}
+        flex={lineFlex}
+        align={align}
+      />
+    </View>
+  );
+}
+
+/* =========================
+   Styles 
 ========================= */
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    padding: "18 28 24 28",
+    fontSize: 10,
     fontFamily: "Helvetica",
+    lineHeight: 1.25,
   },
-
-  /* --- Header --- */
-  headerWrapper: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  headerLogoArea: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "70%",
-  },
-  logoPlaceholder: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#eee",
-    marginRight: 10,
-  },
-  stampBox: {
-    width: 100,
-    height: 35,
-    borderWidth: 1,
-    borderColor: "#000",
-    padding: 2,
-  },
-  stampText: {
-    fontSize: 6,
-    textAlign: "center",
-  },
+  header: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  logo: { width: 190, height: 55, objectFit: "contain" },
   formTitle: {
-    fontSize: 16,
-    fontFamily: "Helvetica-Bold",
     textAlign: "center",
-    marginBottom: 5,
+    fontWeight: "bold",
+    marginBottom: 10,
+    fontSize: 10,
   },
-
-  /* --- Grid System --- */
-  formBorder: {
+  topBox: {
     borderWidth: 1,
     borderColor: "#000",
-    width: "100%",
-  },
-  row: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#000",
+    width: "100%",
+    minHeight: 210,
   },
-  colRightBorder: {
+  topLeft: {
+    width: "58%",
     borderRightWidth: 1,
     borderRightColor: "#000",
+    padding: 10,
   },
-
-  /* --- Cell Padding & Text --- */
-  labelTitle: {
-    fontSize: 8,
-    fontFamily: "Helvetica",
-  },
-  valueText: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    textAlign: "center",
-  },
-  sectionTitle: {
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    textAlign: "center",
-    paddingVertical: 3,
-    backgroundColor: "#f4f4f4",
+  topRight: { width: "42%", padding: 10 },
+  label: { fontWeight: "bold" },
+  fieldRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 6 },
+  fieldLabel: { marginRight: 6, flexShrink: 0 },
+  underlineBox: {
     borderBottomWidth: 1,
     borderBottomColor: "#000",
-  },
-
-  /* --- Custom Underlines --- */
-  inputUnderline: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#000",
-    minHeight: 12,
     justifyContent: "flex-end",
-    paddingBottom: 1,
-    flex: 1,
-    marginLeft: 5,
+    position: "relative",
   },
-  inputUnderlineCenter: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#000",
-    minHeight: 12,
-    justifyContent: "flex-end",
-    alignItems: "center",
-    paddingBottom: 1,
-    paddingHorizontal: 5,
+  underlineText: { fontSize: 10, paddingHorizontal: 2, zIndex: 2 },
+  signatureImageBox: {
+    height: 30,
+    width: 100,
+    objectFit: "contain",
+    position: "absolute",
+    top: 10,
+    alignSelf: "center",
+    zIndex: 1,
   },
-
-  /* --- Checkboxes --- */
-  checkboxRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  initialSignatureImageBox: {
+    height: 35,
+    width: 80,
+    objectFit: "contain",
+    alignSelf: "center",
+    marginTop: 2,
+  },
+  digitalSignatureText: {
+    fontSize: 7,
+    color: "#333",
+    textAlign: "center",
+    lineHeight: 1.1,
     marginBottom: 4,
   },
+  actionTitle: { fontWeight: "bold", textAlign: "center", marginBottom: 10 },
+  actionRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   checkbox: {
-    width: 8,
-    height: 8,
+    width: 22,
+    height: 22,
     borderWidth: 1,
     borderColor: "#000",
-    marginRight: 4,
-    marginTop: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkMark: {
-    fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-  },
-  cbLabel: {
-    fontSize: 8,
-    flex: 1,
-  },
-  cbLaw: {
-    fontSize: 6,
-    fontFamily: "Helvetica",
-  },
-
-  /* --- Tables inside cells --- */
-  innerTable: {
-    borderWidth: 1,
-    borderColor: "#000",
-    marginTop: 5,
-  },
-  innerRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#000",
-  },
-  innerHeaderCell: {
-    flex: 1,
-    borderRightWidth: 1,
-    borderRightColor: "#000",
-    padding: 2,
+    marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
   },
-  innerCell: {
-    flex: 1,
-    borderRightWidth: 1,
-    borderRightColor: "#000",
-    padding: 2,
-    alignItems: "center",
-  },
-  innerCellLabel: {
-    flex: 1.5,
-    borderRightWidth: 1,
-    borderRightColor: "#000",
-    padding: 2,
-    fontFamily: "Helvetica-Oblique",
-    fontSize: 7,
-  },
-
-  /* --- Signatures --- */
-  sigBlock: {
-    alignItems: "center",
-    marginTop: 15,
-  },
-  sigLine: {
-    position: "relative",
+  checkmark: { fontSize: 12, fontWeight: "bold" },
+  actionText: { flexDirection: "row", alignItems: "flex-end", flex: 1 },
+  approvalLabelLeft: { marginTop: 18, marginBottom: 6 },
+  nameLine: { alignSelf: "center", marginTop: 10 },
+  roleLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
+  detachRow: { marginTop: 10, marginBottom: 6 },
+  detachText: { fontSize: 9 },
+  dashedLine: {
     borderBottomWidth: 1,
     borderBottomColor: "#000",
-    width: "80%",
-    minHeight: 15,
-    justifyContent: "flex-end",
-    alignItems: "center",
+    borderStyle: "dashed",
+    marginBottom: 10,
   },
-  sigName: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 2,
+  certificateTitle: {
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 10,
+    marginBottom: 6,
   },
-  sigRole: {
-    fontSize: 8,
-    marginTop: 2,
+  certBox: { borderWidth: 1, borderColor: "#000", width: "100%" },
+  gridRow: { flexDirection: "row" },
+  gridHeaderCell: {
+    borderRightWidth: 1,
+    borderRightColor: "#000",
+    borderBottomWidth: 1,
+    borderBottomColor: "#000",
+    padding: 5,
+    fontWeight: "bold",
     textAlign: "center",
   },
-  digitalSigInfo: {
-    fontSize: 5,
-    position: "absolute",
-    right: 10,
-    bottom: 12,
-    textAlign: "right",
+  gridCell: {
+    borderRightWidth: 1,
+    borderRightColor: "#000",
+    borderBottomWidth: 1,
+    borderBottomColor: "#000",
+    padding: 5,
   },
-  applicantSignature: {
-    height: 35,
-    width: 120,
-    objectFit: "contain",
-    position: "absolute",
-    bottom: 2,
+  col1: { width: "28%" },
+  col2: { width: "20%" },
+  col3: { width: "16%" },
+  col4: { width: "18%" },
+  col5: { width: "18%", borderRightWidth: 0 },
+  certFooter: {
+    minHeight: 150,
+    padding: 15,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-end",
   },
-  approverSignatureAbove: {
-    height: 35,
-    width: 120,
-    objectFit: "contain",
-    position: "absolute",
-    bottom: 12,
+  footerBlock: { width: 200, alignItems: "center" },
+  footerRole: {
+    fontSize: 9,
+    textAlign: "center",
+    marginTop: 10,
+    marginBottom: 6,
   },
-  approverInitialBeside: {
-    height: 20,
-    width: 40,
-    objectFit: "contain",
-    marginRight: 4,
-    marginBottom: -2,
+  footerDateLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#000",
+    width: 140,
+    height: 14,
   },
+  footerDateLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
 });
 
 /* =========================
-   Sub-components
+   PDF Component
 ========================= */
-const CheckboxItem = ({ label, law, checked }) => (
-  <View style={styles.checkboxRow}>
-    <View style={styles.checkbox}>
-      <Text style={styles.checkMark}>{checked ? "✓" : ""}</Text>
-    </View>
-    <Text style={styles.cbLabel}>
-      {label} {law && <Text style={styles.cbLaw}>{law}</Text>}
-    </Text>
-  </View>
-);
+export default function WellnessLeavePdf({
+  app,
+  logoSrc = "/public/logo_dict.png",
+  recommendingApproverLabel = "Chief/Division Head",
+  approvedLabel = "Regional Director",
+  adminFinanceLabel = "Chief, Admin. & Finance Div.",
+}) {
+  const applicantSnap = app?.applicantSnapshot || {};
+  const emp = app?.employee || {};
+  const firstName = applicantSnap.firstName || emp.firstName || "";
+  const lastName = applicantSnap.lastName || emp.lastName || "";
+  const middleName = applicantSnap.middleName || emp.middleName || "";
 
-const SlotSignatures = ({
-  approvals,
-  fallbackName,
-  fallbackRole,
-  marginTop = 15,
-}) => {
-  if (!approvals || approvals.length === 0) {
-    return (
-      <View style={[styles.sigBlock, { marginTop }]}>
-        <View style={styles.sigLine}>
-          <Text style={styles.sigName}>{fallbackName}</Text>
-        </View>
-        <Text style={styles.sigRole}>{fallbackRole}</Text>
-      </View>
-    );
-  }
+  let employeeName =
+    firstName || lastName
+      ? `${firstName} ${middleName} ${lastName}`
+          .trim()
+          .replace(/\s+/g, " ")
+          .toUpperCase()
+      : "";
 
-  const mainApprover =
-    approvals.find((a) => a.role?.toLowerCase().includes("signature")) ||
-    approvals[approvals.length - 1];
+  const position = applicantSnap.position || emp.position || "";
+  const officeDivision = emp.officeDivision || emp.division || emp.office || "";
+  const dateOfFiling = fmtDateLong(app?.createdAt) || "";
 
-  const otherApprovers = approvals.filter((a) => a._id !== mainApprover._id);
-  const isMainInitial = mainApprover.role?.toLowerCase().includes("initial");
+  // ✅ Pulling "Used Days" from app.totalDays
+  const totalDaysUsed = safeNumber(app?.totalDays);
+  const inclusiveDates = formatInclusiveDates(app?.inclusiveDates) || "";
+  const reason = app?.reason || "";
 
-  // ✅ Use Approver Snapshot if available, fallback to live profile or placeholder
-  const mainName = mainApprover.approverSnapshot
-    ? `${mainApprover.approverSnapshot.firstName} ${mainApprover.approverSnapshot.lastName}`.toUpperCase()
-    : mainApprover.approver
-      ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
-      : fallbackName;
+  const dayCount = Array.isArray(app?.inclusiveDates)
+    ? app.inclusiveDates.length
+    : totalDaysUsed;
 
-  const mainRole =
-    mainApprover.approverSnapshot?.position ||
-    mainApprover.approver?.position ||
-    fallbackRole;
-
-  // ✅ Ensure absolute URLs pulling from snapshot when approved
-  const rawMainSigUrl =
-    mainApprover.status === "APPROVED"
-      ? mainApprover.approverSnapshot?.signatureUrl ||
-        mainApprover.approverSignature?.signatureUrl
-      : null;
-  const mainSigUrl = safeImageUrl(rawMainSigUrl);
-
-  return (
-    <View style={[styles.sigBlock, { marginTop }]}>
-      <View style={styles.sigLine}>
-        {!isMainInitial && mainSigUrl && (
-          <Image src={mainSigUrl} style={styles.approverSignatureAbove} />
-        )}
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-end",
-            justifyContent: "center",
-          }}
-        >
-          {otherApprovers.map((appr, idx) => {
-            const rawUrl =
-              appr.status === "APPROVED"
-                ? appr.approverSnapshot?.signatureUrl ||
-                  appr.approverSignature?.signatureUrl
-                : null;
-            const url = safeImageUrl(rawUrl);
-            if (!url) return null;
-            return (
-              <Image key={idx} src={url} style={styles.approverInitialBeside} />
-            );
-          })}
-
-          {isMainInitial && mainSigUrl && (
-            <Image src={mainSigUrl} style={styles.approverInitialBeside} />
-          )}
-
-          <Text style={styles.sigName}>{mainName}</Text>
-        </View>
-      </View>
-      <Text style={styles.sigRole}>{mainRole}</Text>
-    </View>
+  const applicantSigUrl = safeImageUrl(
+    app?.applicantSignatureUrl || emp.signature,
   );
-};
+  let applicantSigText =
+    !applicantSigUrl && (lastName || firstName)
+      ? `Digitally signed\nby ${lastName}\n${firstName}`
+      : null;
 
-/* =========================
-   Main Component
-========================= */
-export default function WellnessApplicationPdf({ app, logoSrc, signatureSrc }) {
-  // ✅ Extract data from Applicant Snapshot for historical accuracy
-  const snapshot = app?.applicantSnapshot || {};
-  const emp = app?.employee || {}; // Fallback for legacy records
+  const approvals = app?.approvals || [];
 
-  const office = emp.division || emp.department || "ADMIN AND FINANCE";
-  const lastName = snapshot.lastName || emp.lastName || "";
-  const firstName = snapshot.firstName || emp.firstName || "";
-  const middleName = snapshot.middleName || emp.middleName || "";
-  const position = snapshot.position || emp.position || "";
+  const recInitialApproval = approvals.find(
+    (a) => a.role === "Recommending Approval Initial",
+  );
+  const recApproval = approvals.find((a) => a.role === "Recommending Approval");
+  const adminApproval = approvals.find((a) => a.role === "AFD Chief Signature");
+  const finalApproval = approvals.find(
+    (a) => a.role === "Regional Director Signature",
+  );
 
-  // ✅ Format Salary Amount + Salary Grade seamlessly
-  const amt = snapshot.salaryAmount;
+  const recInitialDetails = getApproverDetails(recInitialApproval);
+  const recDetails = getApproverDetails(recApproval);
+  const adminDetails = getApproverDetails(adminApproval);
+  const finalDetails = getApproverDetails(finalApproval);
 
-  let salaryText = "";
+  // Focus primarily on wellness arrays/records
+  const ledgerItems = Array.isArray(app?.wellness)
+    ? app.wellness
+    : Array.isArray(app?.ledger)
+      ? app.ledger
+      : [];
 
-  if (amt) {
-    salaryText = `${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+  // ==========================================
+  // TABLE ROW GENERATION LOGIC
+  // ==========================================
+
+  // Gets Total Wellness Leave Balance specifically from the snapshot
+  const snapBalance =
+    applicantSnap.wellnessBalance ?? emp.balances?.wellnessDays;
+  const hasSnapBalance = snapBalance !== undefined && snapBalance !== null;
+
+  let generatedRows = [];
+
+  if (ledgerItems.length > 0) {
+    // If we have specific ledger history, populate it
+    generatedRows = ledgerItems.map((m) => {
+      const record = m?.wellnessId || m?.recordId || m || {};
+      return {
+        col1:
+          ledgerRowLabel(m) || (hasSnapBalance ? `${snapBalance} Day(s)` : ""),
+        col2: inclusiveDates || "",
+        col3: m?.appliedDays != null ? String(m.appliedDays) : "",
+        col4:
+          record?.remainingDays != null ? `${record.remainingDays} Day(s)` : "",
+        col5: record?.remarks ?? m?.remarks ?? "",
+      };
+    });
+  } else {
+    // ✅ Calculate Remaining Balance: Total Balance - Used Days (app.totalDays)
+    const remainingCalc =
+      hasSnapBalance && totalDaysUsed
+        ? Math.max(0, snapBalance - totalDaysUsed)
+        : hasSnapBalance
+          ? snapBalance
+          : "";
+
+    generatedRows.push({
+      col1: hasSnapBalance ? `${snapBalance} Day(s)` : "",
+      col2: inclusiveDates || "",
+      col3: totalDaysUsed ? String(totalDaysUsed) : "", // Number renders with "Day(s)" below
+      col4: remainingCalc !== "" ? `${remainingCalc} Day(s)` : "",
+      col5: app?.overallStatus === "REJECTED" ? "Rejected" : "",
+    });
   }
 
-  const dateOfFiling = fmtDateLong(app?.createdAt);
-
-  // For Wellness Applications, we force default to WELLNESS
-  const leaveType = app?.type || "WELLNESS";
-  const daysApplied = app?.totalDays || app?.requestedDays || 1;
-  const inclusiveDates = formatInclusiveDates(app?.inclusiveDates || []);
-
-  const isCommutationReq = app?.commutation === "Requested";
-  const isCommutationNotReq =
-    app?.commutation === "Not Requested" || !isCommutationReq;
-
-  // Process the final signature URL to ensure it is absolute
-  const rawFinalSignatureSrc =
-    app?.applicantSignatureUrl || signatureSrc || emp.signature || null;
-  const finalSignatureSrc = safeImageUrl(rawFinalSignatureSrc);
-
-  const hrmoApprovals = [];
-  const recommendingApprovals = [];
-  const finalApprovals = [];
-
-  (app?.approvals || []).forEach((a) => {
-    const r = (a.role || "").toLowerCase();
-    if (r.includes("hrmo")) {
-      hrmoApprovals.push(a);
-    } else if (
-      r.includes("rd") ||
-      r.includes("regional director") ||
-      r.includes("ard")
-    ) {
-      finalApprovals.push(a);
-    } else {
-      recommendingApprovals.push(a);
-    }
-  });
+  // Pad the array up to exactly 6 empty rows to keep the layout looking neat
+  while (generatedRows.length < 6) {
+    generatedRows.push({ col1: "", col2: "", col3: "", col4: "", col5: "" });
+  }
+  const rows = generatedRows.slice(0, 6);
 
   return (
-    <Document title={`Wellness Leave Application - ${lastName}`}>
+    <Document title={`Wellness Leave Application - ${lastName || "Applicant"}`}>
       <Page size="A4" style={styles.page}>
-        {/* --- HEADER --- */}
-        <View style={styles.headerWrapper}>
-          <View style={styles.headerLogoArea}>
-            {logoSrc ? (
-              <Image
-                src={logoSrc}
-                style={{
-                  height: 45,
-                  width: 250,
-                  objectFit: "contain",
-                  objectPosition: "left",
-                }}
-              />
-            ) : (
-              <View style={styles.logoPlaceholder} />
-            )}
-          </View>
-          <View style={styles.stampBox}>
-            <Text style={styles.stampText}>Stamp of Date of Receipt</Text>
-          </View>
+        <View style={styles.header}>
+          <Image src={logoSrc} style={styles.logo} />
         </View>
 
-        <Text style={styles.formTitle}>APPLICATION FOR LEAVE</Text>
+        <Text style={styles.formTitle}>
+          APPLICATION FOR AVAILMENT OF WELLNESS LEAVE
+        </Text>
 
-        {/* --- MAIN FORM BORDER --- */}
-        <View style={styles.formBorder}>
-          {/* Row 1: Office & Name */}
-          <View style={styles.row}>
-            <View style={[styles.colRightBorder, { width: "40%", padding: 2 }]}>
-              <Text style={styles.labelTitle}>
-                1. OFFICE/DEPARTMENT - DISTRICT/SCHOOL
-              </Text>
-              <Text style={[styles.valueText, { marginTop: 4 }]}>{office}</Text>
+        <View style={styles.topBox}>
+          <View style={styles.topLeft}>
+            <LabeledUnderlineRow
+              label="Name:"
+              value={employeeName}
+              lineFlex={1}
+              align="left"
+            />
+            <View style={styles.fieldRow}>
+              <Text style={[styles.label, styles.fieldLabel]}>Signature:</Text>
+              <UnderlineBox
+                value=""
+                flex={1}
+                align="center"
+                minHeight={55}
+                signatureText={applicantSigText}
+                signatureUrl={applicantSigUrl}
+              />
             </View>
-            <View style={{ width: "60%", padding: 2 }}>
-              <Text style={styles.labelTitle}>2. NAME :</Text>
-              <View style={{ flexDirection: "row", marginTop: 4 }}>
-                <View style={{ flex: 1, alignItems: "center" }}>
-                  <Text style={styles.valueText}>{lastName}</Text>
-                  <Text style={{ fontSize: 7, marginTop: 1 }}>(Last)</Text>
-                </View>
-                <View style={{ flex: 1, alignItems: "center" }}>
-                  <Text style={styles.valueText}>{firstName}</Text>
-                  <Text style={{ fontSize: 7, marginTop: 1 }}>(First)</Text>
-                </View>
-                <View style={{ flex: 1, alignItems: "center" }}>
-                  <Text style={styles.valueText}>{middleName}</Text>
-                  <Text style={{ fontSize: 7, marginTop: 1 }}>(Middle)</Text>
-                </View>
-              </View>
-            </View>
+            <LabeledUnderlineRow
+              label="Position:"
+              value={position}
+              lineFlex={1}
+              align="left"
+            />
+            <LabeledUnderlineRow
+              label="Office/Division:"
+              value={officeDivision}
+              lineFlex={1}
+              align="left"
+            />
+            <LabeledUnderlineRow
+              label="Date of Filing:"
+              value={dateOfFiling}
+              lineFlex={1}
+              align="center"
+            />
+            <LabeledUnderlineRow
+              label="No. of working day/s applied for:"
+              value={totalDaysUsed ? `${totalDaysUsed} Day(s)` : ""}
+              lineFlex={1}
+              align="center"
+            />
+            <LabeledUnderlineRow
+              label="Inclusive Date/s:"
+              value={inclusiveDates}
+              lineFlex={1}
+              align="center"
+            />
+            <LabeledUnderlineRow
+              label="Purpose/Reason:"
+              value={reason}
+              lineFlex={1}
+              align="left"
+            />
           </View>
 
-          {/* Row 2: Date, Position, Salary */}
-          <View style={styles.row}>
-            <View
-              style={[
-                styles.colRightBorder,
-                { width: "30%", padding: 4, flexDirection: "row" },
-              ]}
-            >
-              <Text style={styles.labelTitle}>3. DATE OF FILING </Text>
-              <View style={styles.inputUnderlineCenter}>
-                <Text style={styles.valueText}>{dateOfFiling}</Text>
+          <View style={styles.topRight}>
+            <Text style={styles.actionTitle}>ACTION OF APPLICATION</Text>
+            <View style={styles.actionRow}>
+              <View style={styles.checkbox}>
+                {app?.overallStatus !== "REJECTED" && dayCount ? (
+                  <Text style={styles.checkmark}>✓</Text>
+                ) : null}
               </View>
-            </View>
-            <View
-              style={[
-                styles.colRightBorder,
-                { width: "40%", padding: 4, flexDirection: "row" },
-              ]}
-            >
-              <Text style={styles.labelTitle}>4. POSITION </Text>
-              <View style={styles.inputUnderlineCenter}>
-                <Text style={styles.valueText}>{position}</Text>
-              </View>
-            </View>
-            <View style={{ width: "30%", padding: 4, flexDirection: "row" }}>
-              <Text style={styles.labelTitle}>5. SALARY </Text>
-              <View style={styles.inputUnderlineCenter}>
-                <Text style={styles.valueText}>{salaryText}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Section 6 Title */}
-          <Text style={styles.sectionTitle}>6. DETAILS OF APPLICATION</Text>
-
-          {/* Row 3: 6A and 6B */}
-          <View style={styles.row}>
-            {/* 6.A TYPE OF LEAVE */}
-            <View style={[styles.colRightBorder, { width: "50%", padding: 4 }]}>
-              <Text style={[styles.labelTitle, { marginBottom: 6 }]}>
-                6.A TYPE OF LEAVE TO BE AVAILED OF
-              </Text>
-
-              <CheckboxItem
-                label="Vacation Leave"
-                law="(Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
-                checked={leaveType === "Vacation"}
-              />
-              <CheckboxItem
-                label="Mandatory/Forced Leave"
-                law="(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
-                checked={leaveType === "Mandatory"}
-              />
-              <CheckboxItem
-                label="Sick Leave"
-                law="(Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
-                checked={leaveType === "Sick"}
-              />
-              <CheckboxItem
-                label="Maternity Leave"
-                law="(R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)"
-                checked={leaveType === "Maternity"}
-              />
-              <CheckboxItem
-                label="Paternity Leave"
-                law="(R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)"
-                checked={leaveType === "Paternity"}
-              />
-              <CheckboxItem
-                label="Special Privilege Leave"
-                law="(Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
-                checked={leaveType === "SPL"}
-              />
-              <CheckboxItem
-                label="Solo Parent Leave"
-                law="(RA No. 8972 / CSC MC No. 8, s. 2004)"
-                checked={leaveType === "Solo Parent"}
-              />
-              <CheckboxItem
-                label="Study Leave"
-                law="(Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
-                checked={leaveType === "Study"}
-              />
-              <CheckboxItem
-                label="10-Day VAWC Leave"
-                law="(RA No. 9262 / CSC MC No. 15, s. 2005)"
-                checked={leaveType === "VAWC"}
-              />
-              <CheckboxItem
-                label="Rehabilitation Privilege"
-                law="(Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)"
-                checked={leaveType === "Rehabilitation"}
-              />
-              <CheckboxItem
-                label="Special Leave Benefits for Women"
-                law="(RA No. 9710 / CSC MC No. 25, s. 2010)"
-                checked={leaveType === "Women"}
-              />
-              <CheckboxItem
-                label="Special Emergency (Calamity) Leave"
-                law="(CSC MC No. 2, s. 2012, as amended)"
-                checked={leaveType === "Calamity"}
-              />
-              <CheckboxItem
-                label="Adoption Leave"
-                law="(R.A. No. 8552)"
-                checked={leaveType === "Adoption"}
-              />
-
-              <Text
-                style={[
-                  styles.labelTitle,
-                  { marginTop: 6, fontStyle: "italic" },
-                ]}
-              >
-                Others:
-              </Text>
-              <View
-                style={[
-                  styles.inputUnderlineCenter,
-                  { marginHorizontal: 20, marginTop: 4 },
-                ]}
-              >
-                {/* ✅ Added Wellness Leave to the Others underline */}
-                <Text style={styles.valueText}>
-                  {leaveType === "WELLNESS" ? "Wellness Leave" : ""}
-                </Text>
+              <View style={styles.actionText}>
+                <Text>Approval for </Text>
+                <UnderlineBox
+                  value={
+                    app?.overallStatus !== "REJECTED" && dayCount
+                      ? String(dayCount)
+                      : ""
+                  }
+                  width={20}
+                  flex={1}
+                  align="center"
+                  minHeight={10}
+                />
+                <Text> day/s</Text>
               </View>
             </View>
 
-            {/* 6.B DETAILS OF LEAVE */}
-            <View style={{ width: "50%", padding: 4 }}>
-              <Text style={[styles.labelTitle, { marginBottom: 6 }]}>
-                6.B DETAILS OF LEAVE
-              </Text>
-
-              <Text
-                style={[
-                  styles.labelTitle,
-                  { fontStyle: "italic", marginBottom: 2 },
-                ]}
-              >
-                In case of Vacation/Special Privilege Leave:
-              </Text>
-              <View style={{ paddingLeft: 10, marginBottom: 4 }}>
-                <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-                  <View style={styles.checkbox}>
-                    <Text style={styles.checkMark}>
-                      {leaveType === "WELLNESS" ? "✓" : ""}
-                    </Text>
-                  </View>
-                  <Text style={styles.labelTitle}>Within the Philippines </Text>
-                  <View style={styles.inputUnderline}>
-                    <Text style={styles.valueText}>{app?.location || ""}</Text>
-                  </View>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-end",
-                    marginTop: 4,
-                  }}
-                >
-                  <View style={styles.checkbox}>
-                    <Text style={styles.checkMark}></Text>
-                  </View>
-                  <Text style={styles.labelTitle}>Abroad (Specify) </Text>
-                  <View style={styles.inputUnderline}>
-                    <Text style={styles.valueText}></Text>
-                  </View>
-                </View>
+            <View style={styles.actionRow}>
+              <View style={styles.checkbox}>
+                {app?.overallStatus === "REJECTED" ? (
+                  <Text style={styles.checkmark}>✓</Text>
+                ) : null}
               </View>
+              <View style={styles.actionText}>
+                <Text>Disapproved due to </Text>
+                <UnderlineBox
+                  value={app?.overallStatus === "REJECTED" ? app?.remarks : ""}
+                  flex={1}
+                  align="center"
+                  minHeight={10}
+                />
+              </View>
+            </View>
 
-              <Text
-                style={[
-                  styles.labelTitle,
-                  { fontStyle: "italic", marginBottom: 2 },
-                ]}
-              >
-                In case of Sick Leave:
-              </Text>
-              <View style={{ paddingLeft: 10, marginBottom: 4 }}>
-                <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-                  <View style={styles.checkbox}>
-                    <Text style={styles.checkMark}></Text>
-                  </View>
-                  <Text style={styles.labelTitle}>
-                    In Hospital (Specify Illness){" "}
+            <Text style={styles.approvalLabelLeft}>Recommending Approval:</Text>
+            <UnderlineBox
+              value={recDetails.name}
+              flex={0}
+              width={180}
+              minHeight={55}
+              align="center"
+              textStyle={{ fontWeight: "bold" }}
+              boxStyle={styles.nameLine}
+              signatureText={recDetails.text}
+              signatureUrl={recDetails.sigUrl}
+            />
+            <Text style={styles.roleLabel}>{recommendingApproverLabel}</Text>
+
+            {/* Recommending Initial Signature */}
+            {(recInitialDetails.sigUrl || recInitialDetails.text) && (
+              <View style={{ alignItems: "center", marginTop: 5 }}>
+                {recInitialDetails.sigUrl ? (
+                  <Image
+                    src={recInitialDetails.sigUrl}
+                    style={styles.initialSignatureImageBox}
+                  />
+                ) : (
+                  <Text style={styles.digitalSignatureText}>
+                    {recInitialDetails.text}
                   </Text>
-                  <View style={styles.inputUnderline}>
-                    <Text style={styles.valueText}></Text>
-                  </View>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-end",
-                    marginTop: 4,
-                  }}
-                >
-                  <View style={styles.checkbox}>
-                    <Text style={styles.checkMark}></Text>
-                  </View>
-                  <Text style={styles.labelTitle}>
-                    Out Patient (Specify Illness){" "}
-                  </Text>
-                  <View style={styles.inputUnderline}>
-                    <Text style={styles.valueText}></Text>
-                  </View>
-                </View>
-              </View>
-
-              <Text
-                style={[
-                  styles.labelTitle,
-                  { fontStyle: "italic", marginBottom: 2 },
-                ]}
-              >
-                In case of Special Leave Benefits for Women:
-              </Text>
-              <View
-                style={{
-                  paddingLeft: 10,
-                  marginBottom: 4,
-                  flexDirection: "row",
-                  alignItems: "flex-end",
-                }}
-              >
-                <Text style={styles.labelTitle}>(Specify Illness) </Text>
-                <View style={styles.inputUnderline}>
-                  <Text style={styles.valueText}></Text>
-                </View>
-              </View>
-
-              <Text
-                style={[
-                  styles.labelTitle,
-                  { fontStyle: "italic", marginBottom: 2 },
-                ]}
-              >
-                In case of Study Leave:
-              </Text>
-              <View style={{ paddingLeft: 10, marginBottom: 4 }}>
-                <CheckboxItem
-                  label="Completion of Master's Degree"
-                  checked={false}
-                />
-                <CheckboxItem
-                  label="BAR/Board Examination Review"
-                  checked={false}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.labelTitle,
-                  { fontStyle: "italic", marginBottom: 2 },
-                ]}
-              >
-                Other purpose:
-              </Text>
-              <View style={{ paddingLeft: 10, marginBottom: 4 }}>
-                <CheckboxItem
-                  label="Monetization of Leave Credits"
-                  checked={false}
-                />
-                <CheckboxItem label="Terminal Leave" checked={false} />
-              </View>
-            </View>
-          </View>
-
-          {/* Row 4: 6C and 6D */}
-          <View style={styles.row}>
-            <View style={[styles.colRightBorder, { width: "50%", padding: 4 }]}>
-              <Text style={styles.labelTitle}>
-                6.C NUMBER OF WORKING DAYS APPLIED FOR
-              </Text>
-              <View
-                style={[
-                  styles.inputUnderlineCenter,
-                  { marginHorizontal: 20, marginTop: 4 },
-                ]}
-              >
-                <Text style={styles.valueText}>
-                  {daysApplied} day{daysApplied > 1 ? "s" : ""}
-                </Text>
-              </View>
-
-              <Text style={[styles.labelTitle, { marginTop: 8 }]}>
-                INCLUSIVE DATES
-              </Text>
-              <View
-                style={[
-                  styles.inputUnderlineCenter,
-                  { marginHorizontal: 20, marginTop: 4 },
-                ]}
-              >
-                <Text style={styles.valueText}>{inclusiveDates}</Text>
-              </View>
-            </View>
-
-            <View style={{ width: "50%", padding: 4 }}>
-              <Text style={styles.labelTitle}>6.D COMMUTATION</Text>
-              <View style={{ paddingLeft: 10, marginTop: 4 }}>
-                <CheckboxItem
-                  label="Not Requested"
-                  checked={isCommutationNotReq}
-                />
-                <CheckboxItem label="Requested" checked={isCommutationReq} />
-              </View>
-
-              {/* Applicant Signature */}
-              <View style={[styles.sigBlock, { marginTop: 10 }]}>
-                <View style={styles.sigLine}>
-                  {finalSignatureSrc ? (
-                    <Image
-                      src={finalSignatureSrc}
-                      style={styles.applicantSignature}
-                    />
-                  ) : (
-                    <Text style={styles.sigName}></Text>
-                  )}
-                </View>
-                <Text style={styles.sigRole}>(Signature of Applicant)</Text>
-                {app?.overallStatus === "APPROVED" && (
-                  <View style={styles.digitalSigInfo}>
-                    <Text>Digitally signed by {lastName}</Text>
-                    <Text>
-                      {firstName} {middleName}
-                    </Text>
-                  </View>
                 )}
               </View>
-            </View>
-          </View>
+            )}
 
-          {/* Section 7 Title */}
-          <Text style={styles.sectionTitle}>
-            7. DETAILS OF ACTION ON APPLICATION
-          </Text>
-
-          {/* Row 5: 7A and 7B */}
-          <View style={styles.row}>
-            {/* 7.A - HRMO Signature Block */}
-            <View style={[styles.colRightBorder, { width: "50%", padding: 4 }]}>
-              <Text style={styles.labelTitle}>
-                7.A CERTIFICATION OF LEAVE CREDITS
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  marginTop: 4,
-                }}
-              >
-                <Text style={styles.labelTitle}>As of </Text>
-                <View
-                  style={[styles.inputUnderlineCenter, { width: 80 }]}
-                ></View>
-              </View>
-
-              <View style={styles.innerTable}>
-                <View style={styles.innerRow}>
-                  <View style={styles.innerCellLabel}>
-                    <Text></Text>
-                  </View>
-                  <View style={styles.innerHeaderCell}>
-                    <Text style={styles.labelTitle}>Vacation Leave</Text>
-                  </View>
-                  <View
-                    style={[styles.innerHeaderCell, { borderRightWidth: 0 }]}
-                  >
-                    <Text style={styles.labelTitle}>Sick Leave</Text>
-                  </View>
-                </View>
-                <View style={styles.innerRow}>
-                  <View style={styles.innerCellLabel}>
-                    <Text style={{ textAlign: "center" }}>Total Earned</Text>
-                  </View>
-                  <View style={styles.innerCell}>
-                    <Text style={styles.labelTitle}>
-                      {app?.balances?.vacation || ""}
-                    </Text>
-                  </View>
-                  <View style={[styles.innerCell, { borderRightWidth: 0 }]}>
-                    <Text style={styles.labelTitle}>
-                      {app?.balances?.sick || ""}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.innerRow}>
-                  <View style={styles.innerCellLabel}>
-                    <Text style={{ textAlign: "center" }}>
-                      Less this application
-                    </Text>
-                  </View>
-                  <View style={styles.innerCell}>
-                    <Text style={styles.labelTitle}></Text>
-                  </View>
-                  <View style={[styles.innerCell, { borderRightWidth: 0 }]}>
-                    <Text style={styles.labelTitle}></Text>
-                  </View>
-                </View>
-                <View style={[styles.innerRow, { borderBottomWidth: 0 }]}>
-                  <View style={styles.innerCellLabel}>
-                    <Text style={{ textAlign: "center" }}>Balance</Text>
-                  </View>
-                  <View style={styles.innerCell}>
-                    <Text style={styles.labelTitle}></Text>
-                  </View>
-                  <View style={[styles.innerCell, { borderRightWidth: 0 }]}>
-                    <Text style={styles.labelTitle}></Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Dynamic 7A Approvers */}
-              <SlotSignatures
-                approvals={hrmoApprovals}
-                fallbackName="JAYFER T. AMMASI"
-                fallbackRole="HRMO II"
-                marginTop={15}
-              />
-            </View>
-
-            {/* 7.B - Recommending Signatures Block */}
-            <View style={{ width: "50%", padding: 4 }}>
-              <Text style={styles.labelTitle}>7.B RECOMMENDATION</Text>
-              <View style={{ paddingLeft: 10, marginTop: 4 }}>
-                <CheckboxItem
-                  label="For approval"
-                  checked={app?.overallStatus === "APPROVED"}
-                />
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-end",
-                    marginTop: 4,
-                  }}
-                >
-                  <View style={styles.checkbox}>
-                    <Text style={styles.checkMark}>
-                      {app?.overallStatus === "REJECTED" ? "✓" : ""}
-                    </Text>
-                  </View>
-                  <Text style={styles.labelTitle}>For disapproval due to </Text>
-                  <View style={styles.inputUnderline}>
-                    <Text style={styles.valueText}></Text>
-                  </View>
-                </View>
-                <View
-                  style={[styles.inputUnderlineCenter, { marginTop: 8 }]}
-                ></View>
-                <View
-                  style={[styles.inputUnderlineCenter, { marginTop: 8 }]}
-                ></View>
-              </View>
-
-              {/* Dynamic 7B Approvers */}
-              <SlotSignatures
-                approvals={recommendingApprovals}
-                fallbackName="MINA FLOR T. VILLAFUERTE"
-                fallbackRole="Chief, Admin and Finance Division"
-                marginTop={25}
-              />
-            </View>
-          </View>
-
-          {/* Row 6: 7C and 7D */}
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <View style={[styles.colRightBorder, { width: "50%", padding: 4 }]}>
-              <Text style={styles.labelTitle}>7.C APPROVED FOR:</Text>
-              <View style={{ paddingLeft: 10, marginTop: 4 }}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-end",
-                    marginBottom: 4,
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.inputUnderlineCenter,
-                      { width: 30, marginRight: 4 },
-                    ]}
-                  >
-                    <Text style={styles.valueText}>{daysApplied}</Text>
-                  </View>
-                  <Text style={styles.labelTitle}>days with pay</Text>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-end",
-                    marginBottom: 4,
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.inputUnderlineCenter,
-                      { width: 30, marginRight: 4 },
-                    ]}
-                  >
-                    <Text style={styles.valueText}></Text>
-                  </View>
-                  <Text style={styles.labelTitle}>days without pay</Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-                  <View
-                    style={[
-                      styles.inputUnderlineCenter,
-                      { width: 30, marginRight: 4 },
-                    ]}
-                  >
-                    <Text style={styles.valueText}></Text>
-                  </View>
-                  <Text style={styles.labelTitle}>others (Specify)</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={{ width: "50%", padding: 4 }}>
-              <Text style={styles.labelTitle}>7.D DISAPPROVED DUE TO:</Text>
-              <View style={{ paddingLeft: 10, marginTop: 4 }}>
-                <View style={[styles.inputUnderlineCenter, { marginTop: 4 }]}>
-                  <Text style={styles.valueText}>
-                    {app?.overallStatus === "REJECTED" ? app?.remarks : ""}
-                  </Text>
-                </View>
-                <View
-                  style={[styles.inputUnderlineCenter, { marginTop: 8 }]}
-                ></View>
-                <View
-                  style={[styles.inputUnderlineCenter, { marginTop: 8 }]}
-                ></View>
-              </View>
-            </View>
-          </View>
-
-          {/* Bottom Final Signature (7C/7D Approvers) */}
-          <View style={{ padding: 10, marginBottom: 10 }}>
-            <SlotSignatures
-              approvals={finalApprovals}
-              fallbackName="Engr. PINKY T. JIMENEZ, PECE, Ph.D."
-              fallbackRole="Regional Director"
-              marginTop={10}
+            <Text style={styles.approvalLabelLeft}>Approved:</Text>
+            <UnderlineBox
+              value={finalDetails.name}
+              flex={0}
+              width={190}
+              minHeight={55}
+              align="center"
+              textStyle={{ fontWeight: "bold" }}
+              boxStyle={styles.nameLine}
+              signatureText={finalDetails.text}
+              signatureUrl={finalDetails.sigUrl}
             />
+            <Text style={styles.roleLabel}>{approvedLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.detachRow}>
+          <Text style={styles.detachText}>Detach for Time Keeper’s Record</Text>
+        </View>
+        <View style={styles.dashedLine} />
+
+        <Text style={styles.certificateTitle}>
+          CERTIFICATE OF WELLNESS LEAVE CREDITS
+        </Text>
+
+        <View style={styles.certBox}>
+          <View style={styles.gridRow}>
+            <View style={[styles.gridHeaderCell, styles.col1]}>
+              <Text>Total Wellness Leave Balance</Text>
+            </View>
+            <View style={[styles.gridHeaderCell, styles.col2]}>
+              <Text>Date of Leave</Text>
+            </View>
+            <View style={[styles.gridHeaderCell, styles.col3]}>
+              <Text>Used Days</Text>
+            </View>
+            <View style={[styles.gridHeaderCell, styles.col4]}>
+              <Text>Remaining Days</Text>
+            </View>
+            <View style={[styles.gridHeaderCell, styles.col5]}>
+              <Text>Remarks</Text>
+            </View>
+          </View>
+
+          {rows.map((r, idx) => (
+            <View style={styles.gridRow} key={idx}>
+              <View style={[styles.gridCell, styles.col1]}>
+                <Text>{r.col1}</Text>
+              </View>
+              <View style={[styles.gridCell, styles.col2]}>
+                <Text>{r.col2}</Text>
+              </View>
+              <View style={[styles.gridCell, styles.col3]}>
+                <Text>{r.col3 ? `${r.col3} Day(s)` : ""}</Text>
+              </View>
+              <View style={[styles.gridCell, styles.col4]}>
+                <Text>{r.col4}</Text>
+              </View>
+              <View style={[styles.gridCell, styles.col5]}>
+                <Text>{r.col5}</Text>
+              </View>
+            </View>
+          ))}
+
+          <View style={styles.certFooter}>
+            <View style={styles.footerBlock}>
+              <UnderlineBox
+                value={adminDetails.name}
+                flex={0}
+                width={150}
+                minHeight={55}
+                align="center"
+                textStyle={{ fontWeight: "bold" }}
+                boxStyle={styles.nameLine}
+                signatureText={adminDetails.text}
+                signatureUrl={adminDetails.sigUrl}
+              />
+              <Text style={styles.footerRole}>{adminFinanceLabel}</Text>
+              <View style={styles.footerDateLine}>
+                <Text />
+              </View>
+              <Text style={styles.footerDateLabel}>Date</Text>
+            </View>
           </View>
         </View>
       </Page>

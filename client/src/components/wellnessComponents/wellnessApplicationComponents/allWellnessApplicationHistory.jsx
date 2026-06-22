@@ -22,10 +22,20 @@ import {
   User,
   ArrowUp,
   HeartPulse,
+  FileDown,
+  FileBadge,
+  ChevronDown,
 } from "lucide-react";
 import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
 import FullHeightCardContainer from "../../pageContainer";
 import { useAuth } from "../../../store/authStore";
+
+// ✅ Import Reusable Status Tabs
+import StatusTabs from "../../statusTabs";
+
+// ✅ PDF Modals
+import WellnessLeavePdfModal from "./wellnessApplicationModal"; // Assuming this is your wrapper modal name
+import OrganicWellnessLeavePdfModal from "./organicWellnessApplicationPDFModal"; // The CSC Form 6 Modal
 
 const pageSizeOptions = [20, 50, 100];
 
@@ -151,7 +161,14 @@ const StatCard = ({
 /* =========================
    Per-row action menu
 ========================= */
-const ApplicationActionMenu = ({ app, onViewDetails, borderColor }) => {
+const ApplicationActionMenu = ({
+  app,
+  onViewDetails,
+  onViewPdf,
+  onViewCscForm6,
+  isOrganicApp,
+  borderColor,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -186,20 +203,22 @@ const ApplicationActionMenu = ({ app, onViewDetails, borderColor }) => {
           e.stopPropagation();
           setIsOpen((o) => !o);
         }}
-        className="p-1.5 rounded-md transition-colors duration-200 ease-out"
-        style={{ color: "var(--app-muted)" }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
-          e.currentTarget.style.color = "var(--app-text)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "transparent";
-          e.currentTarget.style.color = "var(--app-muted)";
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm text-xs cursor-pointer font-bold transition-all duration-200 ease-out active:scale-95"
+        style={{
+          backgroundColor: isOpen
+            ? "var(--app-surface-2)"
+            : "var(--app-surface)",
+          borderColor: borderColor,
+          color: isOpen ? "var(--accent)" : "var(--app-text)",
         }}
         title="Actions"
         type="button"
       >
-        <MoreVertical size={16} />
+        <span>Actions</span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
@@ -227,6 +246,42 @@ const ApplicationActionMenu = ({ app, onViewDetails, borderColor }) => {
           >
             <Eye size={14} /> View Details
           </button>
+
+          <button
+            type="button"
+            onClick={() => handle(onViewPdf)}
+            className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+            style={{ color: "var(--app-muted)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              e.currentTarget.style.color = "var(--accent)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--app-muted)";
+            }}
+          >
+            <FileDown size={14} /> View General PDF
+          </button>
+
+          {isOrganicApp && (
+            <button
+              type="button"
+              onClick={() => handle(onViewCscForm6)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+            >
+              <FileBadge size={14} /> View CSC Form 6
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -257,6 +312,9 @@ const ApplicationCard = ({
   app,
   leftStripClassName,
   onViewDetails,
+  onViewPdf,
+  onViewCscForm6,
+  isOrganicApp,
   borderColor,
 }) => {
   const shortId = app?._id ? app._id.slice(-6).toUpperCase() : "-";
@@ -394,11 +452,11 @@ const ApplicationCard = ({
           backgroundColor: "var(--app-surface)",
         }}
       >
-        <div className="grid grid-cols-1 gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onViewDetails}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold border transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
             style={{
               backgroundColor: "var(--app-surface)",
               borderColor: borderColor,
@@ -412,8 +470,51 @@ const ApplicationCard = ({
             }}
           >
             <Eye className="w-4 h-4" />
-            View Details
+            Details
           </button>
+
+          <button
+            type="button"
+            onClick={onViewPdf}
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+            style={{
+              backgroundColor: "var(--app-surface)",
+              borderColor: borderColor,
+              color: "var(--app-text)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-surface)";
+            }}
+          >
+            <FileDown className="w-4 h-4" />
+            Gen PDF
+          </button>
+
+          {isOrganicApp && (
+            <button
+              onClick={onViewCscForm6}
+              className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+              type="button"
+              title="View CSC Form 6"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface)";
+              }}
+            >
+              <FileBadge className="w-4 h-4" />
+              Form 6
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -423,7 +524,7 @@ const ApplicationCard = ({
 /* =========================
    Status tabs factory
 ========================= */
-const statusTabs = (statusCounts = {}, totalFallback = 0) => {
+const getTabsConfig = (statusCounts = {}, totalFallback = 0) => {
   const total =
     statusCounts.total ??
     statusCounts.TOTAL ??
@@ -638,6 +739,10 @@ const AllWellnessApplicationsHistory = () => {
 
   // ---- Selected app ----
   const [selectedApp, setSelectedApp] = useState(null);
+
+  // ✅ PDF modal state
+  const [pdfApp, setPdfApp] = useState(null);
+  const [organicPdfApp, setOrganicPdfApp] = useState(null);
 
   // ---- Filters / pagination ----
   const [statusFilter, setStatusFilter] = useState("");
@@ -875,46 +980,14 @@ const AllWellnessApplicationsHistory = () => {
               >
                 <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                   {/* Tabs */}
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                    {statusTabs(statusCounts, pagination.total).map((tab) => {
-                      const isActive = statusFilter === tab.id;
-                      const Icon = tab.icon;
-
-                      return (
-                        <button
-                          key={tab.id || "all-status"}
-                          onClick={() => {
-                            setStatusFilter(tab.id);
-                            setPage(1);
-                          }}
-                          className={`px-4 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-2
-                            ${
-                              isActive
-                                ? tab.activeColor
-                                : "bg-[color:var(--app-surface)] text-[color:var(--app-muted)] border-[color:var(--app-border)] hover:bg-[color:var(--app-surface-2)]"
-                            }`}
-                          aria-pressed={isActive}
-                          type="button"
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span>{tab.label}</span>
-                          <span
-                            className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
-                            style={{
-                              backgroundColor: isActive
-                                ? "var(--app-surface)"
-                                : "var(--app-surface-2)",
-                              color: isActive
-                                ? "var(--app-text)"
-                                : "var(--app-muted)",
-                            }}
-                          >
-                            {tab.count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <StatusTabs
+                    tabs={getTabsConfig(statusCounts, pagination.total)}
+                    activeStatus={statusFilter}
+                    onStatusChange={(id) => {
+                      setStatusFilter(id);
+                      setPage(1);
+                    }}
+                  />
 
                   {/* Search + limits/filters */}
                   <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
@@ -1157,17 +1230,26 @@ const AllWellnessApplicationsHistory = () => {
                                 </div>
                               </div>
                             ))
-                          : applications.map((app) => (
-                              <ApplicationCard
-                                key={app._id}
-                                app={app}
-                                borderColor={borderColor}
-                                leftStripClassName={getStatusStripClass(
-                                  app.overallStatus,
-                                )}
-                                onViewDetails={() => setSelectedApp(app)}
-                              />
-                            ))}
+                          : applications.map((app) => {
+                              const isAppOrganic =
+                                app?.employeeType === "Organic" ||
+                                app?.category === "Organic";
+
+                              return (
+                                <ApplicationCard
+                                  key={app._id}
+                                  app={app}
+                                  borderColor={borderColor}
+                                  isOrganicApp={isAppOrganic}
+                                  leftStripClassName={getStatusStripClass(
+                                    app.overallStatus,
+                                  )}
+                                  onViewDetails={() => setSelectedApp(app)}
+                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewCscForm6={() => setOrganicPdfApp(app)}
+                                />
+                              );
+                            })}
                       </div>
                     </div>
 
@@ -1197,17 +1279,26 @@ const AllWellnessApplicationsHistory = () => {
                                 </div>
                               </div>
                             ))
-                          : applications.map((app) => (
-                              <ApplicationCard
-                                key={app._id}
-                                app={app}
-                                borderColor={borderColor}
-                                leftStripClassName={getStatusStripClass(
-                                  app.overallStatus,
-                                )}
-                                onViewDetails={() => setSelectedApp(app)}
-                              />
-                            ))}
+                          : applications.map((app) => {
+                              const isAppOrganic =
+                                app?.employeeType === "Organic" ||
+                                app?.category === "Organic";
+
+                              return (
+                                <ApplicationCard
+                                  key={app._id}
+                                  app={app}
+                                  borderColor={borderColor}
+                                  isOrganicApp={isAppOrganic}
+                                  leftStripClassName={getStatusStripClass(
+                                    app.overallStatus,
+                                  )}
+                                  onViewDetails={() => setSelectedApp(app)}
+                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewCscForm6={() => setOrganicPdfApp(app)}
+                                />
+                              );
+                            })}
                       </div>
                     </div>
 
@@ -1251,6 +1342,7 @@ const AllWellnessApplicationsHistory = () => {
                             : applications.map((app, i) => {
                                 const employeeType =
                                   app.category || app.employeeType || "Unknown";
+                                const isAppOrganic = employeeType === "Organic";
 
                                 const bg =
                                   i % 2 === 0
@@ -1363,8 +1455,13 @@ const AllWellnessApplicationsHistory = () => {
                                       <ApplicationActionMenu
                                         app={app}
                                         borderColor={borderColor}
+                                        isOrganicApp={isAppOrganic}
                                         onViewDetails={() =>
                                           setSelectedApp(app)
+                                        }
+                                        onViewPdf={() => setPdfApp(app)}
+                                        onViewCscForm6={() =>
+                                          setOrganicPdfApp(app)
                                         }
                                       />
                                     </td>
@@ -1411,6 +1508,20 @@ const AllWellnessApplicationsHistory = () => {
               <ArrowUp className="w-5 h-5" />
             </button>
           )}
+
+          {/* General PDF Modal */}
+          <WellnessLeavePdfModal
+            app={pdfApp}
+            isOpen={!!pdfApp}
+            onClose={() => setPdfApp(null)}
+          />
+
+          {/* Organic PDF Modal */}
+          <OrganicWellnessLeavePdfModal
+            app={organicPdfApp}
+            isOpen={!!organicPdfApp}
+            onClose={() => setOrganicPdfApp(null)}
+          />
 
           {/* Details modal */}
           {selectedApp && (

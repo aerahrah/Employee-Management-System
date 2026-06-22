@@ -1,9 +1,9 @@
 import React from "react";
 import Modal from "../../modal"; // Adjust path to your Modal component
 import { PDFViewer } from "@react-pdf/renderer";
-import WellnessApplicationPdf from "./wellnessApplicationPDF";
+import WellnessApplicationPdf from "./organicWellnessApplicationPDF";
 
-const WellnessApplicationPdfModal = ({ app, isOpen, onClose }) => {
+const OrganicWellnessApplicationPdfModal = ({ app, isOpen, onClose }) => {
   if (!isOpen || !app) return null;
 
   return (
@@ -26,4 +26,4 @@ const WellnessApplicationPdfModal = ({ app, isOpen, onClose }) => {
   );
 };
 
-export default WellnessApplicationPdfModal;
+export default OrganicWellnessApplicationPdfModal;

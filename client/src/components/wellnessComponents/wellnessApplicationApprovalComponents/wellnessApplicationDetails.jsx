@@ -36,7 +36,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
 // Added Wellness PDF Modal import
-import WellnessApplicationPdfModal from "../wellnessApplicationComponents/wellnessApplicationPDFModal";
+import WellnessApplicationPdfModal from "../wellnessApplicationComponents/organicWellnessApplicationPDFModal";
 
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {

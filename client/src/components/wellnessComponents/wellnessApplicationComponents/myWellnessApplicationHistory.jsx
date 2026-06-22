@@ -30,12 +30,15 @@ import {
   Ban,
   AlertCircle,
   FileBadge,
+  FileDown,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
 
 // ✅ Import your Modals, Details, and Container
-import WellnessApplicationPdfModal from "./wellnessApplicationPDFModal";
+import WellnessLeavePdfModal from "./wellnessApplicationModal";
+import OrganicWellnessLeavePdfModal from "./organicWellnessApplicationPDFModal";
 import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
 import FullHeightCardContainer from "../../pageContainer";
 
@@ -114,11 +117,12 @@ const tabTone = {
 const ApplicationActionMenu = ({
   app,
   onViewDetails,
+  onViewPdf,
   onViewOrganicForm,
   onCancel,
   cancelling,
   borderColor,
-  isOrganicApp, // ✅ Auth Check Prop
+  isOrganicApp,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -150,26 +154,28 @@ const ApplicationActionMenu = ({
   return (
     <div className="relative inline-flex justify-end" ref={menuRef}>
       <button
+        aria-haspopup="true"
+        aria-expanded={isOpen}
         onClick={(e) => {
           e.stopPropagation();
           setIsOpen((o) => !o);
         }}
-        className="p-1.5 rounded-md transition-colors duration-200 ease-out"
-        style={{ color: "var(--app-muted)" }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
-          e.currentTarget.style.color = "var(--app-text)";
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm text-xs cursor-pointer font-bold transition-all duration-200 ease-out active:scale-95"
+        style={{
+          backgroundColor: isOpen
+            ? "var(--app-surface-2)"
+            : "var(--app-surface)",
+          borderColor: borderColor,
+          color: isOpen ? "var(--accent)" : "var(--app-text)",
         }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "transparent";
-          e.currentTarget.style.color = "var(--app-muted)";
-        }}
-        aria-haspopup="true"
-        aria-expanded={isOpen}
         title="Actions"
         type="button"
       >
-        <MoreVertical size={16} />
+        <span>Actions</span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
@@ -198,7 +204,23 @@ const ApplicationActionMenu = ({
             <Eye size={14} /> View Details
           </button>
 
-          {/* Organic PDF Button */}
+          <button
+            type="button"
+            onClick={() => handle(onViewPdf)}
+            className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+            style={{ color: "var(--app-muted)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              e.currentTarget.style.color = "var(--accent)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--app-muted)";
+            }}
+          >
+            <FileDown size={14} /> View General PDF
+          </button>
+
           {isOrganicApp && (
             <button
               onClick={() => handle(onViewOrganicForm)}
@@ -258,18 +280,19 @@ const ApplicationCard = ({
   app,
   leftStripClassName,
   onViewDetails,
+  onViewPdf,
   onViewOrganicForm,
   onCancel,
   cancelling,
   borderColor,
-  isOrganicApp, // ✅ Auth Check Prop
+  isOrganicApp,
 }) => {
   const canCancel =
     String(app?.overallStatus || "").toUpperCase() === "PENDING";
 
   const coveredDatesLabel = formatCoveredDates(app?.inclusiveDates);
 
-  let colCount = 1;
+  let colCount = 2; // Default: Details + Gen PDF
   if (canCancel) colCount++;
   if (isOrganicApp) colCount++;
   const actionCols = `grid-cols-${colCount}`;
@@ -379,6 +402,27 @@ const ApplicationCard = ({
           >
             <Eye className="w-4 h-4" />
             Details
+          </button>
+
+          <button
+            type="button"
+            onClick={onViewPdf}
+            className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+            title="General PDF"
+            style={{
+              backgroundColor: "var(--app-surface)",
+              borderColor: borderColor,
+              color: "var(--app-text)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-surface)";
+            }}
+          >
+            <FileDown className="w-4 h-4" />
+            Gen PDF
           </button>
 
           {isOrganicApp && (
@@ -597,6 +641,7 @@ const MyWellnessApplications = () => {
   }, [resolvedTheme]);
 
   const [selectedApp, setSelectedApp] = useState(null);
+  const [pdfApp, setPdfApp] = useState(null); // State for General PDF Modal
   const [organicPdfApp, setOrganicPdfApp] = useState(null); // State for Organic PDF Modal
   const [statusFilter, setStatusFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -1133,7 +1178,6 @@ const MyWellnessApplications = () => {
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
 
-                              // ✅ Fixed: strictly checking application profile, not user
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
                                 app?.category === "Organic";
@@ -1149,6 +1193,7 @@ const MyWellnessApplications = () => {
                                   cancelling={cancelling}
                                   isOrganicApp={isAppOrganic}
                                   onViewDetails={() => setSelectedApp(app)}
+                                  onViewPdf={() => setPdfApp(app)}
                                   onViewOrganicForm={() =>
                                     setOrganicPdfApp(app)
                                   }
@@ -1206,7 +1251,6 @@ const MyWellnessApplications = () => {
                                   cancelMutation.isPending &&
                                   cancelMutation.variables === app._id;
 
-                                // ✅ Fixed: strictly checking application profile, not user
                                 const isAppOrganic =
                                   app?.employeeType === "Organic" ||
                                   app?.category === "Organic";
@@ -1290,6 +1334,7 @@ const MyWellnessApplications = () => {
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
+                                        onViewPdf={() => setPdfApp(app)}
                                         onViewOrganicForm={() =>
                                           setOrganicPdfApp(app)
                                         }
@@ -1358,8 +1403,15 @@ const MyWellnessApplications = () => {
             </Modal>
           )}
 
+          {/* ✅ General PDF Modal */}
+          <WellnessLeavePdfModal
+            app={pdfApp}
+            isOpen={!!pdfApp}
+            onClose={() => setPdfApp(null)}
+          />
+
           {/* ✅ Organic PDF Modal */}
-          <WellnessApplicationPdfModal
+          <OrganicWellnessLeavePdfModal
             app={organicPdfApp}
             isOpen={!!organicPdfApp}
             onClose={() => setOrganicPdfApp(null)}

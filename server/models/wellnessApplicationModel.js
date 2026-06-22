@@ -28,7 +28,7 @@ const wellnessApplicationSchema = new mongoose.Schema(
       middleName: { type: String, required: true, trim: true },
       lastName: { type: String, required: true, trim: true },
       position: { type: String, required: true, trim: true },
-
+      wellnessBalance: { type: Number, required: true, trim: true },
       // Salary details are only mandated for Organic employees (CSC Form 6 requirement)
       salaryGrade: {
         type: Number,

@@ -25,7 +25,7 @@ const ctoBackupRoutes = require("./routers/ctoBackupRoute.js");
 const generalSettingRoutes = require("./routers/generalSettingsRoute");
 const userPreferenceRoutes = require("./routers/userPreferencesRoutes");
 const notificationRoutes = require("./routers/notificationRoutes");
-
+const dashboardRoutes = require("./routers/dashboardRoute");
 // Email notification settings routes
 const emailNotificationSettingRoutes = require("./routers/emailNotificationSettingsRoutes");
 
@@ -261,7 +261,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/email-notification-settings", emailNotificationSettingRoutes);
 app.use("/api/approval-routes", approvalRouteRoutes);
 app.use("/api/roles", roleRoutes);
-
+app.use("/api/all", dashboardRoutes);
 // ✅ WELLNESS ROUTES (Base logic + Dashboard)
 app.use("/api/wellness", wellnessRoutes);
 app.use("/api/wellness", wellnessDashboardRoutes); // Mounts the dashboard on /api/wellness/dashboard

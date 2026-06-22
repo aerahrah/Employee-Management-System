@@ -39,6 +39,9 @@ import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 
 import { useAuth } from "../../../store/authStore";
 
+// ✅ Import Reusable Status Tabs
+import StatusTabs from "../../statusTabs"; // Adjust import path as needed
+
 const pageSizeOptions = [20, 50, 100];
 
 /* ------------------ Small hook: debounce ------------------ */
@@ -575,7 +578,7 @@ const ApplicationCard = ({
 /* =========================
    Status tabs factory
 ========================= */
-const statusTabs = (statusCounts = {}, totalFallback = 0) => {
+const getTabsConfig = (statusCounts = {}, totalFallback = 0) => {
   const total =
     statusCounts.total ??
     statusCounts.TOTAL ??
@@ -1037,48 +1040,16 @@ const AllCtoApplicationsHistory = () => {
                   borderColor: borderColor,
                 }}
               >
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                  {/* Tabs */}
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                    {statusTabs(statusCounts, pagination.total).map((tab) => {
-                      const isActive = statusFilter === tab.id;
-                      const Icon = tab.icon;
-
-                      return (
-                        <button
-                          key={tab.id || "all-status"}
-                          onClick={() => {
-                            setStatusFilter(tab.id);
-                            setPage(1);
-                          }}
-                          className={`px-1.5 py-1.5 text-xs font-bold rounded-full border transition-colors duration-200 ease-out whitespace-nowrap flex items-center gap-1
-                            ${
-                              isActive
-                                ? tab.activeColor
-                                : "bg-[color:var(--app-surface)] text-[color:var(--app-muted)] border-[color:var(--app-border)] hover:bg-[color:var(--app-surface-2)]"
-                            }`}
-                          aria-pressed={isActive}
-                          type="button"
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span>{tab.label}</span>
-                          <span
-                            className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 ease-out"
-                            style={{
-                              backgroundColor: isActive
-                                ? "var(--app-surface)"
-                                : "var(--app-surface-2)",
-                              color: isActive
-                                ? "var(--app-text)"
-                                : "var(--app-muted)",
-                            }}
-                          >
-                            {tab.count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* Reusable Tabs Component */}
+                  <StatusTabs
+                    tabs={getTabsConfig(statusCounts, pagination.total)}
+                    activeStatus={statusFilter}
+                    onStatusChange={(id) => {
+                      setStatusFilter(id);
+                      setPage(1);
+                    }}
+                  />
 
                   {/* Search + limits/filters */}
                   <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
