@@ -95,35 +95,17 @@ function safeImageUrl(url) {
   return url.startsWith("http") ? url : buildApiUrl(url);
 }
 
-function getApproverDetails(approval, fallbackName = "") {
-  if (!approval) {
-    return { name: fallbackName, sigUrl: null, text: null };
-  }
+// ✅ Helper to construct full names with prefixes, extensions, and postfixes
+function getFullApproverName(profile) {
+  if (!profile) return "";
+  const pre = profile.prefixTitle ? `${profile.prefixTitle} ` : "";
+  const f = profile.firstName || "";
+  const m = profile.middleName ? ` ${profile.middleName.charAt(0)}.` : "";
+  const l = profile.lastName ? ` ${profile.lastName}` : "";
+  const ext = profile.nameExtension ? ` ${profile.nameExtension}` : "";
+  const post = profile.postfixTitle ? `, ${profile.postfixTitle}` : "";
 
-  const snap = approval.approverSnapshot;
-  const live = approval.approver;
-
-  const firstName = snap?.firstName || live?.firstName || "";
-  const lastName = snap?.lastName || live?.lastName || "";
-
-  let name = fallbackName;
-  if (firstName || lastName) {
-    name = `${firstName} ${lastName}`.trim().toUpperCase();
-  }
-
-  let sigUrl = null;
-  let text = null;
-
-  if (approval.status === "APPROVED") {
-    sigUrl = safeImageUrl(
-      snap?.signatureUrl || approval.approverSignature?.signatureUrl,
-    );
-    if (!sigUrl) {
-      text = `Digitally signed\nby ${lastName}\n${firstName}`;
-    }
-  }
-
-  return { name, sigUrl, text };
+  return `${pre}${f}${m}${l}${ext}${post}`.toUpperCase();
 }
 
 function memoRowLabel(memoItem) {
@@ -149,62 +131,6 @@ function memoRowLabel(memoItem) {
   const hrsStr = hours !== "" ? `${hours} hrs` : "";
   if (!dateStr && !hrsStr) return "";
   return [dateStr, hrsStr].filter(Boolean).join(" – ");
-}
-
-/* =========================
-   Underlined field components
-========================= */
-function UnderlineBox({
-  value,
-  width,
-  flex = 1,
-  align = "center",
-  minHeight = 12,
-  paddingBottom = 1,
-  textStyle,
-  boxStyle,
-  signatureText,
-  signatureUrl,
-}) {
-  return (
-    <View
-      style={[
-        styles.underlineBox,
-        { flex, width: width ?? undefined, minHeight, paddingBottom },
-        boxStyle,
-      ]}
-    >
-      {signatureUrl ? (
-        <Image src={signatureUrl} style={styles.signatureImageBox} />
-      ) : signatureText ? (
-        <Text style={styles.digitalSignatureText}>{signatureText}</Text>
-      ) : null}
-      <Text style={[styles.underlineText, { textAlign: align }, textStyle]}>
-        {String(value || "")}
-      </Text>
-    </View>
-  );
-}
-
-function LabeledUnderlineRow({
-  label,
-  value,
-  lineWidth,
-  lineFlex = 1,
-  labelStyle,
-  align = "center",
-}) {
-  return (
-    <View style={styles.fieldRow}>
-      <Text style={[styles.label, styles.fieldLabel, labelStyle]}>{label}</Text>
-      <UnderlineBox
-        value={value}
-        width={lineWidth}
-        flex={lineFlex}
-        align={align}
-      />
-    </View>
-  );
 }
 
 /* =========================
@@ -249,21 +175,65 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   underlineText: { fontSize: 10, paddingHorizontal: 2, zIndex: 2 },
-  signatureImageBox: {
-    height: 30,
-    width: 100,
+
+  /* --- Signatures --- */
+  sigBlock: {
+    alignItems: "center",
+    marginTop: 15,
+    width: "100%",
+  },
+  sigLine: {
+    position: "relative",
+    borderBottomWidth: 1,
+    borderBottomColor: "#000",
+    minHeight: 15,
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  sigName: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    paddingHorizontal: 2,
+  },
+  sigRole: {
+    fontSize: 8,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  applicantSignature: {
+    height: 35,
+    width: 120,
     objectFit: "contain",
     position: "absolute",
-    top: 10,
-    alignSelf: "center",
-    zIndex: 1,
+    bottom: 2,
   },
-  initialSignatureImageBox: {
+  approverSignatureAbove: {
     height: 35,
-    width: 80,
+    width: 120,
     objectFit: "contain",
-    alignSelf: "center",
-    marginTop: 2,
+    position: "absolute",
+    bottom: 12,
+  },
+  initialsContainer: {
+    position: "absolute",
+    top: "110%", // Exactly beneath the sigLine border
+    right: 0, // Aligns to the right side of the signature line
+    flexDirection: "row",
+    paddingTop: 2,
+  },
+  approverInitialUnder: {
+    height: 20,
+    width: 40,
+    objectFit: "contain",
+    marginRight: 5,
+  },
+  digitalSigInfo: {
+    fontSize: 5,
+    color: "#333",
+    textAlign: "center",
+    lineHeight: 1.1,
+    position: "absolute",
+    bottom: 10,
   },
   digitalSignatureText: {
     fontSize: 7,
@@ -272,6 +242,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.1,
     marginBottom: 4,
   },
+
   actionTitle: { fontWeight: "bold", textAlign: "center", marginBottom: 10 },
   actionRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   checkbox: {
@@ -285,9 +256,7 @@ const styles = StyleSheet.create({
   },
   checkmark: { fontSize: 12, fontWeight: "bold" },
   actionText: { flexDirection: "row", alignItems: "flex-end", flex: 1 },
-  approvalLabelLeft: { marginTop: 18, marginBottom: 6 },
-  nameLine: { alignSelf: "center", marginTop: 10 },
-  roleLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
+  approvalLabelLeft: { marginTop: 18, marginBottom: 2 },
   detachRow: { marginTop: 10, marginBottom: 6 },
   detachText: { fontSize: 9 },
   dashedLine: {
@@ -326,27 +295,153 @@ const styles = StyleSheet.create({
   col4: { width: "18%" },
   col5: { width: "18%", borderRightWidth: 0 },
   certFooter: {
-    minHeight: 150,
+    minHeight: 120,
     padding: 15,
+    paddingRight: 30, // ✅ Slightly padding the right side so it's not directly on the edge
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "flex-end", // ✅ Indents the entire block to the right
     alignItems: "flex-end",
   },
-  footerBlock: { width: 200, alignItems: "center" },
-  footerRole: {
-    fontSize: 9,
-    textAlign: "center",
-    marginTop: 10,
-    marginBottom: 6,
-  },
+  footerBlock: { width: 180, alignItems: "center" },
   footerDateLine: {
     borderBottomWidth: 1,
     borderBottomColor: "#000",
-    width: 140,
+    width: 150,
     height: 14,
+    marginTop: 10,
   },
   footerDateLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
 });
+
+/* =========================
+   Underlined field components
+========================= */
+function UnderlineBox({
+  value,
+  width,
+  flex = 1,
+  align = "center",
+  minHeight = 12,
+  paddingBottom = 1,
+  textStyle,
+  boxStyle,
+  signatureText,
+  signatureUrl,
+}) {
+  return (
+    <View
+      style={[
+        styles.underlineBox,
+        { flex, width: width ?? undefined, minHeight, paddingBottom },
+        boxStyle,
+      ]}
+    >
+      {signatureUrl ? (
+        <Image src={signatureUrl} style={styles.applicantSignature} />
+      ) : signatureText ? (
+        <Text style={styles.digitalSignatureText}>{signatureText}</Text>
+      ) : null}
+      <Text style={[styles.underlineText, { textAlign: align }, textStyle]}>
+        {String(value || "")}
+      </Text>
+    </View>
+  );
+}
+
+function LabeledUnderlineRow({
+  label,
+  value,
+  lineWidth,
+  lineFlex = 1,
+  labelStyle,
+  align = "center",
+}) {
+  return (
+    <View style={styles.fieldRow}>
+      <Text style={[styles.label, styles.fieldLabel, labelStyle]}>{label}</Text>
+      <UnderlineBox
+        value={value}
+        width={lineWidth}
+        flex={lineFlex}
+        align={align}
+      />
+    </View>
+  );
+}
+
+const SlotSignatures = ({
+  mainApprover,
+  initialApprovers = [],
+  fallbackName,
+  fallbackRole,
+  marginTop = 30,
+  lineWidth = "90%",
+}) => {
+  if (!mainApprover && (!initialApprovers || initialApprovers.length === 0)) {
+    return (
+      <View style={[styles.sigBlock, { marginTop }]}>
+        <View style={[styles.sigLine, { width: lineWidth }]}>
+          <Text style={styles.sigName}>{fallbackName}</Text>
+        </View>
+        <Text style={styles.sigRole}>{fallbackRole}</Text>
+      </View>
+    );
+  }
+
+  const getSigUrl = (appr) => {
+    if (appr?.status === "APPROVED") {
+      return safeImageUrl(
+        appr.approverSnapshot?.signatureUrl ||
+          appr.approverSignature?.signatureUrl,
+      );
+    }
+    return null;
+  };
+
+  const mainName = mainApprover?.approverSnapshot
+    ? getFullApproverName(mainApprover.approverSnapshot)
+    : mainApprover?.approver
+      ? getFullApproverName(mainApprover.approver)
+      : fallbackName;
+
+  const mainRole =
+    mainApprover?.approverSnapshot?.position ||
+    mainApprover?.approver?.position ||
+    fallbackRole;
+
+  const mainSigUrl = getSigUrl(mainApprover);
+  const initialsToRender = initialApprovers.filter(Boolean);
+
+  return (
+    <View style={[styles.sigBlock, { marginTop }]}>
+      <View style={[styles.sigLine, { width: lineWidth }]}>
+        {mainSigUrl && (
+          <Image src={mainSigUrl} style={styles.approverSignatureAbove} />
+        )}
+
+        <Text style={styles.sigName}>{mainName}</Text>
+
+        {/* ✅ Render initials UNDER the underline */}
+        {initialsToRender.length > 0 && (
+          <View style={styles.initialsContainer}>
+            {initialsToRender.map((appr, idx) => {
+              const url = getSigUrl(appr);
+              if (!url) return null;
+              return (
+                <Image
+                  key={idx}
+                  src={url}
+                  style={styles.approverInitialUnder}
+                />
+              );
+            })}
+          </View>
+        )}
+      </View>
+      <Text style={styles.sigRole}>{mainRole}</Text>
+    </View>
+  );
+};
 
 /* =========================
    PDF Component
@@ -373,7 +468,16 @@ export default function CtoApplicationPdf({
       : "";
 
   const position = applicantSnap.position || emp.position || "";
-  const officeDivision = emp.officeDivision || emp.division || emp.office || "";
+
+  // Extract officeDivision, handling variations
+  const officeDivision =
+    applicantSnap.division ||
+    applicantSnap.officeDivision ||
+    emp.division ||
+    emp.officeDivision ||
+    emp.office ||
+    "";
+
   const dateOfFiling = fmtDateLong(app?.createdAt) || "";
   const requestedHours = safeNumber(app?.requestedHours) || "";
   const inclusiveDates = formatInclusiveDates(app?.inclusiveDates) || "";
@@ -392,20 +496,30 @@ export default function CtoApplicationPdf({
 
   const approvals = app?.approvals || [];
 
-  // FIXED MAPPING LOGIC: Using exact role name matches to prevent overlap
-  const recInitialApproval = approvals.find(
+  // EXACT ROLE MAPPINGS
+  const recInitial = approvals.find(
     (a) => a.role === "Recommending Approval Initial",
   );
-  const recApproval = approvals.find((a) => a.role === "Recommending Approval");
-  const adminApproval = approvals.find((a) => a.role === "AFD Chief Signature");
-  const finalApproval = approvals.find(
+  const recSignature = approvals.find(
+    (a) => a.role === "Recommending Approval",
+  );
+  const afdInitial = approvals.find((a) => a.role === "AFD Chief Initial");
+  const afdSignature = approvals.find((a) => a.role === "AFD Chief Signature");
+  const hrSignature = approvals.find((a) => a.role === "HR Signature"); // ✅ Extracted HR Signature
+  const rdSignature = approvals.find(
     (a) => a.role === "Regional Director Signature",
   );
 
-  const recInitialDetails = getApproverDetails(recInitialApproval);
-  const recDetails = getApproverDetails(recApproval);
-  const adminDetails = getApproverDetails(adminApproval);
-  const finalDetails = getApproverDetails(finalApproval);
+  // Check if applicant is from AFD to adapt Recommending Approval role
+  const isAfdDivision =
+    officeDivision.toUpperCase().includes("AFD") ||
+    officeDivision.toUpperCase().includes("ADMIN");
+
+  const activeRecSignature = isAfdDivision ? afdSignature : recSignature;
+  const activeRecInitial = isAfdDivision ? [] : [recInitial];
+  const activeRecFallbackRole = isAfdDivision
+    ? adminFinanceLabel
+    : recommendingApproverLabel;
 
   const memos = Array.isArray(app?.memo) ? app.memo : [];
   const rows = memos.length
@@ -530,49 +644,31 @@ export default function CtoApplicationPdf({
               </View>
             </View>
 
-            <Text style={styles.approvalLabelLeft}>Recommending Approval:</Text>
-            <UnderlineBox
-              value={recDetails.name}
-              flex={0}
-              width={180}
-              minHeight={55}
-              align="center"
-              textStyle={{ fontWeight: "bold" }}
-              boxStyle={styles.nameLine}
-              signatureText={recDetails.text}
-              signatureUrl={recDetails.sigUrl}
+            {/* ✅ Recommending Approval: Dynamically adapts if applicant is from AFD */}
+            <Text style={[styles.approvalLabelLeft, { marginBottom: 25 }]}>
+              Recommending Approval:
+            </Text>
+            <SlotSignatures
+              mainApprover={activeRecSignature}
+              initialApprovers={activeRecInitial}
+              fallbackName=""
+              fallbackRole={activeRecFallbackRole}
+              marginTop={25}
+              lineWidth="95%"
             />
-            <Text style={styles.roleLabel}>{recommendingApproverLabel}</Text>
 
-            {/* Recommending Initial Signature (No Name/Underline) */}
-            {(recInitialDetails.sigUrl || recInitialDetails.text) && (
-              <View style={{ alignItems: "center", marginTop: 5 }}>
-                {recInitialDetails.sigUrl ? (
-                  <Image
-                    src={recInitialDetails.sigUrl}
-                    style={styles.initialSignatureImageBox}
-                  />
-                ) : (
-                  <Text style={styles.digitalSignatureText}>
-                    {recInitialDetails.text}
-                  </Text>
-                )}
-              </View>
-            )}
-
-            <Text style={styles.approvalLabelLeft}>Approved:</Text>
-            <UnderlineBox
-              value={finalDetails.name}
-              flex={0}
-              width={190}
-              minHeight={55}
-              align="center"
-              textStyle={{ fontWeight: "bold" }}
-              boxStyle={styles.nameLine}
-              signatureText={finalDetails.text}
-              signatureUrl={finalDetails.sigUrl}
+            {/* ✅ Approved (Regional Director): Main Signature + AFD Signature Under as Initial */}
+            <Text style={[styles.approvalLabelLeft, { marginTop: 25 }]}>
+              Approved:
+            </Text>
+            <SlotSignatures
+              mainApprover={rdSignature}
+              initialApprovers={[afdSignature]}
+              fallbackName=""
+              fallbackRole={approvedLabel}
+              marginTop={25}
+              lineWidth="95%"
             />
-            <Text style={styles.roleLabel}>{approvedLabel}</Text>
           </View>
         </View>
 
@@ -626,18 +722,15 @@ export default function CtoApplicationPdf({
 
           <View style={styles.certFooter}>
             <View style={styles.footerBlock}>
-              <UnderlineBox
-                value={adminDetails.name}
-                flex={0}
-                width={150}
-                minHeight={55}
-                align="center"
-                textStyle={{ fontWeight: "bold" }}
-                boxStyle={styles.nameLine}
-                signatureText={adminDetails.text}
-                signatureUrl={adminDetails.sigUrl}
+              {/* ✅ Bottom Footer: AFD Chief Signature with HR Signature as the Initial */}
+              <SlotSignatures
+                mainApprover={afdSignature}
+                initialApprovers={[hrSignature]}
+                fallbackName=""
+                fallbackRole={adminFinanceLabel}
+                marginTop={30}
+                lineWidth="100%"
               />
-              <Text style={styles.footerRole}>{adminFinanceLabel}</Text>
               <View style={styles.footerDateLine}>
                 <Text />
               </View>

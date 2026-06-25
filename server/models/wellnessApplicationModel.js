@@ -24,11 +24,17 @@ const wellnessApplicationSchema = new mongoose.Schema(
     // preventing past forms (like CSC Form 6) from retroactively changing
     // if the employee is promoted, gets a raise, or changes their name.
     applicantSnapshot: {
+      prefixTitle: { type: String, trim: true, default: "" },
       firstName: { type: String, required: true, trim: true },
       middleName: { type: String, required: true, trim: true },
       lastName: { type: String, required: true, trim: true },
+      nameExtension: { type: String, trim: true, default: "" },
+      postfixTitle: { type: String, trim: true, default: "" },
+
+      division: { type: String, required: true, trim: true },
       position: { type: String, required: true, trim: true },
-      wellnessBalance: { type: Number, required: true, trim: true },
+      wellnessBalance: { type: Number, required: true },
+
       // Salary details are only mandated for Organic employees (CSC Form 6 requirement)
       salaryGrade: {
         type: Number,

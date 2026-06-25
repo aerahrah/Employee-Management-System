@@ -109,7 +109,7 @@ const getApproverOptionsService = async () => {
   // Fetch employees and project the needed fields
   const employees = await Employee.find(
     {},
-    "_id firstName lastName position email employeeType",
+    "_id prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeType",
   )
     .sort({ lastName: 1, firstName: 1 })
     .lean();
@@ -200,13 +200,18 @@ const getCtoApplicationsForApproverService = async (
       select:
         "employee approvals overallStatus requestedHours inclusiveDates reason createdAt",
       populate: [
-        { path: "employee", select: "firstName lastName position email" },
+        {
+          path: "employee",
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
+        },
         {
           path: "approvals",
           select: "approver status level role approverSnapshot",
           populate: {
             path: "approver",
-            select: "firstName lastName position email _id",
+            select:
+              "prefixTitle firstName middleName lastName nameExtension postfixTitle position email _id",
           },
         },
       ],
@@ -301,14 +306,16 @@ const getCtoApplicationByIdService = async (ctoApplicationId) => {
     .select("-__v")
     .populate({
       path: "employee",
-      select: "firstName lastName position department email balances",
+      select:
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position department email balances",
     })
     .populate({
       path: "approvals",
       select: "-__v",
       populate: {
         path: "approver",
-        select: "firstName lastName position email",
+        select:
+          "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
       },
     })
     .populate({ path: "memo.memoId", select: "memoNo uploadedMemo" })
@@ -332,7 +339,9 @@ const approveCtoApplicationService = async ({
   assertObjectId(safeAppId, "Application ID");
 
   const approver = await Employee.findById(safeApproverId)
-    .select("firstName lastName position email signature")
+    .select(
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email signature",
+    )
     .lean();
 
   if (!approver) {
@@ -388,8 +397,12 @@ const approveCtoApplicationService = async ({
           status: CTO_STATUS.APPROVED,
           reviewedAt: new Date(),
           approverSnapshot: {
+            prefixTitle: approver.prefixTitle || "",
             firstName: approver.firstName || "",
+            middleName: approver.middleName || "",
             lastName: approver.lastName || "",
+            nameExtension: approver.nameExtension || "",
+            postfixTitle: approver.postfixTitle || "",
             position: approver.position || "",
             signatureUrl: approver.signature,
             signedAt: new Date(),
@@ -582,7 +595,9 @@ const rejectCtoApplicationService = async ({
   const safeRemarks = sanitizeString(remarks, 1000) || "No remarks provided";
 
   const approver = await Employee.findById(safeApproverId)
-    .select("firstName lastName position email signature")
+    .select(
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email signature",
+    )
     .lean();
 
   if (!approver) {
@@ -677,8 +692,12 @@ const rejectCtoApplicationService = async ({
           remarks: safeRemarks,
           reviewedAt: new Date(),
           approverSnapshot: {
+            prefixTitle: approver.prefixTitle || "",
             firstName: approver.firstName || "",
+            middleName: approver.middleName || "",
             lastName: approver.lastName || "",
+            nameExtension: approver.nameExtension || "",
+            postfixTitle: approver.postfixTitle || "",
             position: approver.position || "",
             signatureUrl: approver.signature,
             signedAt: new Date(),

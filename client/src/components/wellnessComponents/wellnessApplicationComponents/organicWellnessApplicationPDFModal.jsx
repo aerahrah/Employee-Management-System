@@ -6,6 +6,7 @@ import WellnessApplicationPdf from "./organicWellnessApplicationPDF";
 const OrganicWellnessApplicationPdfModal = ({ app, isOpen, onClose }) => {
   if (!isOpen || !app) return null;
 
+  console.log(app);
   return (
     <Modal
       isOpen={isOpen}

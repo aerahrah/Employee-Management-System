@@ -139,13 +139,18 @@ const getWellnessApplicationsForApproverService = async (
       select:
         "employee approvals overallStatus inclusiveDates totalDays reason createdAt employeeType commutation applicantSignatureUrl certificationOfLeaveCredits actionDetails",
       populate: [
-        { path: "employee", select: "firstName lastName position signature" },
+        {
+          path: "employee",
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle position signature",
+        },
         {
           path: "approvals",
           select: "approver status level role approverSnapshot",
           populate: {
             path: "approver",
-            select: "firstName lastName position _id",
+            select:
+              "prefixTitle firstName middleName lastName nameExtension postfixTitle position _id",
           },
         },
       ],
@@ -262,14 +267,15 @@ const getWellnessApplicationByIdService = async (wellnessApplicationId) => {
     .populate({
       path: "employee",
       select:
-        "firstName lastName position department signature employeeId email",
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position department signature employeeId email",
     })
     .populate({
       path: "approvals",
       select: "-__v",
       populate: {
         path: "approver",
-        select: "firstName lastName position email",
+        select:
+          "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
       },
     })
     .lean();
@@ -291,7 +297,9 @@ const approveWellnessApplicationService = async ({
   assertObjectId(applicationId, "applicationId");
 
   const approver = await Employee.findById(approverId)
-    .select("firstName lastName position email signature")
+    .select(
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email signature",
+    )
     .lean();
 
   if (!approver) {
@@ -342,8 +350,12 @@ const approveWellnessApplicationService = async ({
           status: "APPROVED",
           reviewedAt: new Date(),
           approverSnapshot: {
+            prefixTitle: approver.prefixTitle || "",
             firstName: approver.firstName || "",
+            middleName: approver.middleName || "",
             lastName: approver.lastName || "",
+            nameExtension: approver.nameExtension || "",
+            postfixTitle: approver.postfixTitle || "",
             position: approver.position || "",
             signatureUrl: approver.signature,
             signedAt: new Date(),
@@ -512,7 +524,9 @@ const rejectWellnessApplicationService = async ({
   assertObjectId(applicationId, "applicationId");
 
   const approver = await Employee.findById(approverId)
-    .select("firstName lastName position email signature")
+    .select(
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email signature",
+    )
     .lean();
 
   if (!approver) {
@@ -576,8 +590,12 @@ const rejectWellnessApplicationService = async ({
           remarks: remarks || "No remarks provided",
           reviewedAt: new Date(),
           approverSnapshot: {
+            prefixTitle: approver.prefixTitle || "",
             firstName: approver.firstName || "",
+            middleName: approver.middleName || "",
             lastName: approver.lastName || "",
+            nameExtension: approver.nameExtension || "",
+            postfixTitle: approver.postfixTitle || "",
             position: approver.position || "",
             signatureUrl: approver.signature,
             signedAt: new Date(),

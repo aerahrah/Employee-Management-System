@@ -48,8 +48,12 @@ const approvalStepSchema = new mongoose.Schema(
     // This ensures that past PDF forms retain the correct name, position,
     // and signature of the approver at that exact moment in time.
     approverSnapshot: {
+      prefixTitle: { type: String, trim: true, default: "" },
       firstName: { type: String, trim: true },
+      middleName: { type: String, trim: true, default: "" },
       lastName: { type: String, trim: true },
+      nameExtension: { type: String, trim: true, default: "" },
+      postfixTitle: { type: String, trim: true, default: "" },
       position: { type: String, trim: true },
       signatureUrl: { type: String, trim: true },
       signedAt: { type: Date },

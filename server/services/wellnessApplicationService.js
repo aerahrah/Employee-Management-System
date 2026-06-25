@@ -35,16 +35,18 @@ async function canSend(key) {
 const populateApplicationById = async (applicationId, session = null) => {
   return (
     WellnessApplication.findById(applicationId)
-      // ✅ Include middleName and signature for the PDF Generator
+      // ✅ Include middleName, prefix/postfix, extension, and signature for the PDF Generator
       .populate(
         "employee",
-        "firstName middleName lastName position email employeeId signature",
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
       )
       .populate({
         path: "approvals",
         populate: {
           path: "approver",
-          select: "firstName lastName position email",
+          // ✅ Added extended name fields for the approver
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
         },
         options: { sort: { level: 1 } },
       })
@@ -261,10 +263,14 @@ const addWellnessApplicationService = async ({
       employee: employee._id,
       employeeType: finalEmployeeType,
       applicantSnapshot: {
+        prefixTitle: employee.prefixTitle || "",
         firstName: employee.firstName || "",
         middleName: employee.middleName || "",
         lastName: employee.lastName || "",
+        nameExtension: employee.nameExtension || "",
+        postfixTitle: employee.postfixTitle || "",
         position: employee.position || "",
+        division: employee.division || "",
         wellnessBalance: currentWellnessBalance, // ✅ Snapshots the balance BEFORE the deduction
       },
       inclusiveDates,
@@ -403,16 +409,18 @@ const getAllWellnessApplicationsService = async (
 
   // ✅ Fetch applications with deep populated approvals mapping to frontend requirements
   const applications = await WellnessApplication.find(query)
-    // ✅ Ensure middleName and signature are returned if present
+    // ✅ Ensure name extensions, middleName, and signature are returned if present
     .populate(
       "employee",
-      "firstName middleName lastName position email employeeId signature",
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
     )
     .populate({
       path: "approvals",
       populate: {
         path: "approver",
-        select: "firstName lastName position email",
+        // ✅ Added extended name fields for the approver
+        select:
+          "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
       },
       options: { sort: { level: 1 } },
     })
@@ -533,13 +541,19 @@ const getWellnessApplicationsByEmployeeService = async (
             status: 1,
             reviewedAt: 1,
             remarks: 1,
-            role: 1, // ✅ Added role projection!
-            approverSignature: 1, // ✅ Added signature projection!
+            role: 1,
+            approverSignature: 1,
+            approverSnapshot: 1, // ✅ ADDED THIS: prevents dropping snapshot data
             approver: {
               _id: "$approver._id",
+              prefixTitle: "$approver.prefixTitle",
               firstName: "$approver.firstName",
+              middleName: "$approver.middleName",
               lastName: "$approver.lastName",
+              nameExtension: "$approver.nameExtension",
+              postfixTitle: "$approver.postfixTitle",
               position: "$approver.position",
+              email: "$approver.email", // ✅ Added email to match getAll
             },
           },
         },
@@ -567,11 +581,15 @@ const getWellnessApplicationsByEmployeeService = async (
     $addFields: {
       employee: {
         _id: "$employeeDoc._id",
+        prefixTitle: "$employeeDoc.prefixTitle",
         firstName: "$employeeDoc.firstName",
-        middleName: "$employeeDoc.middleName", // ✅ Added middleName
+        middleName: "$employeeDoc.middleName",
         lastName: "$employeeDoc.lastName",
+        nameExtension: "$employeeDoc.nameExtension",
+        postfixTitle: "$employeeDoc.postfixTitle",
         position: "$employeeDoc.position",
-        signature: "$employeeDoc.signature", // ✅ Fallback signature included
+        email: "$employeeDoc.email", // ✅ Added email to match getAll
+        signature: "$employeeDoc.signature",
       },
     },
   });

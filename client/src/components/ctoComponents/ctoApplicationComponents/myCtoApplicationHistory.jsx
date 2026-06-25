@@ -36,7 +36,8 @@ import {
   Info,
   FileDown,
   ArrowUp,
-  FileBadge, // Added for CSC Form 6 Icon
+  FileBadge,
+  ChevronDown, // ✅ Added ChevronDown for the new Action button
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
@@ -222,27 +223,30 @@ const ApplicationActionMenu = ({
 
   return (
     <div className="relative inline-flex justify-end" ref={menuRef}>
+      {/* ✅ Replaced the trigger button design here */}
       <button
+        aria-haspopup="true"
+        aria-expanded={isOpen}
         onClick={(e) => {
           e.stopPropagation();
           setIsOpen((o) => !o);
         }}
-        className="p-1.5 rounded-md transition-colors duration-200 ease-out"
-        style={{ color: "var(--app-muted)" }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
-          e.currentTarget.style.color = "var(--app-text)";
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-sm text-xs cursor-pointer font-bold transition-all duration-200 ease-out active:scale-95"
+        style={{
+          backgroundColor: isOpen
+            ? "var(--app-surface-2)"
+            : "var(--app-surface)",
+          borderColor: borderColor,
+          color: isOpen ? "var(--accent)" : "var(--app-text)",
         }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "transparent";
-          e.currentTarget.style.color = "var(--app-muted)";
-        }}
-        aria-haspopup="true"
-        aria-expanded={isOpen}
         title="Actions"
         type="button"
       >
-        <MoreVertical size={16} />
+        <span>Actions</span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (

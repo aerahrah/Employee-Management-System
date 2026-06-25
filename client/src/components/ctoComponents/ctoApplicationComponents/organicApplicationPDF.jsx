@@ -45,6 +45,19 @@ function safeImageUrl(url) {
   return url.startsWith("http") ? url : buildApiUrl(url);
 }
 
+// ✅ Helper to construct full names with prefixes, extensions, and postfixes
+function getFullApproverName(profile) {
+  if (!profile) return "";
+  const pre = profile.prefixTitle ? `${profile.prefixTitle} ` : "";
+  const f = profile.firstName || "";
+  const m = profile.middleName ? ` ${profile.middleName.charAt(0)}.` : "";
+  const l = profile.lastName ? ` ${profile.lastName}` : "";
+  const ext = profile.nameExtension ? ` ${profile.nameExtension}` : "";
+  const post = profile.postfixTitle ? `, ${profile.postfixTitle}` : "";
+
+  return `${pre}${f}${m}${l}${ext}${post}`.toUpperCase();
+}
+
 /* =========================
    Styles
 ========================= */
@@ -221,7 +234,6 @@ const styles = StyleSheet.create({
     position: "relative",
     borderBottomWidth: 1,
     borderBottomColor: "#000",
-    width: "80%",
     minHeight: 15,
     justifyContent: "flex-end",
     alignItems: "center",
@@ -257,12 +269,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 12,
   },
-  approverInitialBeside: {
+  // ✅ New styles for initial signatures under the line
+  initialsContainer: {
+    position: "absolute",
+    top: "100%", // This places it exactly beneath the sigLine border
+    right: 10, // Aligns it to the left side of the signature line
+    flexDirection: "row",
+    paddingTop: 2,
+  },
+  approverInitialUnder: {
     height: 20,
     width: 40,
     objectFit: "contain",
-    marginRight: 4,
-    marginBottom: -2,
+    marginRight: 5,
   },
 });
 
@@ -281,15 +300,17 @@ const CheckboxItem = ({ label, law, checked }) => (
 );
 
 const SlotSignatures = ({
-  approvals,
+  mainApprover,
+  initialApprovers = [],
   fallbackName,
   fallbackRole,
-  marginTop = 15,
+  marginTop = 30,
+  lineWidth = "80%",
 }) => {
-  if (!approvals || approvals.length === 0) {
+  if (!mainApprover && (!initialApprovers || initialApprovers.length === 0)) {
     return (
       <View style={[styles.sigBlock, { marginTop }]}>
-        <View style={styles.sigLine}>
+        <View style={[styles.sigLine, { width: lineWidth }]}>
           <Text style={styles.sigName}>{fallbackName}</Text>
         </View>
         <Text style={styles.sigRole}>{fallbackRole}</Text>
@@ -297,65 +318,55 @@ const SlotSignatures = ({
     );
   }
 
-  const mainApprover =
-    approvals.find((a) => a.role?.toLowerCase().includes("signature")) ||
-    approvals[approvals.length - 1];
+  const getSigUrl = (appr) => {
+    if (appr?.status === "APPROVED") {
+      return safeImageUrl(
+        appr.approverSnapshot?.signatureUrl ||
+          appr.approverSignature?.signatureUrl,
+      );
+    }
+    return null;
+  };
 
-  const otherApprovers = approvals.filter((a) => a._id !== mainApprover._id);
-  const isMainInitial = mainApprover.role?.toLowerCase().includes("initial");
-
-  // Use Approver Snapshot if available, fallback to live profile or placeholder
-  const mainName = mainApprover.approverSnapshot
-    ? `${mainApprover.approverSnapshot.firstName} ${mainApprover.approverSnapshot.lastName}`.toUpperCase()
-    : mainApprover.approver
-      ? `${mainApprover.approver.firstName} ${mainApprover.approver.lastName}`.toUpperCase()
+  const mainName = mainApprover?.approverSnapshot
+    ? getFullApproverName(mainApprover.approverSnapshot)
+    : mainApprover?.approver
+      ? getFullApproverName(mainApprover.approver)
       : fallbackName;
 
   const mainRole =
-    mainApprover.approverSnapshot?.position ||
-    mainApprover.approver?.position ||
+    mainApprover?.approverSnapshot?.position ||
+    mainApprover?.approver?.position ||
     fallbackRole;
 
-  const rawMainSigUrl =
-    mainApprover.status === "APPROVED"
-      ? mainApprover.approverSnapshot?.signatureUrl ||
-        mainApprover.approverSignature?.signatureUrl
-      : null;
-  const mainSigUrl = safeImageUrl(rawMainSigUrl);
+  const mainSigUrl = getSigUrl(mainApprover);
+  const initialsToRender = initialApprovers.filter(Boolean);
 
   return (
     <View style={[styles.sigBlock, { marginTop }]}>
-      <View style={styles.sigLine}>
-        {!isMainInitial && mainSigUrl && (
+      <View style={[styles.sigLine, { width: lineWidth }]}>
+        {mainSigUrl && (
           <Image src={mainSigUrl} style={styles.approverSignatureAbove} />
         )}
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-end",
-            justifyContent: "center",
-          }}
-        >
-          {otherApprovers.map((appr, idx) => {
-            const rawUrl =
-              appr.status === "APPROVED"
-                ? appr.approverSnapshot?.signatureUrl ||
-                  appr.approverSignature?.signatureUrl
-                : null;
-            const url = safeImageUrl(rawUrl);
-            if (!url) return null;
-            return (
-              <Image key={idx} src={url} style={styles.approverInitialBeside} />
-            );
-          })}
+        <Text style={styles.sigName}>{mainName}</Text>
 
-          {isMainInitial && mainSigUrl && (
-            <Image src={mainSigUrl} style={styles.approverInitialBeside} />
-          )}
-
-          <Text style={styles.sigName}>{mainName}</Text>
-        </View>
+        {/* ✅ Render initials UNDER the underline */}
+        {initialsToRender.length > 0 && (
+          <View style={styles.initialsContainer}>
+            {initialsToRender.map((appr, idx) => {
+              const url = getSigUrl(appr);
+              if (!url) return null;
+              return (
+                <Image
+                  key={idx}
+                  src={url}
+                  style={styles.approverInitialUnder}
+                />
+              );
+            })}
+          </View>
+        )}
       </View>
       <Text style={styles.sigRole}>{mainRole}</Text>
     </View>
@@ -366,23 +377,45 @@ const SlotSignatures = ({
    Main Component
 ========================= */
 export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
-  // ✅ Extract data from Applicant Snapshot for historical accuracy
+  // ✅ Extract data strictly from Applicant Snapshot for historical accuracy
   const snapshot = app?.applicantSnapshot || {};
   const emp = app?.employee || {}; // Fallback for legacy records
 
-  const office = emp.division || emp.department || "ADMIN AND FINANCE";
-  const lastName = snapshot.lastName || emp.lastName || "";
-  const firstName = snapshot.firstName || emp.firstName || "";
-  const middleName = snapshot.middleName || emp.middleName || "";
+  const office =
+    snapshot.division || emp.division || emp.department || "ADMIN AND FINANCE";
   const position = snapshot.position || emp.position || "";
 
-  // ✅ Format Salary Amount to show ONLY the monetary value (e.g., ₱59,153.00)
-  const amt = snapshot.salaryAmount;
+  const prefixTitle = snapshot.prefixTitle || "";
+  const firstName = snapshot.firstName || emp.firstName || "";
+  const middleName = snapshot.middleName || emp.middleName || "";
+  const lastName = snapshot.lastName || emp.lastName || "";
+  const nameExtension = snapshot.nameExtension || "";
+  const postfixTitle = snapshot.postfixTitle || "";
 
+  // Format Name Strings specifically for the layout boxes
+  const displayLastName = [lastName, nameExtension].filter(Boolean).join(" ");
+  const displayFirstName = [prefixTitle, firstName, postfixTitle]
+    .filter(Boolean)
+    .join(" ");
+
+  const fullApplicantName = [
+    prefixTitle,
+    firstName,
+    middleName,
+    lastName,
+    nameExtension,
+    postfixTitle,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  // ✅ Format Salary Amount
+  const amt = snapshot.salaryAmount;
   let salaryText = "";
-  console.log(amt);
   if (amt) {
-    salaryText = `${Number(amt).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+    salaryText = `${Number(amt).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+    })}`;
   }
 
   const dateOfFiling = fmtDateLong(app?.createdAt);
@@ -394,28 +427,86 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
   const isCommutationNotReq =
     app?.commutation === "Not Requested" || !isCommutationReq;
 
+  // Final applicant signature
   const rawFinalSignatureSrc =
     app?.applicantSignatureUrl || signatureSrc || emp.signature || null;
   const finalSignatureSrc = safeImageUrl(rawFinalSignatureSrc);
 
-  const hrmoApprovals = [];
-  const recommendingApprovals = [];
-  const finalApprovals = [];
+  // ===============================================
+  // ✅ EXACT ROLE MAPPINGS INTO SPECIFIC VARIABLES
+  // ===============================================
+  const approvals = app?.approvals || [];
 
-  (app?.approvals || []).forEach((a) => {
-    const r = (a.role || "").toLowerCase();
-    if (r.includes("hrmo")) {
-      hrmoApprovals.push(a);
-    } else if (
-      r.includes("rd") ||
-      r.includes("regional director") ||
-      r.includes("ard")
-    ) {
-      finalApprovals.push(a);
-    } else {
-      recommendingApprovals.push(a);
-    }
-  });
+  // Recommendation Approvals
+  const recInitial = approvals.find(
+    (a) => a.role === "Recommending Approval Initial",
+  );
+  const recSignature = approvals.find(
+    (a) => a.role === "Recommending Approval",
+  );
+
+  // HR Approvals
+  const hrInitial = approvals.find((a) => a.role === "HR Initial");
+  const hrSignature = approvals.find((a) => a.role === "HR Signature");
+
+  // AFD Approvals
+  const afdInitial = approvals.find((a) => a.role === "AFD Chief Initial");
+  const afdSignature = approvals.find((a) => a.role === "AFD Chief Signature");
+
+  // ARD Approvals
+  const ardInitial = approvals.find((a) => a.role === "ARD Initial");
+  const ardSignature = approvals.find((a) => a.role === "ARD Signature");
+
+  // Regional Director
+  const rdSignature = approvals.find(
+    (a) => a.role === "Regional Director Signature",
+  );
+
+  // ===============================================
+  // ✅ SECTION 7.B CONDITIONAL ROUTING BASED ON DIVISION
+  // ===============================================
+  const officeUpper = office.toUpperCase();
+  const isTOD =
+    officeUpper.includes("TOD") || officeUpper.includes("TECHNICAL");
+  const isORD =
+    officeUpper.includes("ORD") ||
+    officeUpper.includes("OFFICE OF THE REGIONAL DIRECTOR");
+
+  let sec7B_mainApprover;
+  let sec7B_initialApprovers;
+  let sec7B_fallbackName;
+  let sec7B_fallbackRole;
+
+  if (isTOD || isORD) {
+    sec7B_mainApprover = recSignature;
+    sec7B_initialApprovers = [recInitial];
+    sec7B_fallbackName = "";
+    sec7B_fallbackRole = "Chief, Technical Operations Division";
+  } else {
+    // Defaults to AFD if neither TOD nor ORD
+    sec7B_mainApprover = afdSignature;
+    sec7B_initialApprovers = [afdInitial];
+    sec7B_fallbackName = "MINA FLOR T. VILLAFUERTE";
+    sec7B_fallbackRole = "Chief, Admin and Finance Division";
+  }
+
+  // Common standard types for checking "Others"
+  const standardTypes = [
+    "Vacation",
+    "Mandatory",
+    "Sick",
+    "Maternity",
+    "Paternity",
+    "SPL",
+    "Solo Parent",
+    "Study",
+    "VAWC",
+    "Rehabilitation",
+    "Women",
+    "Calamity",
+    "Adoption",
+  ];
+  const isOtherLeave = !standardTypes.includes(leaveType);
 
   return (
     <Document title={`Leave Application - ${lastName}`}>
@@ -458,11 +549,11 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
               <Text style={styles.labelTitle}>2. NAME :</Text>
               <View style={{ flexDirection: "row", marginTop: 4 }}>
                 <View style={{ flex: 1, alignItems: "center" }}>
-                  <Text style={styles.valueText}>{lastName}</Text>
+                  <Text style={styles.valueText}>{displayLastName}</Text>
                   <Text style={{ fontSize: 7, marginTop: 1 }}>(Last)</Text>
                 </View>
                 <View style={{ flex: 1, alignItems: "center" }}>
-                  <Text style={styles.valueText}>{firstName}</Text>
+                  <Text style={styles.valueText}>{displayFirstName}</Text>
                   <Text style={{ fontSize: 7, marginTop: 1 }}>(First)</Text>
                 </View>
                 <View style={{ flex: 1, alignItems: "center" }}>
@@ -597,7 +688,7 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 ]}
               >
                 <Text style={styles.valueText}>
-                  Compensatory Time-Off (CTO)
+                  {isOtherLeave ? leaveType : ""}
                 </Text>
               </View>
             </View>
@@ -783,7 +874,7 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
 
               {/* Applicant Signature */}
               <View style={[styles.sigBlock, { marginTop: 10 }]}>
-                <View style={styles.sigLine}>
+                <View style={[styles.sigLine, { width: "80%" }]}>
                   {finalSignatureSrc ? (
                     <Image
                       src={finalSignatureSrc}
@@ -794,14 +885,6 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                   )}
                 </View>
                 <Text style={styles.sigRole}>(Signature of Applicant)</Text>
-                {app?.overallStatus === "APPROVED" && (
-                  <View style={styles.digitalSigInfo}>
-                    <Text>Digitally signed by {lastName}</Text>
-                    <Text>
-                      {firstName} {middleName}
-                    </Text>
-                  </View>
-                )}
               </View>
             </View>
           </View>
@@ -886,17 +969,18 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 </View>
               </View>
 
-              {/* Dynamic 7A Approvers */}
+              {/* 7.A Approvers -> Map HR Variables */}
               <SlotSignatures
-                approvals={hrmoApprovals}
+                mainApprover={hrSignature}
+                initialApprovers={[hrInitial]}
                 fallbackName="JAYFER T. AMMASI"
                 fallbackRole="HRMO II"
-                marginTop={15}
+                marginTop={40}
               />
             </View>
 
             {/* 7.B - Recommending Signatures Block */}
-            <View style={{ width: "50%", padding: 4 }}>
+            <View style={{ width: "50%", padding: 4, marginBottom: 10 }}>
               <Text style={styles.labelTitle}>7.B RECOMMENDATION</Text>
               <View style={{ paddingLeft: 10, marginTop: 4 }}>
                 <CheckboxItem
@@ -928,12 +1012,13 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 ></View>
               </View>
 
-              {/* Dynamic 7B Approvers */}
+              {/* ✅ 7.B Conditional Approvers Based on Division */}
               <SlotSignatures
-                approvals={recommendingApprovals}
-                fallbackName="MINA FLOR T. VILLAFUERTE"
-                fallbackRole="Chief, Admin and Finance Division"
-                marginTop={25}
+                mainApprover={sec7B_mainApprover}
+                initialApprovers={sec7B_initialApprovers}
+                fallbackName={sec7B_fallbackName}
+                fallbackRole={sec7B_fallbackRole}
+                marginTop={40}
               />
             </View>
           </View>
@@ -1009,13 +1094,15 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
             </View>
           </View>
 
-          {/* Bottom Final Signature (7C/7D Approvers) */}
-          <View style={{ padding: 10, marginBottom: 10 }}>
+          {/* ✅ Bottom Final Signature (7C/7D Approvers) */}
+          <View style={{ padding: 10, marginBottom: 0 }}>
             <SlotSignatures
-              approvals={finalApprovals}
+              mainApprover={rdSignature || ardSignature}
+              initialApprovers={isTOD || isORD ? [afdSignature] : []}
               fallbackName="Engr. PINKY T. JIMENEZ, PECE, Ph.D."
               fallbackRole="Regional Director"
-              marginTop={10}
+              marginTop={25}
+              lineWidth="50%"
             />
           </View>
         </View>

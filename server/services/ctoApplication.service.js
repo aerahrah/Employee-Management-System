@@ -76,15 +76,18 @@ const populateApplicationById = async (applicationId) => {
   assertObjectId(applicationId, "Application ID");
 
   const app = await CtoApplication.findById(applicationId)
+    // ✅ Include division and extended name fields
     .populate(
       "employee",
-      "firstName middleName lastName position email employeeId signature",
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle division position email employeeId signature",
     )
     .populate({
       path: "approvals",
       populate: {
         path: "approver",
-        select: "firstName lastName position email",
+        // ✅ Include division and extended name fields for approvers
+        select:
+          "prefixTitle firstName middleName lastName nameExtension postfixTitle division position email",
       },
       options: { sort: { level: 1 } },
     })
@@ -166,7 +169,16 @@ async function notifyApproversOfCancellation({
 
   if (!approverIds.length) return;
 
-  const fullName = `${employee.firstName} ${employee.lastName}`;
+  const fullName = [
+    employee.prefixTitle,
+    employee.firstName,
+    employee.middleName,
+    employee.lastName,
+    employee.nameExtension,
+    employee.postfixTitle,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   await NotificationService.createManyNotifications(
     approverIds.map((approverId) => ({
@@ -242,7 +254,7 @@ const addCtoApplicationService = async ({
   console.log(
     `[addCtoApplicationService] Fetching employee profile for ID: ${userId}`,
   );
-  // ✅ Populate salary so we can capture the actual monetary amount
+
   const employee = await Employee.findById(userId).populate("salary").lean();
   if (!employee) {
     console.error("[addCtoApplicationService] Employee not found in DB.");
@@ -280,7 +292,6 @@ const addCtoApplicationService = async ({
       );
     }
 
-    // ✅ Ensure salary amount exists for the snapshot so PDF accurately prints it
     if (!employee.salary || typeof employee.salary.amount !== "number") {
       console.error(
         "[addCtoApplicationService] Validation Error: Missing Salary Amount for Organic employee",
@@ -473,10 +484,15 @@ const addCtoApplicationService = async ({
     const applicationPayload = {
       employee: employee._id,
       employeeType,
+      // ✅ Included full robust snapshot mapping including division
       applicantSnapshot: {
+        prefixTitle: employee.prefixTitle || "",
         firstName: employee.firstName || "",
         middleName: employee.middleName || "",
         lastName: employee.lastName || "",
+        nameExtension: employee.nameExtension || "",
+        postfixTitle: employee.postfixTitle || "",
+        division: employee.division || "",
         position: employee.position || "",
       },
       requestedHours: strictReqHours,
@@ -489,7 +505,6 @@ const addCtoApplicationService = async ({
 
     if (isOrganic) {
       applicationPayload.applicantSignatureUrl = employee.signature;
-      // ✅ Provide both grade AND amount to the snapshot so the PDF can pull the correct historical value
       applicationPayload.applicantSnapshot.salaryGrade = employee.salary?.grade;
       applicationPayload.applicantSnapshot.salaryAmount =
         employee.salary?.amount;
@@ -655,7 +670,7 @@ const cancelCtoApplicationService = async ({ userId, applicationId }) => {
   }
 
   const employee = await Employee.findById(userId).select(
-    "firstName lastName email",
+    "prefixTitle firstName middleName lastName nameExtension postfixTitle email",
   );
 
   app.overallStatus = "CANCELLED";
@@ -734,7 +749,6 @@ const getAllCtoApplicationsService = async (
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
-        // ✅ Ensure applicantSnapshot is pulled from the DB
         "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl applicantSnapshot",
       )
       .populate({
@@ -742,12 +756,15 @@ const getAllCtoApplicationsService = async (
         options: { sort: { level: 1 } },
         populate: {
           path: "approver",
-          select: "firstName lastName position _id",
+          // ✅ Add division and extended name fields for Mongoose find query
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id",
         },
       })
       .populate(
         "employee",
-        "firstName middleName lastName position _id signature",
+        // ✅ Add division and extended name fields for Employee populate
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id signature",
       )
       .populate("memo.memoId", "memoNo uploadedMemo totalHours appliedHours")
       .sort({ createdAt: -1 })
@@ -913,10 +930,17 @@ const getCtoApplicationsByEmployeeService = async (
             remarks: 1,
             role: 1,
             approverSignature: 1,
+            // ✅ Include approverSnapshot
+            approverSnapshot: 1,
             approver: {
               _id: "$approver._id",
+              prefixTitle: "$approver.prefixTitle",
               firstName: "$approver.firstName",
+              middleName: "$approver.middleName",
               lastName: "$approver.lastName",
+              nameExtension: "$approver.nameExtension",
+              postfixTitle: "$approver.postfixTitle",
+              division: "$approver.division",
               position: "$approver.position",
             },
           },
@@ -944,9 +968,13 @@ const getCtoApplicationsByEmployeeService = async (
     $addFields: {
       employee: {
         _id: "$employeeDoc._id",
+        prefixTitle: "$employeeDoc.prefixTitle",
         firstName: "$employeeDoc.firstName",
         middleName: "$employeeDoc.middleName",
         lastName: "$employeeDoc.lastName",
+        nameExtension: "$employeeDoc.nameExtension",
+        postfixTitle: "$employeeDoc.postfixTitle",
+        division: "$employeeDoc.division",
         position: "$employeeDoc.position",
         signature: "$employeeDoc.signature",
       },
