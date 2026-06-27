@@ -272,18 +272,7 @@ export const getCtoApplicationById = async (id) => {
   }
 };
 
-export const getCtoApplicationPendingCount = async (id) => {
-  try {
-    const res = await API.get(`cto/applications/approvers/my-approvals/${id}`, {
-      withCredentials: true,
-    });
-    return unwrap(res)?.data ?? unwrap(res);
-  } catch (err) {
-    safeError(err, "Failed to fetch pending count");
-  }
-};
-
-export const fetchCtoApplicationsPendingRequest = async () => {
+export const fetchPendingCtoCount = async () => {
   try {
     const res = await API.get("/cto/applications/pending-count", {
       withCredentials: true,

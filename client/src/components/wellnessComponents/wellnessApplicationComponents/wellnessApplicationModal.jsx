@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
-import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
-import Modal from "../../modal"; // Adjust this path if necessary
+import { PDFViewer } from "@react-pdf/renderer";
+import { X } from "lucide-react";
+import Modal from "../../modal";
 import WellnessLeavePdf from "./wellnessApplicationPDF";
 
 export default function WellnessLeavePdfModal({ app, isOpen, onClose }) {
@@ -12,36 +13,60 @@ export default function WellnessLeavePdfModal({ app, isOpen, onClose }) {
   if (!isOpen || !app) return null;
 
   console.log(app);
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Wellness Leave Application PDF"
-      maxWidth="max-w-4xl"
+      title={null}
+      showFooter={false}
+      maxWidth="max-w-5xl"
     >
-      <div className="w-full">
-        {/* <div className="flex items-center justify-end gap-2 mb-3">
-          <PDFDownloadLink
-            document={<WellnessLeavePdf app={app} />}
-            fileName={fileName}
-          >
-            {({ loading }) => (
-              <button
-                type="button"
-                disabled={loading}
-                className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-bold border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 disabled:opacity-50"
-              >
-                {loading ? "Preparing PDF..." : "Download PDF"}
-              </button>
-            )}
-          </PDFDownloadLink>
-        </div> */}
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4 pl-1">
+        <h2
+          className="text-lg md:text-xl font-bold transition-colors duration-300 ease-out truncate pr-4"
+          style={{ color: "var(--app-text, #0f172a)" }}
+        >
+          Wellness Leave Application PDF
+        </h2>
 
-        <div className="w-full h-[70vh] border border-gray-200 rounded-lg overflow-hidden bg-white">
-          <PDFViewer style={{ width: "100%", height: "100%" }} showToolbar>
-            <WellnessLeavePdf app={app} />
-          </PDFViewer>
-        </div>
+        {/* Modern Circular Close Button */}
+        <button
+          onClick={onClose}
+          className="w-9 h-9 flex items-center justify-center rounded-full transition-all duration-200 ease-out flex-shrink-0 border shadow-sm"
+          style={{
+            backgroundColor: "var(--app-surface-2, #f3f4f6)",
+            color: "var(--app-text, #2a0f0f)",
+            borderColor: "var(--app-border, #e2e8f0)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.filter = "brightness(0.92)";
+            e.currentTarget.style.transform = "scale(1.05)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.filter = "none";
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+          aria-label="Close PDF viewer"
+        >
+          <X size={18} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* PDF Viewer */}
+      <div
+        className="w-full h-[75vh] sm:h-[85vh] rounded-xl overflow-hidden border transition-colors duration-300 ease-out"
+        style={{ borderColor: "var(--app-border, #e2e8f0)" }}
+      >
+        <PDFViewer
+          width="100%"
+          height="100%"
+          className="border-none"
+          showToolbar
+        >
+          <WellnessLeavePdf app={app} />
+        </PDFViewer>
       </div>
     </Modal>
   );

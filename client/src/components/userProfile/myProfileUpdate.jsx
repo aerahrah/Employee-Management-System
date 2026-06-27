@@ -14,10 +14,11 @@ import {
   AlertCircle,
   PenTool,
   Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
-import { usePermissions } from "../../hooks/usePermissions"; // ✅ Added usePermissions hook
+import { usePermissions } from "../../hooks/usePermissions";
 
 import { buildApiUrl } from "../../config/env";
 import {
@@ -43,7 +44,7 @@ function resolveTheme(prefTheme) {
 const Section = ({ title, children, className = "", borderColor }) => (
   <div
     className={[
-      "rounded-3xl border shadow-sm transition-colors duration-300 ease-out",
+      "rounded-3xl border shadow-sm transition-colors duration-300 ease-out overflow-hidden",
       className,
     ].join(" ")}
     style={{
@@ -52,7 +53,7 @@ const Section = ({ title, children, className = "", borderColor }) => (
     }}
   >
     {title && (
-      <div className="px-6 pt-6">
+      <div className="px-4 sm:px-6 pt-5 sm:pt-6">
         <h3
           className="text-sm font-medium tracking-tight transition-colors duration-300 ease-out"
           style={{ color: "var(--app-text)" }}
@@ -61,15 +62,17 @@ const Section = ({ title, children, className = "", borderColor }) => (
         </h3>
       </div>
     )}
-    <div className="px-6 py-5">{children}</div>
+    <div className="px-4 sm:px-6 py-4 sm:py-5">{children}</div>
   </div>
 );
 
 const ActionButton = ({
   variant = "primary",
   icon: Icon,
+  iconClassName = "",
   children,
   borderColor,
+  className = "",
   ...props
 }) => {
   const baseStyles =
@@ -95,7 +98,7 @@ const ActionButton = ({
 
   return (
     <button
-      className={baseStyles}
+      className={`${baseStyles} ${className}`}
       style={styles[variant]}
       onMouseEnter={(e) => {
         if (props.disabled) return;
@@ -125,7 +128,7 @@ const ActionButton = ({
       }}
       {...props}
     >
-      {Icon && <Icon className="w-4 h-4" strokeWidth={2} />}
+      {Icon && <Icon className={`w-4 h-4 ${iconClassName}`} strokeWidth={2} />}
       {children}
     </button>
   );
@@ -185,12 +188,14 @@ const InlineHint = ({
 
   return (
     <div
-      className="rounded-2xl p-5 border transition-colors duration-300 ease-out"
+      className="rounded-2xl p-4 sm:p-5 border transition-colors duration-300 ease-out"
       style={style}
     >
       <div className="flex gap-3">
         <Icon className="w-5 h-5 shrink-0 opacity-90 mt-0.5" />
-        <p className="text-xs leading-relaxed font-semibold">{children}</p>
+        <p className="text-xs sm:text-sm leading-relaxed font-semibold">
+          {children}
+        </p>
       </div>
     </div>
   );
@@ -212,22 +217,22 @@ const FormField = React.forwardRef(
   ) => (
     <div className="w-full pt-2">
       <label
-        className="block text-xs mb-1.5 flex items-center gap-2 transition-colors duration-300 ease-out"
+        className="block text-xs sm:text-sm mb-1.5 flex items-center gap-2 transition-colors duration-300 ease-out"
         style={{ color: "var(--app-muted)" }}
       >
         {Icon && (
           <span
-            className="inline-flex items-center justify-center w-7 h-7 rounded-lg border transition-colors duration-300 ease-out"
+            className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg border transition-colors duration-300 ease-out shrink-0"
             style={{
               backgroundColor: "var(--app-surface-2)",
               borderColor,
               color: "var(--app-muted)",
             }}
           >
-            <Icon className="w-4 h-4" strokeWidth={1.8} />
+            <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.8} />
           </span>
         )}
-        <span className="font-medium">
+        <span className="font-medium truncate">
           {label} {required && <span style={{ color: "#f43f5e" }}>*</span>}
         </span>
       </label>
@@ -236,7 +241,7 @@ const FormField = React.forwardRef(
         ref={ref}
         {...props}
         className={[
-          "w-full h-11 px-3 text-sm rounded-xl border outline-none transition-colors duration-200 ease-out",
+          "w-full h-11 sm:h-12 px-3 sm:px-4 text-sm rounded-xl border outline-none transition-colors duration-200 ease-out",
           "disabled:opacity-60",
           className,
         ].join(" ")}
@@ -292,32 +297,32 @@ FormField.displayName = "FormField";
 
 const PageSkeleton = ({ borderColor, skeletonColors }) => (
   <div
-    className="min-h-screen px-1 py-2 transition-colors duration-300 ease-out animate-pulse"
+    className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 sm:py-8 transition-colors duration-300 ease-out animate-pulse"
     style={{ backgroundColor: "var(--app-bg)" }}
   >
     <div className="max-w-6xl mx-auto space-y-8">
       <div
-        className="h-5 w-64 rounded-lg"
+        className="h-5 w-48 sm:w-64 rounded-lg"
         style={{ backgroundColor: skeletonColors.baseColor }}
       />
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div className="space-y-2">
           <div
-            className="h-8 w-56 rounded-lg"
+            className="h-8 w-48 sm:w-56 rounded-lg"
             style={{ backgroundColor: skeletonColors.baseColor }}
           />
           <div
-            className="h-4 w-80 rounded-lg"
+            className="h-4 w-full sm:w-80 rounded-lg max-w-[80vw]"
             style={{ backgroundColor: skeletonColors.baseColor }}
           />
         </div>
         <div className="flex gap-2">
           <div
-            className="h-10 w-28 rounded-full"
+            className="h-10 w-24 sm:w-28 rounded-full"
             style={{ backgroundColor: skeletonColors.baseColor }}
           />
           <div
-            className="h-10 w-36 rounded-full"
+            className="h-10 w-32 sm:w-36 rounded-full"
             style={{ backgroundColor: skeletonColors.baseColor }}
           />
         </div>
@@ -396,14 +401,14 @@ const ErrorState = ({ message, borderColor }) => (
 
 const MiniRow = ({ icon: Icon, label, value, muted, borderColor }) => (
   <div
-    className="flex items-center gap-3 p-3 rounded-2xl border transition-colors duration-300 ease-out"
+    className="flex items-center gap-3 p-3 sm:p-4 rounded-2xl border transition-colors duration-300 ease-out"
     style={{
       borderColor,
       backgroundColor: "var(--app-surface)",
     }}
   >
     <div
-      className="p-2 rounded-xl border transition-colors duration-300 ease-out"
+      className="p-2 sm:p-2.5 rounded-xl border transition-colors duration-300 ease-out shrink-0"
       style={{
         backgroundColor: "var(--app-surface-2)",
         borderColor,
@@ -414,7 +419,7 @@ const MiniRow = ({ icon: Icon, label, value, muted, borderColor }) => (
     </div>
     <div className="min-w-0 flex-1">
       <div
-        className="text-xs transition-colors duration-300 ease-out"
+        className="text-[11px] sm:text-xs transition-colors duration-300 ease-out"
         style={{ color: "var(--app-muted)" }}
       >
         {label}
@@ -447,11 +452,11 @@ const ProfileSidebar = ({ formData, position, borderColor }) => {
       }}
     >
       <div
-        className="p-8 flex flex-col items-center text-center border-b transition-colors duration-300 ease-out"
+        className="p-6 sm:p-8 flex flex-col items-center text-center border-b transition-colors duration-300 ease-out"
         style={{ borderColor }}
       >
         <div
-          className="w-24 h-24 rounded-full text-white flex items-center justify-center text-2xl font-medium shadow-xl"
+          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full text-white flex items-center justify-center text-xl sm:text-2xl font-medium shadow-xl"
           style={{
             backgroundColor: "var(--accent)",
             boxShadow: "0 16px 40px rgba(37,99,235,0.22)",
@@ -461,23 +466,21 @@ const ProfileSidebar = ({ formData, position, borderColor }) => {
         </div>
 
         <h2
-          className="text-xl font-semibold mt-5 transition-colors duration-300 ease-out"
+          className="text-lg sm:text-xl font-semibold mt-4 sm:mt-5 transition-colors duration-300 ease-out px-2"
           style={{ color: "var(--app-text)" }}
         >
           {name || "—"}
         </h2>
         <p
-          className="text-sm mt-1 transition-colors duration-300 ease-out"
+          className="text-xs sm:text-sm mt-1 transition-colors duration-300 ease-out px-2"
           style={{ color: "var(--app-muted)" }}
         >
           {position || "Staff"}
         </p>
-
-        <div className="mt-6 w-full" />
       </div>
 
       <div
-        className="p-6 space-y-4 transition-colors duration-300 ease-out"
+        className="p-4 sm:p-6 space-y-3 sm:space-y-4 transition-colors duration-300 ease-out"
         style={{ backgroundColor: "var(--app-surface-2)" }}
       >
         <MiniRow
@@ -505,7 +508,7 @@ const ProfileSidebar = ({ formData, position, borderColor }) => {
 const UpdateProfile = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { can } = usePermissions(); // ✅ Initialize permissions hook
+  const { can } = usePermissions();
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
@@ -545,7 +548,6 @@ const UpdateProfile = () => {
   const [signatureFile, setSignatureFile] = useState(null);
   const [signaturePreview, setSignaturePreview] = useState(null);
 
-  // ✅ Check if the user possesses the correct permission to view/upload signatures
   const canUploadSignature = can("employees.upload_signature");
 
   const { data, isLoading, error } = useQuery({
@@ -575,9 +577,10 @@ const UpdateProfile = () => {
       },
     });
 
-    // If backend returns a signature path, construct the preview URL
     if (profile.signature) {
+      console.log(profile.signature);
       setSignaturePreview(buildApiUrl(profile.signature));
+      console.log(signaturePreview);
     }
   }, [profile]);
 
@@ -603,7 +606,6 @@ const UpdateProfile = () => {
   const profileMutation = useMutation({
     mutationFn: updateMyProfile,
     onSuccess: async () => {
-      // ✅ Ensure the mutation is only triggered if a file exists AND they have permission
       if (signatureFile && canUploadSignature) {
         signatureMutation.mutate(signatureFile);
       } else {
@@ -672,38 +674,40 @@ const UpdateProfile = () => {
 
   return (
     <div
-      className="min-h-screen px-1 py-2 transition-colors duration-300 ease-out"
+      className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 sm:py-8 transition-colors duration-300 ease-out"
       style={{
         backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
         color: "var(--app-text, #0f172a)",
       }}
     >
       <form onSubmit={handleSubmit}>
-        <div className="mb-6">
+        <div className="mb-6 sm:mb-8">
           <Breadcrumbs rootLabel="Home" rootTo="/app" />
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 max-w-6xl mx-auto mt-2">
             <div>
               <h1
-                className="text-3xl font-bold tracking-tight transition-colors duration-300 ease-out"
+                className="text-2xl sm:text-3xl font-bold tracking-tight transition-colors duration-300 ease-out"
                 style={{ color: "var(--app-text)" }}
               >
                 Update Information
               </h1>
               <p
-                className="text-sm mt-1 transition-colors duration-300 ease-out"
+                className="text-sm mt-1 sm:mt-1.5 transition-colors duration-300 ease-out"
                 style={{ color: "var(--app-muted)" }}
               >
                 Keep your contact details and emergency info up to date.
               </p>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
+            {/* Adjusted Mobile Layout for Buttons */}
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
               <ActionButton
                 type="button"
                 variant="secondary"
                 borderColor={borderColor}
                 onClick={() => navigate(-1)}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </ActionButton>
@@ -712,23 +716,18 @@ const UpdateProfile = () => {
                 type="submit"
                 variant="primary"
                 icon={isBusy ? Loader2 : Save}
+                iconClassName={isBusy ? "animate-spin" : ""}
                 borderColor={borderColor}
                 disabled={isBusy}
+                className="w-full sm:w-auto"
               >
-                {isBusy ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
+                {isBusy ? "Saving..." : "Save Changes"}
               </ActionButton>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start max-w-6xl mx-auto">
           <div className="lg:col-span-4 lg:sticky lg:top-8 space-y-6">
             <ProfileSidebar
               formData={formData}
@@ -742,32 +741,50 @@ const UpdateProfile = () => {
             </InlineHint>
           </div>
 
-          <div className="lg:col-span-8 space-y-6">
-            {/* ✅ SECURED DIGITAL SIGNATURE SECTION */}
+          <div className="lg:col-span-8 space-y-6 sm:space-y-8">
             {canUploadSignature && (
               <Section title="Digital Signature" borderColor={borderColor}>
                 <div className="flex flex-col md:flex-row gap-6 items-start">
-                  <div className="w-full md:w-1/3 flex flex-col items-center gap-3">
+                  {/* Clickable Dropzone Area */}
+                  <div className="w-full md:w-5/12 flex flex-col items-center gap-3">
                     <div
-                      className="w-full h-32 border-2 border-dashed rounded-xl flex items-center justify-center overflow-hidden transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full h-40 sm:h-36 border-2 border-dashed rounded-xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 cursor-pointer group hover:bg-opacity-80"
                       style={{
                         backgroundColor: "var(--app-surface-2)",
                         borderColor: borderColor,
                       }}
                     >
                       {signaturePreview ? (
-                        <img
-                          src={signaturePreview}
-                          alt="Signature Preview"
-                          className="max-w-full max-h-full object-contain p-2"
-                        />
+                        <div className="relative w-full h-full p-2 group">
+                          <img
+                            src={signaturePreview}
+                            alt="Signature Preview"
+                            className="w-full h-full object-contain transition-opacity duration-200 group-hover:opacity-60"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="bg-black/60 text-white rounded-full p-2">
+                              <Upload className="w-5 h-5" />
+                            </div>
+                          </div>
+                        </div>
                       ) : (
                         <div
-                          className="text-center"
+                          className="text-center flex flex-col items-center justify-center p-4 transition-transform duration-200 group-hover:scale-105"
                           style={{ color: "var(--app-muted)" }}
                         >
-                          <PenTool className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <span className="text-xs">No signature</span>
+                          <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
+                            <PenTool className="w-5 h-5 text-blue-500" />
+                          </div>
+                          <span
+                            className="text-sm font-medium"
+                            style={{ color: "var(--app-text)" }}
+                          >
+                            Upload Signature
+                          </span>
+                          <span className="text-xs mt-1">
+                            Tap to browse files
+                          </span>
                         </div>
                       )}
                     </div>
@@ -787,20 +804,21 @@ const UpdateProfile = () => {
                       borderColor={borderColor}
                       className="w-full"
                     >
-                      <Upload className="w-4 h-4" />
+                      <ImageIcon className="w-4 h-4" />
                       {signaturePreview ? "Change Image" : "Select Image"}
                     </ActionButton>
                   </div>
 
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-3 mt-2 md:mt-0 bg-opacity-50 p-4 rounded-xl border border-transparent">
                     <h4
-                      className="text-sm font-semibold"
+                      className="text-sm font-semibold flex items-center gap-2"
                       style={{ color: "var(--app-text)" }}
                     >
+                      <Info className="w-4 h-4 text-blue-500" />
                       Signature Requirements
                     </h4>
                     <ul
-                      className="text-xs space-y-1.5 list-disc list-inside ml-2"
+                      className="text-xs sm:text-sm space-y-2 list-disc list-inside ml-1"
                       style={{ color: "var(--app-muted)" }}
                     >
                       <li>Use a clear, white background if possible.</li>
@@ -824,7 +842,7 @@ const UpdateProfile = () => {
                         </span>
                         .
                       </li>
-                      <li>
+                      <li className="leading-relaxed">
                         This signature will be securely attached to your
                         generated PDF forms (e.g. CSC Form 6).
                       </li>
@@ -836,13 +854,13 @@ const UpdateProfile = () => {
 
             <Section title="General Information" borderColor={borderColor}>
               <p
-                className="text-xs -mt-1 mb-4 transition-colors duration-300 ease-out"
+                className="text-xs sm:text-sm -mt-1 mb-5 sm:mb-6 transition-colors duration-300 ease-out"
                 style={{ color: "var(--app-muted)" }}
               >
                 Legal name and primary contact details.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <FormField
                   label="First Name"
                   name="firstName"
@@ -882,9 +900,9 @@ const UpdateProfile = () => {
               </div>
             </Section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
               <Section title="Personal Address" borderColor={borderColor}>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <FormField
                     label="Street"
                     name="address.street"
@@ -912,7 +930,7 @@ const UpdateProfile = () => {
 
               <Section title="Emergency Contact" borderColor={borderColor}>
                 <div
-                  className="rounded-2xl p-4 mb-4 border flex gap-3 items-start transition-colors duration-300 ease-out"
+                  className="rounded-2xl p-4 sm:p-5 mb-5 border flex gap-3 items-start transition-colors duration-300 ease-out"
                   style={{
                     borderColor: "rgba(245,158,11,0.35)",
                     backgroundColor: "rgba(245,158,11,0.10)",
@@ -925,7 +943,7 @@ const UpdateProfile = () => {
                     }}
                   />
                   <p
-                    className="text-xs leading-relaxed"
+                    className="text-xs sm:text-sm leading-relaxed"
                     style={{
                       color: resolvedTheme === "dark" ? "#fcd34d" : "#92400e",
                     }}

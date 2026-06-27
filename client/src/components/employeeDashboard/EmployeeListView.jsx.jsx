@@ -13,6 +13,7 @@ import EmployeeRoleChanger from "./employeeChangeRole";
 import Modal from "../modal";
 import { useAuth } from "../../store/authStore";
 import { usePermissions } from "../../hooks/usePermissions";
+import FullHeightCardContainer from "../pageContainer";
 
 import {
   Search,
@@ -661,7 +662,6 @@ const EmployeeCard = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            {/* ✅ Updated to use formatted full name */}
             <h4
               className="text-sm font-bold truncate leading-5 transition-colors duration-300 ease-out"
               style={{ color: "var(--app-text)" }}
@@ -854,12 +854,6 @@ const EmployeeDirectory = () => {
     return resolvedTheme === "dark"
       ? "rgba(255,255,255,0.07)"
       : "rgba(15,23,42,0.10)";
-  }, [resolvedTheme]);
-
-  const stickyBg = useMemo(() => {
-    return resolvedTheme === "dark"
-      ? "rgba(2,6,23,0.88)"
-      : "rgba(248,250,252,0.88)";
   }, [resolvedTheme]);
 
   const skeletonColors = useMemo(() => {
@@ -1112,26 +1106,25 @@ const EmployeeDirectory = () => {
   );
 
   return (
-    <div
-      className="w-full flex-1 flex h-full flex-col md:p-0 min-h-0 transition-colors duration-300 ease-out"
-      style={{
-        backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
-        color: "var(--app-text, #0f172a)",
-      }}
-    >
-      <SkeletonTheme
-        baseColor={skeletonColors.baseColor}
-        highlightColor={skeletonColors.highlightColor}
+    <FullHeightCardContainer>
+      <div
+        className="w-full flex-1 flex h-full flex-col md:p-0 min-h-0 transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-bg, rgba(245,245,245,0.80))",
+          color: "var(--app-text, #0f172a)",
+        }}
       >
-        <div
-          ref={pageScrollRef}
-          onScroll={handleScroll}
-          className="flex-1 min-h-0 overflow-y-auto cto-scrollbar"
+        <SkeletonTheme
+          baseColor={skeletonColors.baseColor}
+          highlightColor={skeletonColors.highlightColor}
         >
+          {/* 1. Outer wrapper (scrolls on mobile, disappears on desktop) */}
           <div
-            className="sticky top-0 z-[1] backdrop-blur transition-colors duration-300 ease-out"
-            style={{ backgroundColor: stickyBg }}
+            ref={pageScrollRef}
+            onScroll={handleScroll}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:contents cto-scrollbar"
           >
+            {/* HEADER (Not sticky) */}
             <div className="pt-2 pb-3 sm:pb-6 px-1">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -1169,21 +1162,21 @@ const EmployeeDirectory = () => {
                 )}
               </div>
             </div>
-          </div>
 
-          <div className="mb-1">
+            {/* 2. MAIN SURFACE (Expands on mobile, locks to screen height on desktop) */}
             <div
-              className="flex flex-col flex-1 min-h-0 rounded-xl shadow-sm overflow-hidden border transition-colors duration-300 ease-out"
+              className="flex flex-col rounded-xl shadow-sm overflow-visible md:flex-1 md:min-h-0 md:overflow-hidden border transition-colors duration-300 ease-out"
               style={{
                 backgroundColor: "var(--app-surface)",
                 borderColor,
               }}
             >
+              {/* 3. TOOLBAR: Sticky on mobile, static on desktop */}
               <div
-                className="p-4 border-b space-y-4 transition-colors duration-300 ease-out"
+                className="p-4 border-b space-y-4 sticky top-0 z-[1] backdrop-blur md:static md:z-auto transition-colors duration-300 ease-out"
                 style={{
                   borderColor,
-                  backgroundColor: "var(--app-surface)",
+                  backgroundColor: "var(--app-surface-2)",
                 }}
               >
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -1261,7 +1254,7 @@ const EmployeeDirectory = () => {
                         onChange={(e) => setSearchInput(e.target.value)}
                         className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none transition-all border"
                         style={{
-                          backgroundColor: "var(--app-surface-2)",
+                          backgroundColor: "var(--app-surface)",
                           borderColor,
                           color: "var(--app-text)",
                         }}
@@ -1307,7 +1300,7 @@ const EmployeeDirectory = () => {
                         }}
                         className="text-xs rounded-lg block p-1.5 font-medium outline-none cursor-pointer border transition-colors duration-200 ease-out"
                         style={{
-                          backgroundColor: "var(--app-surface-2)",
+                          backgroundColor: "var(--app-surface)",
                           borderColor,
                           color: "var(--app-text)",
                         }}
@@ -1402,241 +1395,239 @@ const EmployeeDirectory = () => {
                 )}
               </div>
 
+              {/* 4. DATA REGION: Expands on mobile, handles scrolling on desktop */}
               <div
-                className="min-h-[300px] transition-colors duration-300 ease-out"
-                style={{ backgroundColor: "var(--app-surface)" }}
+                className="min-h-[calc(100dvh-26rem)] md:flex-1 md:overflow-auto transition-colors duration-300 ease-out cto-scrollbar relative"
+                style={{ backgroundColor: "var(--app-bg)" }}
               >
-                <div className="hidden lg:block overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead
-                      className="sticky top-0 z-[1] border-b transition-colors duration-300 ease-out"
-                      style={{
-                        backgroundColor: "var(--app-surface)",
-                        borderColor,
-                      }}
+                <table className="w-full text-left hidden lg:table">
+                  <thead
+                    className="sticky top-0 z-20 transition-colors duration-300 ease-out"
+                    style={{
+                      backgroundColor: "var(--app-surface)",
+                      boxShadow: `inset 0 -1px 0 0 ${borderColor}`,
+                    }}
+                  >
+                    <tr
+                      className="text-[10px] uppercase tracking-[0.12em] font-bold"
+                      style={{ color: "var(--app-muted)" }}
                     >
-                      <tr
-                        className="text-[10px] uppercase tracking-[0.12em] font-bold"
-                        style={{ color: "var(--app-muted)" }}
-                      >
-                        <th className="px-6 py-4 font-bold">Employee</th>
-                        <th className="px-6 py-4 font-bold">
-                          Position / Designation
-                        </th>
-                        <th className="px-6 py-4 font-bold">Division</th>
-                        <th className="px-6 py-4 font-bold">Project</th>
-                        <th className="px-6 py-4 font-bold">Role</th>
-                        <th className="px-6 py-4 font-bold">Status</th>
-                        <th className="px-6 py-4 text-right font-bold">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+                      <th className="px-6 py-4 font-bold">Employee</th>
+                      <th className="px-6 py-4 font-bold">
+                        Position / Designation
+                      </th>
+                      <th className="px-6 py-4 font-bold">Division</th>
+                      <th className="px-6 py-4 font-bold">Project</th>
+                      <th className="px-6 py-4 font-bold">Role</th>
+                      <th className="px-6 py-4 font-bold">Status</th>
+                      <th className="px-6 py-4 text-right font-bold">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
 
-                    <tbody>
-                      {isLoading ? (
-                        [...Array(Math.min(limit, 10))].map((_, i) => (
-                          <tr key={i}>
-                            {[...Array(7)].map((__, j) => (
-                              <td key={j} className="px-6 py-4">
-                                <Skeleton />
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      ) : employees.length > 0 ? (
-                        employees.map((emp, i) => {
-                          const statusPill = getStatusPill(
-                            emp?.status,
-                            resolvedTheme,
-                          );
+                  <tbody>
+                    {isLoading ? (
+                      [...Array(Math.min(limit, 10))].map((_, i) => (
+                        <tr key={i}>
+                          {[...Array(7)].map((__, j) => (
+                            <td key={j} className="px-6 py-4">
+                              <Skeleton />
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : employees.length > 0 ? (
+                      employees.map((emp, i) => {
+                        const statusPill = getStatusPill(
+                          emp?.status,
+                          resolvedTheme,
+                        );
 
-                          const projectLabel =
-                            typeof emp?.project === "string"
-                              ? emp.project
-                              : emp?.project?.name || emp?.project?._id || "—";
+                        const projectLabel =
+                          typeof emp?.project === "string"
+                            ? emp.project
+                            : emp?.project?.name || emp?.project?._id || "—";
 
-                          const designationLabel =
-                            typeof emp?.designation === "string"
-                              ? emp.designation
-                              : emp?.designation?.name || "—";
+                        const designationLabel =
+                          typeof emp?.designation === "string"
+                            ? emp.designation
+                            : emp?.designation?.name || "—";
 
-                          const positionOrDesignation =
-                            emp?.position || designationLabel;
+                        const positionOrDesignation =
+                          emp?.position || designationLabel;
 
-                          const bg =
-                            i % 2 === 0 ? "var(--app-surface)" : zebraAltColor;
+                        const bg =
+                          i % 2 === 0 ? "var(--app-surface)" : zebraAltColor;
 
-                          return (
-                            <tr
-                              key={emp._id}
-                              className="transition-colors duration-200 ease-out"
-                              style={{ backgroundColor: bg }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor =
-                                  hoverColor;
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = bg;
-                              }}
-                            >
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold border"
-                                    style={{
-                                      backgroundColor: "var(--accent-soft)",
-                                      color: "var(--accent)",
-                                      borderColor: "var(--accent-soft2)",
-                                    }}
-                                  >
-                                    {initials(emp.firstName, emp.lastName)}
-                                  </div>
-                                  <div className="min-w-0">
-                                    {/* ✅ Formatted Full Name */}
-                                    <p
-                                      className="text-sm font-semibold truncate transition-colors duration-300 ease-out"
-                                      style={{ color: "var(--app-text)" }}
-                                    >
-                                      {getFullName(emp)}
-                                    </p>
-
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <EmployeeTypeBadge
-                                        type={emp.employeeType}
-                                        resolvedTheme={resolvedTheme}
-                                      />
-                                      <p
-                                        className="text-xs truncate transition-colors duration-300 ease-out"
-                                        style={{ color: "var(--app-muted)" }}
-                                      >
-                                        {emp.email || "No email"}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td
-                                className="px-6 py-4 text-sm transition-colors duration-300 ease-out"
-                                style={{ color: "var(--app-muted)" }}
-                              >
-                                {positionOrDesignation || "—"}
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <DivisionBadge
-                                  division={emp.division}
-                                  resolvedTheme={resolvedTheme}
-                                />
-                              </td>
-
-                              <td
-                                className="px-6 py-4 text-sm transition-colors duration-300 ease-out"
-                                style={{ color: "var(--app-muted)" }}
-                              >
-                                {projectLabel && projectLabel !== "—" ? (
-                                  <span
-                                    className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border"
-                                    style={{
-                                      backgroundColor: "var(--app-surface-2)",
-                                      color: "var(--app-text)",
-                                      borderColor,
-                                    }}
-                                  >
-                                    {projectLabel}
-                                  </span>
-                                ) : (
-                                  "—"
-                                )}
-                              </td>
-
-                              <td
-                                className="px-6 py-4 text-sm transition-colors duration-300 ease-out"
-                                style={{ color: "var(--app-muted)" }}
-                              >
-                                {emp.role ? <RoleBadge role={emp.role} /> : "—"}
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+                        return (
+                          <tr
+                            key={emp._id}
+                            className="transition-colors duration-200 ease-out"
+                            style={{ backgroundColor: bg }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                hoverColor;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = bg;
+                            }}
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold border"
                                   style={{
-                                    backgroundColor: statusPill.backgroundColor,
-                                    color: statusPill.color,
-                                    borderColor: statusPill.borderColor,
+                                    backgroundColor: "var(--accent-soft)",
+                                    color: "var(--accent)",
+                                    borderColor: "var(--accent-soft2)",
                                   }}
                                 >
-                                  <span
-                                    className="w-1.5 h-1.5 rounded-full"
-                                    style={{ backgroundColor: statusPill.dot }}
-                                  />
-                                  {statusPill.label}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex justify-end">
-                                  <ActionMenu
-                                    disabled={isRoleModalOpen}
-                                    onAction={(action) =>
-                                      handleAction(action, emp)
-                                    }
-                                    borderColor={borderColor}
-                                    resolvedTheme={resolvedTheme}
-                                    canEditEmployee={canEditEmployee}
-                                    canChangeRole={canChangeRole}
-                                  />
+                                  {initials(emp.firstName, emp.lastName)}
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="px-6 py-16">
-                            <div className="flex flex-col items-center justify-center text-center">
-                              <div
-                                className="p-6 rounded-full mb-4 ring-1 transition-colors duration-300 ease-out"
+                                <div className="min-w-0">
+                                  <p
+                                    className="text-sm font-semibold truncate transition-colors duration-300 ease-out"
+                                    style={{ color: "var(--app-text)" }}
+                                  >
+                                    {getFullName(emp)}
+                                  </p>
+
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <EmployeeTypeBadge
+                                      type={emp.employeeType}
+                                      resolvedTheme={resolvedTheme}
+                                    />
+                                    <p
+                                      className="text-xs truncate transition-colors duration-300 ease-out"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      {emp.email || "No email"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td
+                              className="px-6 py-4 text-sm transition-colors duration-300 ease-out"
+                              style={{ color: "var(--app-muted)" }}
+                            >
+                              {positionOrDesignation || "—"}
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <DivisionBadge
+                                division={emp.division}
+                                resolvedTheme={resolvedTheme}
+                              />
+                            </td>
+
+                            <td
+                              className="px-6 py-4 text-sm transition-colors duration-300 ease-out"
+                              style={{ color: "var(--app-muted)" }}
+                            >
+                              {projectLabel && projectLabel !== "—" ? (
+                                <span
+                                  className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border"
+                                  style={{
+                                    backgroundColor: "var(--app-surface-2)",
+                                    color: "var(--app-text)",
+                                    borderColor,
+                                  }}
+                                >
+                                  {projectLabel}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+
+                            <td
+                              className="px-6 py-4 text-sm transition-colors duration-300 ease-out"
+                              style={{ color: "var(--app-muted)" }}
+                            >
+                              {emp.role ? <RoleBadge role={emp.role} /> : "—"}
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
                                 style={{
-                                  backgroundColor: "var(--app-surface-2)",
-                                  borderColor,
+                                  backgroundColor: statusPill.backgroundColor,
+                                  color: statusPill.color,
+                                  borderColor: statusPill.borderColor,
                                 }}
                               >
-                                <Search
-                                  className="w-10 h-10"
-                                  style={{ color: "var(--app-muted)" }}
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: statusPill.dot }}
+                                />
+                                {statusPill.label}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end">
+                                <ActionMenu
+                                  disabled={isRoleModalOpen}
+                                  onAction={(action) =>
+                                    handleAction(action, emp)
+                                  }
+                                  borderColor={borderColor}
+                                  resolvedTheme={resolvedTheme}
+                                  canEditEmployee={canEditEmployee}
+                                  canChangeRole={canChangeRole}
                                 />
                               </div>
-                              <h3
-                                className="text-lg font-bold transition-colors duration-300 ease-out"
-                                style={{ color: "var(--app-text)" }}
-                              >
-                                No employees found
-                              </h3>
-                              <p
-                                className="text-sm mt-1 max-w-md transition-colors duration-300 ease-out"
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-16">
+                          <div className="flex flex-col items-center justify-center text-center">
+                            <div
+                              className="p-6 rounded-full mb-4 ring-1 transition-colors duration-300 ease-out"
+                              style={{
+                                backgroundColor: "var(--app-surface-2)",
+                                borderColor,
+                              }}
+                            >
+                              <Search
+                                className="w-10 h-10"
                                 style={{ color: "var(--app-muted)" }}
-                              >
-                                Try adjusting your search or filters.
-                              </p>
-                              {hasActiveFilters && (
-                                <button
-                                  type="button"
-                                  onClick={clearFilters}
-                                  className="mt-6 text-sm font-bold underline transition-colors duration-200 ease-out"
-                                  style={{ color: "var(--accent)" }}
-                                >
-                                  Clear all filters
-                                </button>
-                              )}
+                              />
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            <h3
+                              className="text-lg font-bold transition-colors duration-300 ease-out"
+                              style={{ color: "var(--app-text)" }}
+                            >
+                              No employees found
+                            </h3>
+                            <p
+                              className="text-sm mt-1 max-w-md transition-colors duration-300 ease-out"
+                              style={{ color: "var(--app-muted)" }}
+                            >
+                              Try adjusting your search or filters.
+                            </p>
+                            {hasActiveFilters && (
+                              <button
+                                type="button"
+                                onClick={clearFilters}
+                                className="mt-6 text-sm font-bold underline transition-colors duration-200 ease-out"
+                                style={{ color: "var(--accent)" }}
+                              >
+                                Clear all filters
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
 
                 <div className="lg:hidden">
                   <div
@@ -1846,51 +1837,51 @@ const EmployeeDirectory = () => {
               />
             </div>
           </div>
-        </div>
 
-        {showScrollTop && (
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="fixed bottom-6 right-6 z-50 inline-flex items-center justify-center rounded-full text-white shadow-lg active:scale-[0.98] transition-all w-11 h-11"
-            style={{ backgroundColor: "var(--accent)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.filter = "brightness(0.95)";
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="fixed bottom-6 right-6 z-50 inline-flex items-center justify-center rounded-full text-white shadow-lg active:scale-[0.98] transition-all w-11 h-11"
+              style={{ backgroundColor: "var(--accent)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = "brightness(0.95)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = "none";
+              }}
+              aria-label="Back to top"
+              title="Back to top"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          )}
+        </SkeletonTheme>
+
+        {isRoleModalOpen && selectedEmployee && (
+          <Modal
+            isOpen={isRoleModalOpen}
+            title={`Change Role - ${getFullName(selectedEmployee)}`} // ✅ Updated Modal Title
+            showFooter={false}
+            maxWidth="max-w-lg"
+            canClose={!roleBusy}
+            onClose={() => {
+              if (roleBusy) return;
+              closeRoleModal();
             }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.filter = "none";
-            }}
-            aria-label="Back to top"
-            title="Back to top"
           >
-            <ArrowUp className="w-5 h-5" />
-          </button>
+            <EmployeeRoleChanger
+              key={selectedEmployee._id}
+              employeeId={selectedEmployee._id}
+              currentRole={selectedEmployee.role}
+              onPendingChange={(v) => setRoleBusy(!!v)}
+              onCancel={closeRoleModal}
+              onRoleUpdated={closeRoleModal}
+            />
+          </Modal>
         )}
-      </SkeletonTheme>
-
-      {isRoleModalOpen && selectedEmployee && (
-        <Modal
-          isOpen={isRoleModalOpen}
-          title={`Change Role - ${getFullName(selectedEmployee)}`} // ✅ Updated Modal Title
-          showFooter={false}
-          maxWidth="max-w-lg"
-          canClose={!roleBusy}
-          onClose={() => {
-            if (roleBusy) return;
-            closeRoleModal();
-          }}
-        >
-          <EmployeeRoleChanger
-            key={selectedEmployee._id}
-            employeeId={selectedEmployee._id}
-            currentRole={selectedEmployee.role}
-            onPendingChange={(v) => setRoleBusy(!!v)}
-            onCancel={closeRoleModal}
-            onRoleUpdated={closeRoleModal}
-          />
-        </Modal>
-      )}
-    </div>
+      </div>
+    </FullHeightCardContainer>
   );
 };
 

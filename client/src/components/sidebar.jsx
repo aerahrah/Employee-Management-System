@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getEmployees } from "../api/employee";
-import { fetchDashboard } from "../api/cto";
+import { fetchDashboard, fetchPendingCtoCount } from "../api/cto"; // ✅ Imported fetchPendingCtoCount
 import { fetchPendingWellnessCount } from "../api/wellnessApplication";
 import { useAuth } from "../store/authStore";
 import { usePermissions } from "../hooks/usePermissions";
@@ -34,7 +34,7 @@ import {
   Mail,
   Route,
   Activity,
-  Banknote, // ✅ Imported for Salary Grades
+  Banknote,
 } from "lucide-react";
 
 /* =========================
@@ -105,6 +105,14 @@ const Sidebar = ({
     staleTime: 1000 * 60,
   });
 
+  // CTO Pending Count query
+  const { data: ctoPendingData } = useQuery({
+    queryKey: ["ctoPendingCount", adminId],
+    queryFn: fetchPendingCtoCount,
+    enabled: !!adminId && can("cto.view_application"),
+    staleTime: 1000 * 60,
+  });
+
   // Wellness Pending Count query
   const { data: wellnessPendingData } = useQuery({
     queryKey: ["wellnessPendingCount", adminId],
@@ -113,7 +121,8 @@ const Sidebar = ({
     staleTime: 1000 * 60,
   });
 
-  const ctoPendingCount = Number(ctoDashboardData?.teamPendingApprovals || 0);
+  // ✅ Updated logic to use the new ctoPendingData directly
+  const ctoPendingCount = Number(ctoPendingData || 0);
   const wellnessPendingCount = Number(wellnessPendingData?.pending || 0);
 
   const [hoveredItem, setHoveredItem] = useState(null);
@@ -276,7 +285,6 @@ const Sidebar = ({
             icon: <Mail size={14} />,
             requiredPermission: "settings.email",
           },
-          // ✅ Added Salary Grades menu item here
           {
             name: "Salary Grades",
             path: "/app/salary-grades",
@@ -652,6 +660,20 @@ const Sidebar = ({
                                 {sub.icon}
                               </span>
                               {sub.name}
+
+                              {/* Display Badge on Collapse */}
+                              {sub.badge !== undefined &&
+                                sub.badge !== null && (
+                                  <span
+                                    className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      sub.badge === "..."
+                                        ? "bg-gray-300 text-gray-800 animate-pulse"
+                                        : "bg-red-500 text-white"
+                                    }`}
+                                  >
+                                    {sub.badge}
+                                  </span>
+                                )}
                             </div>
                           );
                         })}

@@ -126,7 +126,7 @@ const Banner = ({ tone = "error", message, borderColor }) => {
 
   return (
     <div
-      className="rounded-xl border px-3 py-2 text-xs font-medium flex items-start gap-2 mb-4"
+      className="rounded-xl border px-3 py-2 text-xs font-medium flex items-start gap-2 mb-4 transition-colors duration-300 ease-out"
       role={tone === "error" ? "alert" : "status"}
       style={{
         backgroundColor: palette.bg,
@@ -536,15 +536,26 @@ const AddOrganicWellnessApplicationForm = () => {
         </div>
 
         <div
-          className="w-full bg-white text-black shadow-lg rounded-sm overflow-hidden"
-          style={{ fontFamily: "Arial, sans-serif" }}
+          className="w-full shadow-lg rounded-sm overflow-hidden transition-colors duration-300 ease-out border"
+          style={{
+            fontFamily: "Arial, sans-serif",
+            backgroundColor: "var(--app-surface)",
+            color: "var(--app-text)",
+            borderColor: borderColor,
+          }}
         >
           {/* Header Block */}
-          <div className="text-center py-6 border-b-2 border-black">
+          <div
+            className="text-center py-6 border-b-2 transition-colors duration-300 ease-out"
+            style={{ borderColor: borderColor }}
+          >
             <h1 className="text-2xl font-bold uppercase tracking-wide">
               Application for Leave
             </h1>
-            <p className="text-xs mt-1 text-gray-600">
+            <p
+              className="text-xs mt-1 transition-colors duration-300 ease-out"
+              style={{ color: "var(--app-muted)" }}
+            >
               Civil Service Form No. 6 (Wellness Leave Edition)
             </p>
           </div>
@@ -559,21 +570,43 @@ const AddOrganicWellnessApplicationForm = () => {
             <div className="px-6 py-4">
               {/* Missing Signature Warning Block */}
               {checkingProfile ? (
-                <div className="mb-6 p-4 bg-gray-50 border-l-4 border-gray-300 rounded flex items-center gap-3 shadow-sm">
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
-                  <span className="text-sm font-medium text-gray-600">
+                <div
+                  className="mb-6 p-4 rounded flex items-center gap-3 shadow-sm border-l-4 transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--app-surface-2)",
+                    borderLeftColor: "var(--app-muted)",
+                  }}
+                >
+                  <Loader2
+                    className="w-5 h-5 animate-spin"
+                    style={{ color: "var(--app-muted)" }}
+                  />
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: "var(--app-text)" }}
+                  >
                     Checking signature configuration...
                   </span>
                 </div>
               ) : !hasSignature ? (
-                <div className="mb-6 p-4 bg-orange-50 border-l-4 border-orange-500 rounded flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-                  <div className="flex items-center gap-3 text-orange-800">
+                <div
+                  className="mb-6 p-4 rounded flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm border-l-4 transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor:
+                      resolvedTheme === "dark"
+                        ? "rgba(249, 115, 22, 0.1)"
+                        : "#fff7ed",
+                    borderLeftColor: "#f97316",
+                    color: resolvedTheme === "dark" ? "#fed7aa" : "#9a3412",
+                  }}
+                >
+                  <div className="flex items-center gap-3">
                     <AlertCircle className="w-5 h-5 shrink-0" />
                     <div>
                       <h4 className="font-bold text-sm">
                         E-Signature Required
                       </h4>
-                      <p className="text-xs">
+                      <p className="text-xs opacity-90">
                         You do not currently have a digital signature
                         configured. A signature is required to file a leave
                         application.
@@ -583,7 +616,14 @@ const AddOrganicWellnessApplicationForm = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/app/my-profile")}
-                    className="flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded shadow transition-colors"
+                    className="flex items-center gap-2 whitespace-nowrap px-4 py-2 text-white text-xs font-bold rounded shadow transition-colors"
+                    style={{ backgroundColor: "#ea580c" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#c2410c")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#ea580c")
+                    }
                   >
                     <PenTool size={14} /> Upload Signature
                   </button>
@@ -597,9 +637,18 @@ const AddOrganicWellnessApplicationForm = () => {
               />
 
               {/* ✅ Employee Information Header (with Middle Name & Salary) */}
-              <div className="border border-black mb-6 grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-black text-sm">
-                <div className="p-2">
-                  <span className="text-[10px] text-gray-500 uppercase block font-semibold">
+              <div
+                className="mb-6 grid grid-cols-1 md:grid-cols-4 border transition-colors duration-300 ease-out text-sm"
+                style={{ borderColor: borderColor }}
+              >
+                <div
+                  className="p-2 border-b md:border-b-0 md:border-r transition-colors duration-300"
+                  style={{ borderColor: borderColor }}
+                >
+                  <span
+                    className="text-[10px] uppercase block font-semibold transition-colors"
+                    style={{ color: "var(--app-muted)" }}
+                  >
                     1. Office/Department
                   </span>
                   <div className="font-semibold mt-1">
@@ -611,27 +660,48 @@ const AddOrganicWellnessApplicationForm = () => {
                       "ADMIN AND FINANCE"}
                   </div>
                 </div>
-                <div className="p-2">
-                  <span className="text-[10px] text-gray-500 uppercase block font-semibold">
+                <div
+                  className="p-2 border-b md:border-b-0 md:border-r transition-colors duration-300"
+                  style={{ borderColor: borderColor }}
+                >
+                  <span
+                    className="text-[10px] uppercase block font-semibold transition-colors"
+                    style={{ color: "var(--app-muted)" }}
+                  >
                     2. Name (Last, First, Middle)
                   </span>
                   <div className="font-semibold mt-1 uppercase">
                     {`${liveProfile.lastName || sessionAdmin.lastName || ""}, ${liveProfile.firstName || sessionAdmin.firstName || ""} ${liveProfile.middleName || sessionAdmin.middleName || ""}`.trim()}
                   </div>
                 </div>
-                <div className="p-2">
-                  <span className="text-[10px] text-gray-500 uppercase block font-semibold">
+                <div
+                  className="p-2 border-b md:border-b-0 md:border-r transition-colors duration-300"
+                  style={{ borderColor: borderColor }}
+                >
+                  <span
+                    className="text-[10px] uppercase block font-semibold transition-colors"
+                    style={{ color: "var(--app-muted)" }}
+                  >
                     3. Position
                   </span>
                   <div className="font-semibold mt-1">
                     {liveProfile.position || sessionAdmin.position || "N/A"}
                   </div>
                 </div>
-                <div className="p-2 bg-green-50/50">
-                  <span className="text-[10px] text-green-700 uppercase block font-semibold">
+                <div
+                  className="p-2 transition-colors duration-300"
+                  style={{ backgroundColor: "var(--accent-soft)" }}
+                >
+                  <span
+                    className="text-[10px] uppercase block font-semibold transition-colors"
+                    style={{ color: "var(--accent)" }}
+                  >
                     4. Salary
                   </span>
-                  <div className="font-semibold mt-1 text-green-900">
+                  <div
+                    className="font-semibold mt-1 transition-colors"
+                    style={{ color: "var(--accent)" }}
+                  >
                     {salaryText}
                   </div>
                 </div>
@@ -639,26 +709,46 @@ const AddOrganicWellnessApplicationForm = () => {
 
               {/* DETAILS OF APPLICATION */}
               <div
-                className={`border border-black ${isFormDisabled ? "opacity-60 pointer-events-none" : ""}`}
+                className={`border transition-colors duration-300 ease-out ${isFormDisabled ? "opacity-60 pointer-events-none" : ""}`}
+                style={{ borderColor: borderColor }}
               >
-                <div className="bg-gray-200 border-b border-black text-center font-bold py-1.5 uppercase text-sm tracking-widest">
+                <div
+                  className="font-bold py-1.5 uppercase text-sm tracking-widest text-center border-b transition-colors duration-300"
+                  style={{
+                    backgroundColor: "var(--app-surface-2)",
+                    borderColor: borderColor,
+                  }}
+                >
                   6. Details of Application
                 </div>
 
                 {/* ROW 1: Type of Leave */}
-                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-black border-b border-black">
+                <div
+                  className="flex flex-col md:flex-row border-b transition-colors duration-300 ease-out"
+                  style={{ borderColor: borderColor }}
+                >
                   <div className="flex-1 p-4">
                     <h3 className="text-xs font-bold uppercase mb-3">
                       6.A Type of Leave to be Availed of
                     </h3>
-                    <div className="flex items-start gap-2 text-sm bg-green-50 p-3 rounded border border-green-100">
+                    <div
+                      className="flex items-start gap-2 text-sm p-3 rounded border transition-colors duration-300"
+                      style={{
+                        backgroundColor: "var(--accent-soft)",
+                        borderColor: "rgba(37,99,235,0.18)",
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={true}
                         readOnly
-                        className="mt-1 shrink-0 accent-green-600"
+                        className="mt-1 shrink-0"
+                        style={{ accentColor: "var(--accent)" }}
                       />
-                      <span className="font-bold text-green-900">
+                      <span
+                        className="font-bold transition-colors"
+                        style={{ color: "var(--accent)" }}
+                      >
                         Wellness Leave
                       </span>
                     </div>
@@ -666,23 +756,41 @@ const AddOrganicWellnessApplicationForm = () => {
                 </div>
 
                 {/* ROW 2: Days / Commutation */}
-                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-black border-b border-black">
+                <div
+                  className="flex flex-col md:flex-row border-b transition-colors duration-300 ease-out"
+                  style={{ borderColor: borderColor }}
+                >
                   {/* Number of Days */}
-                  <div className="flex-1 p-4 relative">
+                  <div
+                    className="flex-1 p-4 relative border-b md:border-b-0 md:border-r transition-colors duration-300"
+                    style={{ borderColor: borderColor }}
+                  >
                     <h3 className="text-xs font-bold uppercase mb-4">
                       6.C Number of Working Days Applied For
                     </h3>
 
                     <div className="flex flex-col items-center">
-                      <div className="border-b-2 border-black w-32 text-center bg-transparent font-bold text-lg mb-1 py-1">
+                      <div
+                        className="border-b-2 w-32 text-center bg-transparent font-bold text-lg mb-1 py-1 transition-colors duration-300"
+                        style={{
+                          borderColor: borderColor,
+                          color: "var(--app-text)",
+                        }}
+                      >
                         {formData.inclusiveDates.length}
                       </div>
-                      <span className="text-[10px] text-gray-500 uppercase">
+                      <span
+                        className="text-[10px] uppercase transition-colors duration-300"
+                        style={{ color: "var(--app-muted)" }}
+                      >
                         Day(s)
                       </span>
                     </div>
 
-                    <div className="mt-6 border-t border-black pt-4">
+                    <div
+                      className="mt-6 border-t pt-4 transition-colors duration-300"
+                      style={{ borderColor: borderColor }}
+                    >
                       <h3 className="text-xs font-bold uppercase mb-2">
                         Inclusive Dates
                       </h3>
@@ -696,35 +804,53 @@ const AddOrganicWellnessApplicationForm = () => {
                           onInput={handleDateInput}
                           onChange={handleDateCommit}
                           disabled={isFormDisabled}
-                          className={`border outline-none p-1.5 text-xs bg-transparent w-full disabled:bg-gray-100 disabled:opacity-50 ${
-                            dateError ? "border-red-500" : "border-gray-400"
+                          className={`border outline-none p-1.5 text-xs bg-transparent w-full disabled:opacity-50 transition-colors duration-300 ${
+                            dateError ? "border-red-500" : ""
                           }`}
+                          style={{
+                            borderColor: dateError ? "#ef4444" : borderColor,
+                            color: "var(--app-text)",
+                            backgroundColor: isFormDisabled
+                              ? "var(--app-surface-2)"
+                              : "transparent",
+                          }}
                         />
                       </div>
 
                       {dateError && (
-                        <div className="text-[10px] text-red-600 font-bold mb-2">
+                        <div className="text-[10px] text-red-500 font-bold mb-2">
                           {dateError}
                         </div>
                       )}
 
-                      <div className="flex flex-wrap gap-1 min-h-[40px] border border-dashed border-gray-300 p-2">
+                      <div
+                        className="flex flex-wrap gap-1 min-h-[40px] border border-dashed p-2 transition-colors duration-300"
+                        style={{ borderColor: borderColor }}
+                      >
                         {formData.inclusiveDates.length === 0 ? (
-                          <span className="text-[10px] text-gray-400 italic">
+                          <span
+                            className="text-[10px] italic transition-colors"
+                            style={{ color: "var(--app-muted)" }}
+                          >
                             No dates selected
                           </span>
                         ) : (
                           formData.inclusiveDates.map((date) => (
                             <div
                               key={date}
-                              className="flex items-center gap-1 bg-gray-200 px-2 py-0.5 rounded text-[11px] border border-gray-400"
+                              className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border transition-colors duration-300"
+                              style={{
+                                backgroundColor: "var(--app-surface-2)",
+                                borderColor: borderColor,
+                                color: "var(--app-text)",
+                              }}
                             >
                               {date}
                               <button
                                 type="button"
                                 disabled={isFormDisabled}
                                 onClick={() => handleDateRemove(date)}
-                                className="text-red-500 hover:text-red-700 disabled:opacity-50"
+                                className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
                               >
                                 <X size={12} />
                               </button>
@@ -752,7 +878,8 @@ const AddOrganicWellnessApplicationForm = () => {
                             checked={formData.commutation === "Not Requested"}
                             onChange={handleChange}
                             disabled={isFormDisabled}
-                            className="accent-black"
+                            className="transition-colors"
+                            style={{ accentColor: "var(--accent)" }}
                           />
                           Not Requested
                         </label>
@@ -766,7 +893,8 @@ const AddOrganicWellnessApplicationForm = () => {
                             checked={formData.commutation === "Requested"}
                             onChange={handleChange}
                             disabled={isFormDisabled}
-                            className="accent-black"
+                            className="transition-colors"
+                            style={{ accentColor: "var(--accent)" }}
                           />
                           Requested
                         </label>
@@ -776,7 +904,10 @@ const AddOrganicWellnessApplicationForm = () => {
                 </div>
 
                 {/* ROW 3: Reason / Custom Digital Fields */}
-                <div className="p-4 border-b border-black">
+                <div
+                  className="p-4 border-b transition-colors duration-300 ease-out"
+                  style={{ borderColor: borderColor }}
+                >
                   <h3 className="text-xs font-bold uppercase mb-2">
                     Reason / Additional Justification
                   </h3>
@@ -787,19 +918,32 @@ const AddOrganicWellnessApplicationForm = () => {
                     rows="2"
                     maxLength={MAX_REASON_LEN}
                     disabled={isFormDisabled}
-                    className="w-full border border-gray-400 p-2 text-xs outline-none resize-none bg-transparent disabled:opacity-50 disabled:bg-gray-50"
+                    className="w-full border p-2 text-xs outline-none resize-none bg-transparent disabled:opacity-50 transition-colors duration-300 rounded"
+                    style={{
+                      borderColor: borderColor,
+                      color: "var(--app-text)",
+                      backgroundColor: isFormDisabled
+                        ? "var(--app-surface-2)"
+                        : "transparent",
+                    }}
                     placeholder="Enter justification for leave..."
                   />
                 </div>
 
                 {/* ROW 4: Approval Workflow Selection */}
-                <div className="p-4 bg-green-50/50">
-                  <h3 className="text-xs font-bold uppercase mb-2 text-green-800 flex items-center gap-1">
+                <div
+                  className="p-4 transition-colors duration-300 ease-out"
+                  style={{ backgroundColor: "var(--accent-soft)" }}
+                >
+                  <h3
+                    className="text-xs font-bold uppercase mb-2 flex items-center gap-1 transition-colors"
+                    style={{ color: "var(--accent)" }}
+                  >
                     <UserCheck size={14} /> Workflow Approvers
                   </h3>
 
                   {!hasValidApprovalRoute ? (
-                    <div className="text-xs text-red-600 italic">
+                    <div className="text-xs text-red-500 italic">
                       No active approval route found. Please configure your
                       settings.
                     </div>
@@ -810,18 +954,31 @@ const AddOrganicWellnessApplicationForm = () => {
                         ?.map((step, idx) => (
                           <div
                             key={idx}
-                            className="border border-green-200 bg-white px-3 py-1.5 text-xs flex items-center gap-2 min-w-[200px]"
+                            className="border px-3 py-1.5 text-xs flex items-center gap-2 min-w-[200px] transition-colors duration-300 rounded shadow-sm"
+                            style={{
+                              backgroundColor: "var(--app-surface)",
+                              borderColor: "rgba(37,99,235,0.18)",
+                            }}
                           >
-                            <span className="font-bold text-green-700">
+                            <span
+                              className="font-bold transition-colors"
+                              style={{ color: "var(--accent)" }}
+                            >
                               {idx + 1}.
                             </span>
                             <div>
-                              <div className="font-bold">
+                              <div
+                                className="font-bold transition-colors"
+                                style={{ color: "var(--app-text)" }}
+                              >
                                 {step.approver
                                   ? `${step.approver.firstName} ${step.approver.lastName}`
                                   : "Unassigned"}
                               </div>
-                              <div className="text-[10px] text-gray-500 uppercase">
+                              <div
+                                className="text-[10px] uppercase transition-colors"
+                                style={{ color: "var(--app-muted)" }}
+                              >
                                 {step.approver?.position}
                               </div>
                             </div>
@@ -834,12 +991,28 @@ const AddOrganicWellnessApplicationForm = () => {
             </div>
 
             {/* Sticky Submit Footer */}
-            <div className="border-t border-gray-300 px-6 py-4 flex flex-row items-center justify-end gap-3 sticky bottom-0 bg-white z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div
+              className="border-t px-6 py-4 flex flex-row items-center justify-end gap-3 sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] transition-colors duration-300 ease-out"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+              }}
+            >
               <button
                 type="button"
                 disabled={mutation.isPending}
                 onClick={() => navigate(-1)}
-                className="px-6 py-2 rounded border border-gray-300 font-semibold text-sm disabled:opacity-50 text-black hover:bg-gray-100"
+                className="px-6 py-2 rounded border font-semibold text-sm disabled:opacity-50 transition-colors duration-200"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                  color: "var(--app-text)",
+                }}
+                onMouseEnter={(e) => {
+                  if (e.currentTarget.disabled) return;
+                  e.currentTarget.style.filter = "brightness(0.95)";
+                }}
+                onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               >
                 Cancel
               </button>
@@ -850,7 +1023,13 @@ const AddOrganicWellnessApplicationForm = () => {
                   (workingDaysLoading && !workingDaysIsError) ||
                   !hasValidApprovalRoute
                 }
-                className="px-8 py-2 rounded font-semibold text-sm disabled:opacity-70 disabled:cursor-not-allowed text-white bg-green-600 hover:bg-green-700 transition-colors"
+                className="px-8 py-2 rounded font-semibold text-sm disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 text-white"
+                style={{ backgroundColor: "var(--accent)" }}
+                onMouseEnter={(e) => {
+                  if (e.currentTarget.disabled) return;
+                  e.currentTarget.style.filter = "brightness(0.95)";
+                }}
+                onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               >
                 {checkingProfile
                   ? "Checking Status..."

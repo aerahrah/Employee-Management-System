@@ -1823,16 +1823,35 @@ const CtoApplicationDetails = () => {
             disabled: isMutating || (modalType === "reject" && !remarks.trim()),
           }}
         >
-          <div className="p-2">
-            <div className="mb-6 flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-              <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-slate-200 shadow-sm text-slate-400">
+          <div className="p-2 transition-colors duration-300 ease-out">
+            <div
+              className="mb-6 flex items-start gap-3 p-3 rounded-xl border transition-colors duration-300 ease-out"
+              style={{
+                backgroundColor: "var(--app-surface-2)",
+                borderColor: borderColor,
+              }}
+            >
+              <div
+                className="mt-0.5 p-1.5 rounded-lg border shadow-sm transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "var(--app-surface)",
+                  borderColor: borderColor,
+                  color: "var(--app-muted)",
+                }}
+              >
                 <Info size={16} />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
+                  style={{ color: "var(--app-muted)" }}
+                >
                   Reviewing Request For
                 </p>
-                <p className="text-sm font-bold text-slate-900 break-words">
+                <p
+                  className="text-sm font-bold break-words transition-colors duration-300 ease-out"
+                  style={{ color: "var(--app-text)" }}
+                >
                   {application.employee?.firstName}{" "}
                   {application.employee?.lastName}
                 </p>
@@ -1841,16 +1860,29 @@ const CtoApplicationDetails = () => {
 
             {modalType === "approve" ? (
               <div className="text-center py-4 max-w-sm mx-auto">
-                <div className="mx-auto h-20 w-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-4 border-4 border-emerald-100/50 shadow-inner">
+                <div
+                  className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "rgba(16, 185, 129, 0.1)", // equivalent to emerald-50 with opacity
+                    color: "#10b981", // emerald-500
+                    borderColor: "rgba(16, 185, 129, 0.2)",
+                  }}
+                >
                   <Check size={40} strokeWidth={3} />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Are you sure you want to approve this CTO Request?
+                <h2
+                  className="text-lg font-semibold transition-colors duration-300 ease-out"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  Are you sure you want to approve this Request?
                 </h2>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-rose-600">
+                <div
+                  className="flex items-center gap-2 transition-colors duration-300 ease-out"
+                  style={{ color: "#ef4444" }} // rose/red
+                >
                   <AlertCircle size={18} />
                   <h3 className="font-bold text-sm">Reason for Rejection</h3>
                 </div>
@@ -1860,21 +1892,21 @@ const CtoApplicationDetails = () => {
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                     placeholder="Please explain why this request is being declined (e.g., overlapping schedules, insufficient credits)..."
-                    className={`
-                      w-full p-4 bg-white border-2 rounded-2xl outline-none min-h-[140px]
-                      text-sm text-slate-700 transition-all
-                      ${
-                        remarks.trim()
-                          ? "border-slate-200 focus:border-blue-500"
-                          : "border-rose-100 focus:border-rose-300 placeholder:text-rose-300"
-                      }
-                    `}
+                    className="w-full p-4 border-2 rounded-2xl outline-none min-h-[140px] text-sm transition-all duration-300 ease-out bg-transparent"
+                    style={{
+                      backgroundColor: "var(--app-surface)",
+                      color: "var(--app-text)",
+                      borderColor: remarks.trim()
+                        ? borderColor
+                        : "rgba(239, 68, 68, 0.4)", // slightly faded red border if empty
+                    }}
                   />
                   <div className="absolute bottom-3 right-4 flex items-center gap-1.5">
                     <span
-                      className={`text-[10px] font-bold uppercase ${
-                        remarks.trim() ? "text-slate-400" : "text-rose-400"
-                      }`}
+                      className="text-[10px] font-bold uppercase transition-colors duration-300 ease-out"
+                      style={{
+                        color: remarks.trim() ? "var(--app-muted)" : "#ef4444",
+                      }}
                     >
                       {remarks.length > 0
                         ? `${remarks.length} chars`
@@ -1883,7 +1915,14 @@ const CtoApplicationDetails = () => {
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400 bg-slate-50 p-2.5 rounded-lg border border-slate-100 italic">
+                <p
+                  className="text-[11px] p-2.5 rounded-lg border italic transition-colors duration-300 ease-out"
+                  style={{
+                    color: "var(--app-muted)",
+                    backgroundColor: "var(--app-surface-2)",
+                    borderColor: borderColor,
+                  }}
+                >
                   Tip: Providing a clear reason helps employees correct future
                   applications.
                 </p>

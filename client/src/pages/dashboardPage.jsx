@@ -57,6 +57,7 @@ const Dashboard = () => {
     if (!admin) navigate("/");
   }, [hasHydrated, admin, navigate]);
 
+  // ✅ Added "touchstart" for better mobile outside-click detection
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -70,7 +71,11 @@ const Dashboard = () => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -113,6 +118,7 @@ const Dashboard = () => {
       queryKey: ["notifications", page, limit],
       queryFn: () => fetchMyNotifications({ page, limit }),
       enabled: !!hasHydrated && !!admin && notificationOpen, // Only fetch when dropdown is open
+      staleTime: 1000 * 60 * 5, // Cache pages for 5 minutes
       placeholderData: (prev) => prev, // Keeps previous data visible while fetching next page
     });
 
@@ -133,7 +139,6 @@ const Dashboard = () => {
   const markAsReadMutation = useMutation({
     mutationFn: markNotificationAsRead,
     onSuccess: () => {
-      // Refresh count and lists in background to ensure sync
       queryClient.invalidateQueries({ queryKey: ["unreadNotificationCount"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -157,7 +162,6 @@ const Dashboard = () => {
 
   const handleNotificationClick = async (notification) => {
     if (!notification?.isRead) {
-      // 1. Optimistically update UI instantly for snappy UX
       queryClient.setQueryData(["unreadNotificationCount"], (old) => ({
         ...old,
         unreadCount: Math.max((old?.unreadCount || 0) - 1, 0),
@@ -173,7 +177,6 @@ const Dashboard = () => {
         };
       });
 
-      // 2. Fire actual API request in background
       markAsReadMutation.mutate(notification._id);
     }
 
@@ -184,7 +187,6 @@ const Dashboard = () => {
   };
 
   const handleMarkAllAsRead = () => {
-    // Optimistically zero out the count
     queryClient.setQueryData(["unreadNotificationCount"], { unreadCount: 0 });
 
     queryClient.setQueryData(["notifications", page, limit], (old) => {
@@ -195,7 +197,6 @@ const Dashboard = () => {
       };
     });
 
-    // Fire actual API request
     markAllAsReadMutation.mutate();
   };
 
@@ -254,7 +255,7 @@ const Dashboard = () => {
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <nav
-          className="flex-shrink-0 z-30 flex justify-between items-center h-14 px-4 lg:px-10 backdrop-blur-md transition-colors"
+          className="relative flex-shrink-0 z-30 flex justify-between items-center h-14 px-4 lg:px-10 backdrop-blur-md transition-colors"
           style={{
             backgroundColor: "var(--app-surface, rgba(255,255,255,0.80))",
             borderBottom: "1px solid var(--app-border, #e5e7eb)",
@@ -316,14 +317,15 @@ const Dashboard = () => {
 
               {notificationOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-[380px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                  // ✅ MOBILE RESPONSIVE FIX: Fixed position on mobile (spans screen minus margins), absolute on larger screens.
+                  className="fixed sm:absolute top-16 sm:top-auto left-4 right-4 sm:left-auto sm:right-0 sm:mt-2 w-auto sm:w-[380px] z-[100] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
                   style={{
                     backgroundColor: "var(--app-surface, #ffffff)",
                     border: "1px solid var(--app-border, #e5e7eb)",
                   }}
                 >
                   <div
-                    className="flex items-center justify-between px-4 py-3"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2 sm:gap-0"
                     style={{
                       borderBottom: "1px solid var(--app-border, #e5e7eb)",
                     }}
@@ -347,7 +349,7 @@ const Dashboard = () => {
                       onClick={handleMarkAllAsRead}
                       type="button"
                       disabled={markAllAsReadMutation.isPending}
-                      className="text-xs font-semibold transition disabled:opacity-50"
+                      className="text-xs font-semibold transition disabled:opacity-50 text-left sm:text-right"
                       style={{ color: "var(--accent, #2563EB)" }}
                     >
                       Mark all as read
@@ -360,15 +362,15 @@ const Dashboard = () => {
                       borderBottom: "1px solid var(--app-border, #e5e7eb)",
                     }}
                   >
-                    <div>
+                    <div className="min-w-0 pr-2">
                       <p
-                        className="text-[11px] font-semibold"
+                        className="text-[11px] font-semibold truncate"
                         style={{ color: "var(--app-text, #0f172a)" }}
                       >
                         Most recent first
                       </p>
                       <p
-                        className="text-[10px]"
+                        className="text-[10px] truncate"
                         style={{ color: "var(--app-muted, #64748b)" }}
                       >
                         Page {notificationPagination.page} of{" "}
@@ -379,7 +381,7 @@ const Dashboard = () => {
                     <select
                       value={limit}
                       onChange={handleNotificationLimitChange}
-                      className="text-xs rounded-lg px-2 py-1 border outline-none"
+                      className="text-xs rounded-lg px-2 py-1.5 border outline-none shrink-0"
                       style={{
                         backgroundColor: "var(--app-surface, #ffffff)",
                         color: "var(--app-text, #0f172a)",
@@ -397,7 +399,7 @@ const Dashboard = () => {
                     </select>
                   </div>
 
-                  <div className="max-h-[360px] overflow-y-auto">
+                  <div className="max-h-[50vh] sm:max-h-[360px] overflow-y-auto custom-scrollbar">
                     {notificationsLoading ? (
                       <div className="px-4 py-6 text-center">
                         <p
@@ -450,7 +452,7 @@ const Dashboard = () => {
                                 {notification.title}
                               </p>
                               <p
-                                className="text-xs mt-1 leading-relaxed"
+                                className="text-xs mt-1 leading-relaxed line-clamp-2"
                                 style={{ color: "var(--app-muted, #64748b)" }}
                               >
                                 {notification.message}
@@ -478,7 +480,7 @@ const Dashboard = () => {
                   </div>
 
                   <div
-                    className="flex items-center justify-between px-4 py-3"
+                    className="flex items-center justify-between px-3 sm:px-4 py-3"
                     style={{
                       borderTop: "1px solid var(--app-border, #e5e7eb)",
                     }}
@@ -490,7 +492,7 @@ const Dashboard = () => {
                         notificationsLoading ||
                         !notificationPagination.hasPrevPage
                       }
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
                         backgroundColor: "transparent",
                         color: "var(--app-text, #0f172a)",
@@ -501,15 +503,15 @@ const Dashboard = () => {
                       Prev
                     </button>
 
-                    <div className="text-center">
+                    <div className="text-center min-w-[100px]">
                       <p
-                        className="text-[11px] font-semibold"
+                        className="text-[11px] font-semibold truncate"
                         style={{ color: "var(--app-text, #0f172a)" }}
                       >
-                        {notificationPagination.total} total notifications
+                        {notificationPagination.total} total
                       </p>
                       <p
-                        className="text-[10px]"
+                        className="text-[10px] truncate"
                         style={{ color: "var(--app-muted, #64748b)" }}
                       >
                         Showing {notifications.length} item
@@ -524,7 +526,7 @@ const Dashboard = () => {
                         notificationsLoading ||
                         !notificationPagination.hasNextPage
                       }
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
                         backgroundColor: "transparent",
                         color: "var(--app-text, #0f172a)",
@@ -573,7 +575,6 @@ const Dashboard = () => {
                 </div>
 
                 <div className="hidden sm:block text-left">
-                  {/* ✅ Switched to Display Name with Email as fallback */}
                   <p
                     className="text-sm font-semibold leading-tight truncate max-w-[150px]"
                     style={{ color: "var(--app-text, #0f172a)" }}
@@ -602,7 +603,8 @@ const Dashboard = () => {
 
               {dropdownOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-60 rounded-2xl shadow-2xl py-2 animate-in fade-in zoom-in-95 duration-100"
+                  // ✅ MOBILE RESPONSIVE FIX: Max-width to prevent overflow on very small devices
+                  className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] z-[100] rounded-2xl shadow-2xl py-2 animate-in fade-in zoom-in-95 duration-100"
                   style={{
                     backgroundColor: "var(--app-surface, #ffffff)",
                     border: "1px solid var(--app-border, #e5e7eb)",
@@ -621,7 +623,6 @@ const Dashboard = () => {
                       Signed in as
                     </p>
                     <div className="flex items-center justify-between gap-2">
-                      {/* ✅ Switched to Email in dropdown header */}
                       <span
                         className="text-sm font-bold truncate"
                         style={{ color: "var(--app-text, #0f172a)" }}
@@ -633,7 +634,6 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  {/* ✅ Navigation Links */}
                   <div className="py-1">
                     {canViewProfile && (
                       <button
