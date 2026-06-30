@@ -6,7 +6,9 @@ const endpointMap = [
      Mounted: /employee
   ========================= */
   { pattern: /^\/employee$/, method: "POST", name: "Create Employee" },
+  { pattern: /^\/employee$/, method: "GET", name: "View Employees" },
   { pattern: /^\/employee\/login$/, method: "POST", name: "Employee Login" },
+  { pattern: /^\/employee\/logout$/, method: "POST", name: "Employee Logout" },
 
   {
     pattern: /^\/employee\/my-profile$/,
@@ -17,6 +19,11 @@ const endpointMap = [
     pattern: /^\/employee\/my-profile$/,
     method: "PUT",
     name: "Update My Profile",
+  },
+  {
+    pattern: /^\/employee\/my-profile\/signature$/,
+    method: "POST",
+    name: "Upload Signature",
   },
   {
     pattern: /^\/employee\/my-profile\/reset-password$/,
@@ -35,7 +42,33 @@ const endpointMap = [
     name: "View Employee Memos",
   },
 
-  { pattern: /^\/employee$/, method: "GET", name: "View Employees" },
+  {
+    pattern: /^\/employee\/my-wellness-balance$/,
+    method: "GET",
+    name: "View My Wellness Balance",
+  },
+  {
+    pattern: /^\/employee\/\w+\/wellness-balance$/,
+    method: "GET",
+    name: "View Employee Wellness Balance",
+  },
+
+  {
+    pattern: /^\/employee\/salary-grades$/,
+    method: "GET",
+    name: "View All Salary Grades",
+  },
+  {
+    pattern: /^\/employee\/salary-grades\/\w+$/,
+    method: "GET",
+    name: "View Salary Grade Details",
+  },
+  {
+    pattern: /^\/employee\/salary-grades\/\w+$/,
+    method: "PUT",
+    name: "Update Salary Grade",
+  },
+
   {
     pattern: /^\/employee\/\w+$/,
     method: "GET",
@@ -46,6 +79,121 @@ const endpointMap = [
     pattern: /^\/employee\/\w+\/role$/,
     method: "POST",
     name: "Update Employee Role",
+  },
+
+  /* =========================
+     User Preferences Routes
+     Mounted: /user-preferences
+  ========================= */
+  {
+    pattern: /^\/settings\/preferences\/me$/,
+    method: "GET",
+    name: "View My Preferences",
+  },
+  {
+    pattern: /^\/settings\/preferences\/me$/,
+    method: "PATCH",
+    name: "Update My Preferences",
+  },
+  {
+    pattern: /^\/settings\/preferences\/me\/reset$/,
+    method: "POST",
+    name: "Reset My Preferences",
+  },
+  {
+    pattern: /^\/settings\/preferences\/options$/,
+    method: "GET",
+    name: "View Preference Options",
+  },
+
+  /* =========================
+     Wellness Routes
+     Mounted: /wellness
+  ========================= */
+  // Wellness Applications
+  {
+    pattern: /^\/wellness\/applications\/apply$/,
+    method: "POST",
+    name: "Apply for Wellness Leave",
+  },
+  {
+    pattern: /^\/wellness\/applications\/all$/,
+    method: "GET",
+    name: "View All Wellness Applications",
+  },
+  {
+    pattern: /^\/wellness\/applications\/employee\/\w+$/,
+    method: "GET",
+    name: "View Employee Wellness Applications",
+  },
+  {
+    pattern: /^\/wellness\/applications\/my-application$/,
+    method: "GET",
+    name: "View My Wellness Applications",
+  },
+  {
+    pattern: /^\/wellness\/applications\/\w+\/cancel$/,
+    method: "PATCH",
+    name: "Cancel Wellness Application",
+  },
+
+  // Wellness Approvals
+  {
+    pattern: /^\/wellness\/applications\/pending-count$/,
+    method: "GET",
+    name: "View Pending Wellness Count",
+  },
+  {
+    pattern: /^\/wellness\/applications\/approvers\/my-approvals$/,
+    method: "GET",
+    name: "View My Wellness Approvals",
+  },
+  {
+    pattern: /^\/wellness\/applications\/approvers\/my-approvals\/\w+$/,
+    method: "GET",
+    name: "View Wellness Application Details",
+  },
+  {
+    pattern: /^\/wellness\/applications\/approver\/\w+\/approve$/,
+    method: "POST",
+    name: "Approve Wellness Application",
+  },
+  {
+    pattern: /^\/wellness\/applications\/approver\/\w+\/reject$/,
+    method: "PUT",
+    name: "Reject Wellness Application",
+  },
+
+  // Wellness Credits
+  {
+    pattern: /^\/wellness\/credits\/employee-details\/\w+$/,
+    method: "GET",
+    name: "View Employee Details (Wellness)",
+  },
+  {
+    pattern: /^\/wellness\/credits\/add$/,
+    method: "POST",
+    name: "Add Wellness Credit Request",
+  },
+  {
+    pattern: /^\/wellness\/credits\/\w+\/rollback$/,
+    method: "PUT",
+    name: "Rollback Wellness Credit",
+  },
+  {
+    pattern: /^\/wellness\/credits\/all$/,
+    method: "GET",
+    name: "View All Wellness Credit Requests",
+  },
+  {
+    pattern: /^\/wellness\/credits\/employee\/\w+$/,
+    method: "GET",
+    name: "View Employee Wellness Credit History",
+  },
+  {
+    pattern: /^\/wellness\/credits\/my-credits$/,
+    method: "GET",
+    name: "View My Wellness Credits",
   },
 
   /* =========================
@@ -303,7 +451,7 @@ const endpointMap = [
   },
 
   /* =========================
-     Email Notification Settings (✅ NEW)
+     Email Notification Settings
      Mounted: /email-notification-settings
   ========================= */
   {

@@ -12,6 +12,8 @@ const EXCLUDED_KEYWORDS = ["login", "signup", "reset-password"];
 const EXCLUDED_ENDPOINTS = [
   "Approve CTO Application",
   "Reject CTO Application",
+  "Approve Wellness Application", // ✅ Added Wellness exclusion
+  "Reject Wellness Application", // ✅ Added Wellness exclusion
 ];
 const LOG_METHODS = ["POST", "PUT", "DELETE", "PATCH"];
 const SENSITIVE_GETS = [];
@@ -169,10 +171,11 @@ const auditLogger = async (req, res, next) => {
         ? res.locals.auditTargetUsers
         : [];
 
-      // Bulk employees for CTO Credit
+      // ✅ Updated: Handle bulk employees for both CTO and Wellness Credits
       if (
         req.body?.employees?.length &&
-        endpoint === "Add CTO Credit Request"
+        (endpoint === "Add CTO Credit Request" ||
+          endpoint === "Add Wellness Credit Request")
       ) {
         let empIds = Array.isArray(req.body.employees)
           ? req.body.employees

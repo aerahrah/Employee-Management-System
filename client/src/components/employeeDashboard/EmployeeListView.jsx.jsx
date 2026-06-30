@@ -57,14 +57,29 @@ function resolveTheme(prefTheme) {
 const initials = (firstName, lastName) =>
   `${(firstName || " ")[0] || ""}${(lastName || " ")[0] || ""}`.toUpperCase();
 
+const formatNamePart = (name) => {
+  if (!name) return "";
+  return name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
 // ✅ Helper to construct the complete formatted name
 const getFullName = (emp) => {
   if (!emp) return "Unknown Employee";
+
+  const first = formatNamePart(emp.firstName);
+  const last = formatNamePart(emp.lastName);
+  const middleInitial = emp.middleName
+    ? `${emp.middleName.trim().charAt(0).toUpperCase()}.`
+    : "";
+
   return [
     emp.prefixTitle,
-    emp.firstName,
-    emp.middleName,
-    emp.lastName,
+    first,
+    middleInitial,
+    last,
     emp.nameExtension,
     emp.postfixTitle,
   ]
@@ -1032,7 +1047,16 @@ const EmployeeDirectory = () => {
     setPage(1);
   }, [safeFilters, debouncedSearch, limit]);
 
-  const employees = data?.data || [];
+  // ✅ SORT EMPLOYEES ALPHABETICALLY BY LAST NAME
+  const employees = useMemo(() => {
+    const list = data?.data || [];
+    return [...list].sort((a, b) => {
+      const nameA = (a?.lastName || "").trim().toLowerCase();
+      const nameB = (b?.lastName || "").trim().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [data?.data]);
+
   const totalItems = data?.total || 0;
 
   const totalPages = useMemo(() => {

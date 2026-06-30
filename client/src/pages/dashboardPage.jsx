@@ -630,7 +630,7 @@ const Dashboard = () => {
                       >
                         {admin?.email || "User"}
                       </span>
-                      <RoleBadge role={admin?.role} />
+                      {/* <RoleBadge role={admin?.role} /> */}
                     </div>
                   </div>
 

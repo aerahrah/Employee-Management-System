@@ -10,6 +10,40 @@ import ErrorMessage from "../../errorComponent";
 import { useAuth } from "../../../store/authStore";
 
 /* ================================
+   NAME FORMATTING HELPERS
+================================ */
+const formatNamePart = (name) => {
+  if (!name) return "";
+  return name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
+const getFullName = (emp) => {
+  if (!emp) return "Unknown Employee";
+
+  const first = formatNamePart(emp.firstName);
+  const last = formatNamePart(emp.lastName);
+  const middleInitial = emp.middleName
+    ? `${emp.middleName.trim().charAt(0).toUpperCase()}.`
+    : "";
+
+  return [
+    emp.prefixTitle,
+    first,
+    middleInitial,
+    last,
+    emp.nameExtension,
+    emp.postfixTitle,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+/* ================================
    HOOK: DEBOUNCE
 ================================ */
 function useDebounce(value, delay) {
@@ -358,8 +392,17 @@ const EmployeeList = ({ setIsEmployeeLoading, borderColor }) => {
   useEffect(() => {
     if (!isXlUp) return;
     if (!hasNavigatedRef.current && data?.data?.length > 0 && !selectedId) {
-      navigate(`/app/cto-records/${data.data[0]._id}`, { replace: true });
-      hasNavigatedRef.current = true;
+      // Find the first alphabetically sorted employee to auto-select
+      const firstSorted = [...data.data].sort((a, b) => {
+        const nameA = (a?.lastName || "").trim().toLowerCase();
+        const nameB = (b?.lastName || "").trim().toLowerCase();
+        return nameA.localeCompare(nameB);
+      })[0];
+
+      if (firstSorted) {
+        navigate(`/app/cto-records/${firstSorted._id}`, { replace: true });
+        hasNavigatedRef.current = true;
+      }
     }
   }, [data, selectedId, navigate, isXlUp]);
 
@@ -367,7 +410,16 @@ const EmployeeList = ({ setIsEmployeeLoading, borderColor }) => {
     setPage(1);
   }, [debouncedSearch, limit]);
 
-  const employees = data?.data || [];
+  // ✅ SORT EMPLOYEES ALPHABETICALLY BY LAST NAME
+  const employees = useMemo(() => {
+    const list = data?.data || [];
+    return [...list].sort((a, b) => {
+      const nameA = (a?.lastName || "").trim().toLowerCase();
+      const nameB = (b?.lastName || "").trim().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [data?.data]);
+
   const totalPages = Math.max(
     data?.totalPages || data?.pagination?.totalPages || 1,
     1,
@@ -533,9 +585,10 @@ const EmployeeList = ({ setIsEmployeeLoading, borderColor }) => {
           ) : employees.length > 0 ? (
             employees.map((item) => {
               const isActive = selectedId === item._id;
-              const initials = `${item.firstName?.[0] || ""}${
-                item.lastName?.[0] || ""
-              }`;
+
+              // ✅ Updated robust initials generation
+              const initialsStr =
+                `${item.firstName?.[0] || ""}${item.lastName?.[0] || ""}`.toUpperCase();
 
               return (
                 <li
@@ -571,7 +624,7 @@ const EmployeeList = ({ setIsEmployeeLoading, borderColor }) => {
                       borderColor: isActive ? "var(--accent)" : borderColor,
                     }}
                   >
-                    {initials || "?"}
+                    {initialsStr || "?"}
                   </div>
 
                   <div className="flex flex-col flex-1 min-w-0">
@@ -580,8 +633,9 @@ const EmployeeList = ({ setIsEmployeeLoading, borderColor }) => {
                       style={{
                         color: isActive ? "var(--app-text)" : "var(--app-text)",
                       }}
+                      title={getFullName(item)} // Helpful tooltip for very long names
                     >
-                      {item.firstName} {item.lastName}
+                      {getFullName(item)}
                     </span>
                     <span
                       className="text-xs truncate"

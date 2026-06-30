@@ -133,7 +133,8 @@ const EmployeeRoleChanger = forwardRef(
     const submitLockRef = useRef(false);
     const submittedSuccessRef = useRef(false);
 
-    const currentRoleId = typeof currentRole === 'object' ? currentRole?._id : currentRole;
+    const currentRoleId =
+      typeof currentRole === "object" ? currentRole?._id : currentRole;
 
     const [selectedRole, setSelectedRole] = useState(currentRoleId || "");
     const [lockAfterSuccess, setLockAfterSuccess] = useState(false);
@@ -159,11 +160,29 @@ const EmployeeRoleChanger = forwardRef(
         updateEmployeeRole(employeeId, { role: newRole }),
       retry: 0,
       onSuccess: (updatedEmployee) => {
-        const newRole =
-          updatedEmployee?.employee?.role || selectedRole || "employee";
+        const newRole = updatedEmployee?.employee?.role?.name;
+
+        const capitalize = (str = "") =>
+          str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+
+        const firstName = capitalize(
+          updatedEmployee?.employee?.firstName || "",
+        );
+        const middleName = capitalize(
+          updatedEmployee?.employee?.middleName || "",
+        );
+        const lastName = capitalize(updatedEmployee?.employee?.lastName || "");
+
+        const middleInitial = middleName
+          ? `${middleName.charAt(0).toUpperCase()}.`
+          : "";
+
+        const fullName = [firstName, middleInitial, lastName]
+          .filter(Boolean)
+          .join(" ");
 
         toast.success(
-          `Access level updated to ${String(newRole).toUpperCase()}`,
+          `${fullName}'s access level has been updated to ${String(newRole).toUpperCase()}`,
         );
 
         queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -258,98 +277,102 @@ const EmployeeRoleChanger = forwardRef(
                 const Icon = ShieldCheck;
                 const isActive = selectedRole === role._id;
                 const isCurrent = (currentRoleId || "") === role._id;
-                const tone = getRoleTone(role.name.toLowerCase(), resolvedTheme);
+                const tone = getRoleTone(
+                  role.name.toLowerCase(),
+                  resolvedTheme,
+                );
 
-              return (
-                <button
-                  key={role._id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setSelectedRole(role._id)}
-                  className={`w-full flex items-start gap-3 p-4 rounded-2xl border transition text-left ${
-                    busy ? "opacity-60 cursor-not-allowed" : ""
-                  }`}
-                  style={
-                    isActive
-                      ? selectedCardStyle
-                      : {
-                          backgroundColor: "var(--app-surface)",
-                          borderColor,
-                        }
-                  }
-                  onMouseEnter={(e) => {
-                    if (busy || isActive) return;
-                    e.currentTarget.style.backgroundColor =
-                      "var(--app-surface-2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (busy || isActive) return;
-                    e.currentTarget.style.backgroundColor =
-                      "var(--app-surface)";
-                  }}
-                >
-                  <div
-                    className="p-3 rounded-xl border flex-none transition-colors duration-300 ease-out"
+                return (
+                  <button
+                    key={role._id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setSelectedRole(role._id)}
+                    className={`w-full flex items-start gap-3 p-4 rounded-2xl border transition text-left ${
+                      busy ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
                     style={
                       isActive
-                        ? {
-                            backgroundColor: "var(--accent)",
-                            color: "#fff",
-                            borderColor: "var(--accent)",
-                          }
+                        ? selectedCardStyle
                         : {
                             backgroundColor: "var(--app-surface)",
-                            color: "var(--app-muted)",
                             borderColor,
                           }
                     }
+                    onMouseEnter={(e) => {
+                      if (busy || isActive) return;
+                      e.currentTarget.style.backgroundColor =
+                        "var(--app-surface-2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (busy || isActive) return;
+                      e.currentTarget.style.backgroundColor =
+                        "var(--app-surface)";
+                    }}
                   >
-                    <Icon className="w-5 h-5" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className="font-bold text-sm transition-colors duration-300 ease-out"
-                        style={{ color: "var(--app-text)" }}
-                      >
-                        {role.name}
-                      </span>
-
-                      {isCurrent && (
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                          style={currentPillStyle}
-                        >
-                          Current
-                        </span>
-                      )}
-
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                        style={tone.pill}
-                      >
-                        {role.name.toUpperCase()}
-                      </span>
+                    <div
+                      className="p-3 rounded-xl border flex-none transition-colors duration-300 ease-out"
+                      style={
+                        isActive
+                          ? {
+                              backgroundColor: "var(--accent)",
+                              color: "#fff",
+                              borderColor: "var(--accent)",
+                            }
+                          : {
+                              backgroundColor: "var(--app-surface)",
+                              color: "var(--app-muted)",
+                              borderColor,
+                            }
+                      }
+                    >
+                      <Icon className="w-5 h-5" />
                     </div>
 
-                    <p
-                      className="text-xs mt-1 transition-colors duration-300 ease-out"
-                      style={{ color: "var(--app-muted)" }}
-                    >
-                      {role.description || "No description."}
-                    </p>
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="font-bold text-sm transition-colors duration-300 ease-out"
+                          style={{ color: "var(--app-text)" }}
+                        >
+                          {role.name}
+                        </span>
 
-                  {isActive && (
-                    <CheckCircle2
-                      className="w-5 h-5 flex-none mt-1"
-                      style={{ color: "var(--accent)" }}
-                    />
-                  )}
-                </button>
-              );
-            }))}
+                        {isCurrent && (
+                          <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                            style={currentPillStyle}
+                          >
+                            Current
+                          </span>
+                        )}
+
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                          style={tone.pill}
+                        >
+                          {role.name.toUpperCase()}
+                        </span>
+                      </div>
+
+                      <p
+                        className="text-xs mt-1 transition-colors duration-300 ease-out"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        {role.description || "No description."}
+                      </p>
+                    </div>
+
+                    {isActive && (
+                      <CheckCircle2
+                        className="w-5 h-5 flex-none mt-1"
+                        style={{ color: "var(--accent)" }}
+                      />
+                    )}
+                  </button>
+                );
+              })
+            )}
           </div>
 
           <div className="pt-2">
@@ -362,7 +385,9 @@ const EmployeeRoleChanger = forwardRef(
                 className="font-bold transition-colors duration-300 ease-out"
                 style={{ color: "var(--app-text)" }}
               >
-                {roles?.find(r => r._id === selectedRole)?.name?.toUpperCase() || "NONE"}
+                {roles
+                  ?.find((r) => r._id === selectedRole)
+                  ?.name?.toUpperCase() || "NONE"}
               </span>
               {!dirty && (
                 <span

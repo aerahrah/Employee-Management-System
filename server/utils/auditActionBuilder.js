@@ -95,7 +95,7 @@ const buildAuditDetails = ({
 
   const rawBefore = Array.isArray(before) ? before[0] : before;
 
-  // ✅ if someone accidentally passes { before, after } here, unwrap it
+  // if someone accidentally passes { before, after } here, unwrap it
   const b =
     rawBefore &&
     typeof rawBefore === "object" &&
@@ -110,7 +110,7 @@ const buildAuditDetails = ({
       : body;
 
   /* =========================
-     CTO credit-specific helpers
+     Credit-specific helpers
   ========================= */
 
   const getEmployeeCount = (obj) => {
@@ -118,12 +118,11 @@ const buildAuditDetails = ({
     return Array.isArray(emps) ? emps.length : null;
   };
 
-  // prefer creditedHours from DB doc if present (employees are objects)
+  // --- CTO (Hours) Helpers ---
   const getCreditedHoursPerEmployee = (obj) => {
     const emps = parseJsonMaybe(obj?.employees, obj?.employees);
     if (!Array.isArray(emps) || emps.length === 0) return null;
 
-    // if employees are stored as objects { creditedHours, ... }
     const firstObj = emps.find((e) => e && typeof e === "object");
     if (firstObj && firstObj.creditedHours !== undefined) {
       const n = toNum(firstObj.creditedHours, NaN);
@@ -137,13 +136,54 @@ const buildAuditDetails = ({
     const emps = parseJsonMaybe(obj?.employees, obj?.employees);
     if (!Array.isArray(emps) || emps.length === 0) return null;
 
-    // sum creditedHours if employees are objects with creditedHours
     if (
       emps.some(
         (e) => e && typeof e === "object" && e.creditedHours !== undefined,
       )
     ) {
       const sum = emps.reduce((acc, e) => acc + toNum(e?.creditedHours, 0), 0);
+      return Math.round(sum * 100) / 100;
+    }
+
+    return null;
+  };
+
+  // --- Wellness (Days) Helpers ---
+  const getCreditedDaysPerEmployee = (obj) => {
+    const emps = parseJsonMaybe(obj?.employees, obj?.employees);
+    if (!Array.isArray(emps) || emps.length === 0) return null;
+
+    const firstObj = emps.find((e) => e && typeof e === "object");
+    if (firstObj) {
+      if (firstObj.creditedDays !== undefined) {
+        const n = toNum(firstObj.creditedDays, NaN);
+        return Number.isFinite(n) ? n : null;
+      }
+      if (firstObj.days !== undefined) {
+        const n = toNum(firstObj.days, NaN);
+        return Number.isFinite(n) ? n : null;
+      }
+    }
+
+    return null;
+  };
+
+  const getTotalCreditedDaysSum = (obj) => {
+    const emps = parseJsonMaybe(obj?.employees, obj?.employees);
+    if (!Array.isArray(emps) || emps.length === 0) return null;
+
+    if (
+      emps.some(
+        (e) =>
+          e &&
+          typeof e === "object" &&
+          (e.creditedDays !== undefined || e.days !== undefined),
+      )
+    ) {
+      const sum = emps.reduce(
+        (acc, e) => acc + toNum(e?.creditedDays ?? e?.days, 0),
+        0,
+      );
       return Math.round(sum * 100) / 100;
     }
 
@@ -166,6 +206,10 @@ const buildAuditDetails = ({
 
     case "Employee Login":
       summary = `${actor} logged in`;
+      break;
+
+    case "Employee Logout":
+      summary = `${actor} logged out`;
       break;
 
     case "View Employees":
@@ -193,6 +237,10 @@ const buildAuditDetails = ({
       summary = `${actor} updated own profile`;
       break;
 
+    case "Upload Signature":
+      summary = `${actor} uploaded a signature`;
+      break;
+
     case "Reset My Password":
       summary = `${actor} reset own password`;
       break;
@@ -209,36 +257,95 @@ const buildAuditDetails = ({
       summary = `${actor} viewed employee details for ${fmtUser(targetUser || params.id)}`;
       break;
 
+    case "View My Wellness Balance":
+      summary = `${actor} viewed own wellness balance`;
+      break;
+
+    case "View Employee Wellness Balance":
+      summary = `${actor} viewed wellness balance for ${fmtUser(targetUser || params.id)}`;
+      break;
+
     /* =========================
-       CTO Credit Routes
+       Salary Grades
     ========================= */
-    case "Add CTO Credit Request": {
+    case "View All Salary Grades":
+      summary = `${actor} viewed salary grades`;
+      break;
+
+    case "View Salary Grade Details":
+      summary = `${actor} viewed salary grade details (ID: ${fmtId(params.id)})`;
+      break;
+
+    case "Update Salary Grade":
+      summary = `${actor} updated salary grade (ID: ${fmtId(params.id)})`;
+      break;
+
+    /* =========================
+       User Preferences
+    ========================= */
+    case "View My Preferences":
+      summary = `${actor} viewed own user preferences`;
+      break;
+
+    case "Update My Preferences":
+      summary = `${actor} updated own user preferences`;
+      break;
+
+    case "Reset My Preferences":
+      summary = `${actor} reset own user preferences to default`;
+      break;
+
+    case "View Preference Options":
+      summary = `${actor} viewed user preference options`;
+      break;
+
+    /* =========================
+       CTO & Wellness Credit Routes
+    ========================= */
+    case "Add CTO Credit Request":
+    case "Add Wellness Credit Request": {
+      const isWellness = endpoint.includes("Wellness");
+      const type = isWellness ? "Wellness" : "CTO";
       const memoNo = safe(after?.memoNo, "");
       const employeeCount = getEmployeeCount(after);
 
-      // prefer DB doc employees[].creditedHours, fallback to duration
-      const hoursPerEmployee =
-        getCreditedHoursPerEmployee(after) ??
-        toHours(after?.duration ?? b?.duration);
+      let amountStr = "";
+      if (isWellness) {
+        const daysPerEmployee =
+          getCreditedDaysPerEmployee(after) ?? toNum(after?.days ?? b?.days, 0);
+        amountStr = `${daysPerEmployee} days`;
+      } else {
+        const hoursPerEmployee =
+          getCreditedHoursPerEmployee(after) ??
+          toHours(after?.duration ?? b?.duration);
+        amountStr = `${hoursPerEmployee} hrs`;
+      }
 
-      summary = `${actor} added CTO credit${
+      summary = `${actor} added ${type} credit${
         employeeCount !== null ? ` to ${employeeCount} employee(s)` : ""
-      }${memoNo ? ` (Memo: ${memoNo})` : ""} (${hoursPerEmployee} hrs)`;
+      }${memoNo ? ` (Memo: ${memoNo})` : ""} (${amountStr})`;
       break;
     }
 
-    case "Rollback CTO Credit": {
+    case "Rollback CTO Credit":
+    case "Rollback Wellness Credit": {
+      const isWellness = endpoint.includes("Wellness");
+      const type = isWellness ? "Wellness" : "CTO";
       const memoNo = safe(after?.memoNo, "");
       const employeeCount = getEmployeeCount(after);
 
-      // total rolled back can be sum of creditedHours (DB doc)
-      const totalHours = getTotalCreditedHoursSum(after);
+      let amountStr = "";
+      if (isWellness) {
+        const totalDays = getTotalCreditedDaysSum(after);
+        amountStr = totalDays !== null ? ` — ${totalDays} days total` : "";
+      } else {
+        const totalHours = getTotalCreditedHoursSum(after);
+        amountStr = totalHours !== null ? ` — ${totalHours} hrs total` : "";
+      }
 
-      summary = `${actor} rolled back CTO credit${
+      summary = `${actor} rolled back ${type} credit${
         memoNo ? ` (Memo: ${memoNo})` : ""
-      }${employeeCount !== null ? ` for ${employeeCount} employee(s)` : ""}${
-        totalHours !== null ? ` — ${totalHours} hrs total` : ""
-      }`;
+      }${employeeCount !== null ? ` for ${employeeCount} employee(s)` : ""}${amountStr}`;
       break;
     }
 
@@ -246,12 +353,22 @@ const buildAuditDetails = ({
       summary = `${actor} viewed all CTO credit requests`;
       break;
 
+    case "View All Wellness Credit Requests":
+      summary = `${actor} viewed all Wellness credit requests`;
+      break;
+
     case "View My Credits":
       summary = `${actor} viewed own CTO credits`;
       break;
 
+    case "View My Wellness Credits":
+      summary = `${actor} viewed own Wellness credits`;
+      break;
+
     case "View Employee Credit History":
-      summary = `${actor} viewed CTO credit history${
+    case "View Employee Wellness Credit History": {
+      const type = endpoint.includes("Wellness") ? "Wellness" : "CTO";
+      summary = `${actor} viewed ${type} credit history${
         targetUser
           ? ` for ${targetUser}`
           : params.employeeId
@@ -259,9 +376,12 @@ const buildAuditDetails = ({
             : ""
       }`;
       break;
+    }
 
     case "View Employee Details (CTO)":
-      summary = `${actor} viewed employee details (CTO)${
+    case "View Employee Details (Wellness)": {
+      const type = endpoint.includes("Wellness") ? "Wellness" : "CTO";
+      summary = `${actor} viewed employee details (${type})${
         targetUser
           ? ` for ${targetUser}`
           : params.employeeId
@@ -269,26 +389,62 @@ const buildAuditDetails = ({
             : ""
       }`;
       break;
+    }
 
     /* =========================
-       CTO Application Routes
+       CTO & Wellness Application Routes
     ========================= */
     case "Apply for CTO":
-      summary = `${actor} submitted CTO application${
+    case "Apply for Wellness Leave": {
+      const isWellness = endpoint.includes("Wellness");
+      const type = isWellness ? "Wellness" : "CTO";
+
+      let amountStr = "";
+
+      if (isWellness) {
+        let days = safe(after?.totalDays, "N/A");
+        let datesStr = "";
+
+        // If inclusiveDates is present, count it for the days and extract the dates
+        if (
+          Array.isArray(after?.inclusiveDates) &&
+          after.inclusiveDates.length > 0
+        ) {
+          days = after.inclusiveDates.length;
+          datesStr = ` on ${after.inclusiveDates.join(", ")}`;
+        }
+
+        amountStr = `${days} days${datesStr}`;
+      } else {
+        amountStr = `${safe(after?.requestedHours, "N/A")} hrs`;
+      }
+
+      summary = `${actor} submitted ${type} application${
         targetUser ? ` for ${targetUser}` : ""
-      } (${safe(after.requestedHours, "N/A")} hrs)`;
+      } (${amountStr})`;
       break;
+    }
 
     case "View All CTO Applications":
       summary = `${actor} viewed all CTO applications`;
+      break;
+
+    case "View All Wellness Applications":
+      summary = `${actor} viewed all Wellness applications`;
       break;
 
     case "View My CTO Applications":
       summary = `${actor} viewed own CTO applications`;
       break;
 
+    case "View My Wellness Applications":
+      summary = `${actor} viewed own Wellness applications`;
+      break;
+
     case "View Employee CTO Applications":
-      summary = `${actor} viewed CTO applications${
+    case "View Employee Wellness Applications": {
+      const type = endpoint.includes("Wellness") ? "Wellness" : "CTO";
+      summary = `${actor} viewed ${type} applications${
         targetUser
           ? ` for ${targetUser}`
           : params.employeeId
@@ -296,33 +452,83 @@ const buildAuditDetails = ({
             : ""
       }`;
       break;
+    }
+
+    case "View Pending CTO Count":
+      summary = `${actor} viewed pending CTO approvals count`;
+      break;
+
+    case "View Pending Wellness Count":
+      summary = `${actor} viewed pending Wellness approvals count`;
+      break;
 
     case "View My CTO Approvals":
       summary = `${actor} viewed own pending/handled CTO approvals`;
+      break;
+
+    case "View My Wellness Approvals":
+      summary = `${actor} viewed own pending/handled Wellness approvals`;
       break;
 
     case "View CTO Application Details":
       summary = `${actor} viewed CTO application details (ID: ${fmtId(params.id)})`;
       break;
 
+    case "View Wellness Application Details":
+      summary = `${actor} viewed Wellness application details (ID: ${fmtId(params.id)})`;
+      break;
+
     case "Approve CTO Application":
+    case "Approve Wellness Application": {
+      const type = endpoint.includes("Wellness") ? "Wellness" : "CTO";
       summary = after.level
-        ? `${actor} approved CTO step ${safe(after.level)} for ${fmtUser(targetUser)}`
-        : `${actor} approved CTO application for ${fmtUser(targetUser)}`;
-      break;
-
-    case "Reject CTO Application":
-      summary = `${actor} rejected CTO application for ${fmtUser(targetUser)}`;
-      break;
-
-    case "Cancel CTO Application": {
-      const hrs = safe(after?.requestedHours ?? b?.requestedHours, "N/A");
-      const appId = params.id || after?.applicationId || after?._id;
-      summary = `${actor} cancelled CTO application (ID: ${fmtId(appId)})${
-        hrs !== "N/A" ? ` — ${hrs} hrs` : ""
-      }`;
+        ? `${actor} approved ${type} step ${safe(after.level)} for ${fmtUser(targetUser)}`
+        : `${actor} approved ${type} application for ${fmtUser(targetUser)}`;
       break;
     }
+
+    case "Reject CTO Application":
+    case "Reject Wellness Application": {
+      const type = endpoint.includes("Wellness") ? "Wellness" : "CTO";
+      summary = `${actor} rejected ${type} application for ${fmtUser(targetUser)}`;
+      break;
+    }
+
+    case "Cancel CTO Application":
+    case "Cancel Wellness Application": {
+      const isWellness = endpoint.includes("Wellness");
+      const type = isWellness ? "Wellness" : "CTO";
+      const appId = params.id || after?.applicationId || after?._id;
+
+      let amountStr = "";
+      if (isWellness) {
+        let days = after?.totalDays ?? b?.totalDays;
+
+        // Also check if we prefetched inclusiveDates
+        if (Array.isArray(b?.inclusiveDates) && b.inclusiveDates.length > 0) {
+          days = b.inclusiveDates.length;
+        } else if (
+          Array.isArray(after?.inclusiveDates) &&
+          after.inclusiveDates.length > 0
+        ) {
+          days = after.inclusiveDates.length;
+        }
+
+        if (days !== undefined && days !== null && days !== "N/A") {
+          amountStr = ` — ${days} days`;
+        }
+      } else {
+        const hrs = safe(after?.requestedHours ?? b?.requestedHours, "N/A");
+        if (hrs !== "N/A") amountStr = ` — ${hrs} hrs`;
+      }
+
+      summary = `${actor} cancelled ${type} application (ID: ${fmtId(appId)})${amountStr}`;
+      break;
+    }
+
+    case "View Approver Options":
+      summary = `${actor} viewed approver options`;
+      break;
 
     /* =========================
        CTO Dashboard

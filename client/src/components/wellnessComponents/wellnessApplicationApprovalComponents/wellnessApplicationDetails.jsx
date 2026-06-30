@@ -16,7 +16,8 @@ import {
   BadgeCheck,
   PenTool,
   Clock,
-  FileBadge, // Added FileBadge
+  FileBadge,
+  FileText, // Added FileText for the General PDF icon
 } from "lucide-react";
 import { StatusIcon, StatusBadge } from "../../statusUtils";
 import { useAuth } from "../../../store/authStore";
@@ -35,8 +36,9 @@ import "react-loading-skeleton/dist/skeleton.css";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
-// Added Wellness PDF Modal import
-import WellnessApplicationPdfModal from "../wellnessApplicationComponents/organicWellnessApplicationPDFModal";
+// PDF Modals
+import WellnessApplicationPdfModal from "../wellnessApplicationComponents/wellnessApplicationModal";
+import OrganicWellnessApplicationPdfModal from "../wellnessApplicationComponents/organicWellnessApplicationPDFModal";
 
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
@@ -260,7 +262,6 @@ const TimelineCard = ({ approval, index, isLast }) => {
           fg: "var(--app-text)",
         };
 
-  // ✅ Pull from historical approverSnapshot if available, fallback to live populated approver
   const approverFName =
     approval.approverSnapshot?.firstName || approval.approver?.firstName;
   const approverLName =
@@ -356,10 +357,9 @@ const TimelineCard = ({ approval, index, isLast }) => {
           </div>
         )}
 
-        {/* ✅ Display the signature and signed date from the snapshot */}
         {signatureUrl && (
           <div
-            className="mt-4  border-t border-dashed"
+            className="mt-4 border-t border-dashed"
             style={{ borderColor: "var(--app-border)" }}
           >
             {signedAt && (
@@ -597,7 +597,8 @@ const WellnessApplicationDetails = () => {
   const [remarks, setRemarks] = useState("");
   const [modalType, setModalType] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCsc6PdfOpen, setIsCsc6PdfOpen] = useState(false); // Added PDF Modal state
+  const [isPdfOpen, setIsPdfOpen] = useState(false); // Added PDF Modal state for General Form
+  const [isCsc6PdfOpen, setIsCsc6PdfOpen] = useState(false); // PDF Modal state for CSC Form 6
 
   // Fetch current user's profile to check for signature
   const { data: profileData, isLoading: isProfileLoading } = useQuery({
@@ -798,7 +799,6 @@ const WellnessApplicationDetails = () => {
                 {application.employeeType || "Organic"}
               </span>
 
-              {/* Added Date Submitted here */}
               <span className="flex items-center gap-1">
                 <Clock size={12} />{" "}
                 {new Date(application.createdAt).toLocaleDateString()}
@@ -819,7 +819,6 @@ const WellnessApplicationDetails = () => {
           </div>
         </div>
 
-        {/* Dynamic Action Buttons enforcing Signatures */}
         <div className="flex flex-row items-center gap-2 sm:gap-3 w-full md:w-auto">
           {canApproveOrReject ? (
             canManageApplication &&
@@ -903,7 +902,6 @@ const WellnessApplicationDetails = () => {
       </header>
 
       <div className="flex h-full flex-1 min-h-0 overflow-y-auto app-scrollbar flex-col gap-4 px-3 sm:px-4 py-2">
-        {/* Warning if the pending approver lacks a signature */}
         {canApproveOrReject && !isProfileLoading && !hasSignature && (
           <div className="mb-2 p-4 bg-orange-50 border-l-4 border-orange-500 rounded flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-3 text-orange-800">
@@ -999,12 +997,21 @@ const WellnessApplicationDetails = () => {
               }}
             >
               <div className="flex items-center gap-3 mb-6">
-                <span
-                  className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
-                  style={getIconChipStyle("accent", borderColor)}
-                >
-                  <MessageCircle size={20} />
-                </span>
+                {(() => {
+                  const chip = getIconChipStyle("accent", borderColor);
+                  return (
+                    <span
+                      className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
+                      style={{
+                        backgroundColor: chip.bg,
+                        color: chip.fg,
+                        borderColor: chip.br,
+                      }}
+                    >
+                      <MessageCircle size={20} />
+                    </span>
+                  );
+                })()}
                 <h3
                   className="text-xs font-bold uppercase tracking-widest"
                   style={{ color: "var(--app-muted)" }}
@@ -1059,12 +1066,21 @@ const WellnessApplicationDetails = () => {
               }}
             >
               <div className="flex items-center gap-3 mb-6">
-                <span
-                  className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
-                  style={getIconChipStyle("green", borderColor)}
-                >
-                  <History size={18} />
-                </span>
+                {(() => {
+                  const chip = getIconChipStyle("green", borderColor);
+                  return (
+                    <span
+                      className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
+                      style={{
+                        backgroundColor: chip.bg,
+                        color: chip.fg,
+                        borderColor: chip.br,
+                      }}
+                    >
+                      <History size={18} />
+                    </span>
+                  );
+                })()}
                 <div className="min-w-0">
                   <h3
                     className="text-xs font-bold uppercase tracking-widest"
@@ -1144,28 +1160,65 @@ const WellnessApplicationDetails = () => {
           <aside className="space-y-4 min-w-0">
             <RequestedDatesCalendar dates={application?.inclusiveDates || []} />
 
-            {/* Added Documents Section */}
-            {isOrganicApp && (
-              <div
-                className="border rounded-xl p-2 sm:p-3 shadow-sm min-w-0"
-                style={{
-                  backgroundColor: "var(--app-surface)",
-                  borderColor: borderColor,
-                }}
-              >
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <h4
-                    className="text-xs font-bold uppercase tracking-widest"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Documents
-                  </h4>
-                </div>
+            <div
+              className="border rounded-xl p-2 sm:p-3 shadow-sm min-w-0"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h4
+                  className="text-xs font-bold uppercase tracking-widest"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  Documents
+                </h4>
+              </div>
 
+              {/* General Form PDF Button */}
+              <button
+                type="button"
+                onClick={() => setIsPdfOpen(true)}
+                className="mt-3 w-full inline-flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold hover:bg-[color:var(--app-surface-2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 transition"
+                style={{
+                  borderColor: borderColor,
+                  backgroundColor: "var(--app-surface)",
+                  color: "var(--app-text)",
+                }}
+                title="View General PDF"
+              >
+                <span className="inline-flex items-center gap-2 min-w-0">
+                  <span
+                    className="h-8 w-8 rounded-lg flex items-center justify-center flex-none border"
+                    style={{
+                      backgroundColor: "rgba(239,68,68,0.12)",
+                      color: "#ef4444",
+                      borderColor: "rgba(239,68,68,0.20)",
+                    }}
+                  >
+                    <FileText size={16} />
+                  </span>
+                  <span className="truncate">General Form</span>
+                </span>
+                <span
+                  className="text-[9px] font-bold px-2 py-1 rounded-lg flex-none border"
+                  style={{
+                    color: "var(--app-muted)",
+                    borderColor: "var(--app-border)",
+                    backgroundColor: "var(--app-surface-2)",
+                  }}
+                >
+                  PDF
+                </span>
+              </button>
+
+              {/* CSC Form 6 PDF Button */}
+              {isOrganicApp && (
                 <button
                   type="button"
                   onClick={() => setIsCsc6PdfOpen(true)}
-                  className="w-full inline-flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold hover:bg-[color:var(--app-surface-2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 transition"
+                  className="mt-2 w-full inline-flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold hover:bg-[color:var(--app-surface-2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 transition"
                   style={{
                     borderColor: borderColor,
                     backgroundColor: "var(--app-surface)",
@@ -1198,8 +1251,8 @@ const WellnessApplicationDetails = () => {
                     PDF
                   </span>
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </aside>
         </div>
 
@@ -1265,8 +1318,8 @@ const WellnessApplicationDetails = () => {
                 <div
                   className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner transition-colors duration-300 ease-out"
                   style={{
-                    backgroundColor: "rgba(16, 185, 129, 0.1)", // equivalent to emerald-50 with opacity
-                    color: "#10b981", // emerald-500
+                    backgroundColor: "rgba(16, 185, 129, 0.1)",
+                    color: "#10b981",
                     borderColor: "rgba(16, 185, 129, 0.2)",
                   }}
                 >
@@ -1283,7 +1336,7 @@ const WellnessApplicationDetails = () => {
               <div className="space-y-4">
                 <div
                   className="flex items-center gap-2 transition-colors duration-300 ease-out"
-                  style={{ color: "#ef4444" }} // rose/red
+                  style={{ color: "#ef4444" }}
                 >
                   <AlertCircle size={18} />
                   <h3 className="font-bold text-sm">Reason for Rejection</h3>
@@ -1300,7 +1353,7 @@ const WellnessApplicationDetails = () => {
                       color: "var(--app-text)",
                       borderColor: remarks.trim()
                         ? borderColor
-                        : "rgba(239, 68, 68, 0.4)", // slightly faded red border if empty
+                        : "rgba(239, 68, 68, 0.4)",
                     }}
                   />
                 </div>
@@ -1309,8 +1362,15 @@ const WellnessApplicationDetails = () => {
           </div>
         </Modal>
 
-        {/* Added PDF Modal Component */}
+        {/* General Form PDF Modal */}
         <WellnessApplicationPdfModal
+          app={application}
+          isOpen={isPdfOpen}
+          onClose={() => setIsPdfOpen(false)}
+        />
+
+        {/* CSC Form 6 PDF Modal */}
+        <OrganicWellnessApplicationPdfModal
           app={application}
           isOpen={isCsc6PdfOpen}
           onClose={() => setIsCsc6PdfOpen(false)}
