@@ -47,6 +47,10 @@ import AddWellnessCreditForm from "./components/wellnessComponents/wellnessCredi
 import AddWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addWellnessApplicationForm";
 import AddOrganicWellnessApplicationForm from "./components/wellnessComponents/wellnessApplicationComponents/forms/addOrganicWellnessApplicationForm";
 
+/* Leave Credit Components */
+import LeaveCreditHistory from "./components/leaveComponents/leaveCreditComponents/recentLeaveCreditHistory";
+import AddLeaveCreditForm from "./components/leaveComponents/leaveCreditComponents/forms/addLeaveCreditForm";
+
 /* Organic Leave Components */
 import AddOrganicLeaveApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addOrganicLeaveForm";
 
@@ -295,6 +299,15 @@ function App() {
               path="wellness-credit/add"
               element={<AddWellnessCreditForm />}
             />
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="leave_credits.manage" />
+            }
+          >
+            <Route path="leave-credit" element={<LeaveCreditHistory />} />
+            <Route path="leave-credit/add" element={<AddLeaveCreditForm />} />
           </Route>
 
           <Route

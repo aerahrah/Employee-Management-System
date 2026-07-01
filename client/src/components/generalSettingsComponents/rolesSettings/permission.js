@@ -141,6 +141,11 @@ export const PERMISSION_GROUPS = [
         label: "Approver: Manage Assigned",
         hint: "Approve or reject assigned wellness applications.",
       },
+      {
+        id: "wellness.dashboard.self_view",
+        label: "Dashboard: Personal",
+        hint: "Access the personal wellness dashboard:",
+      },
     ],
   },
   {

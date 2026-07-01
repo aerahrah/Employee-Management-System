@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   Layers,
   AlertCircle,
+  HeartPulse, // Good icon for wellness leave
 } from "lucide-react";
 
 /* =========================
@@ -77,6 +78,16 @@ const safeCopy = async (text) => {
   } catch {
     return false;
   }
+};
+
+// Capitalize first letters of each word
+const formatName = (str) => {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 const toneStyle = (tone, resolvedTheme) => {
@@ -282,6 +293,7 @@ const EmployeeInformation = () => {
 
   const emp = data?.data;
 
+  console.log(emp);
   const onRetry = () =>
     queryClient.refetchQueries({ queryKey: ["employee", id] });
 
@@ -327,14 +339,14 @@ const EmployeeInformation = () => {
     .trim()
     .toUpperCase();
 
-  // ✅ Construct full name with titles and extension
+  // ✅ Construct full name with capitalization applied correctly
   const fullName = [
-    emp?.prefixTitle,
-    emp?.firstName,
-    emp?.middleName,
-    emp?.lastName,
-    emp?.nameExtension,
-    emp?.postfixTitle,
+    emp?.prefixTitle?.trim(),
+    formatName(emp?.firstName),
+    formatName(emp?.middleName),
+    formatName(emp?.lastName),
+    emp?.nameExtension?.trim(),
+    emp?.postfixTitle?.trim(),
   ]
     .filter(Boolean)
     .join(" ");
@@ -400,7 +412,7 @@ const EmployeeInformation = () => {
                           size={14}
                           style={{ color: "var(--app-muted)" }}
                         />
-                        {emp?.department || "-"}
+                        {emp?.division || emp?.department || "-"}
                       </span>
                       <span
                         className="hidden sm:inline transition-colors duration-300 ease-out"
@@ -432,7 +444,6 @@ const EmployeeInformation = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                {/* Redirect to the Edit Page when clicked */}
                 {canEditEmployee && (
                   <button
                     type="button"
@@ -497,10 +508,13 @@ const EmployeeInformation = () => {
                       title="Leave Balances"
                       borderColor={borderColor}
                     />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {/* ✅ Adjusted grid layout to accommodate 4 items */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* ✅ Fixed VL and SL balance bindings to match the schema names and updated units to Days */}
                       <MetricTile
                         label="Vacation Leave"
-                        value={emp?.balances?.vlHours}
+                        value={emp?.balances?.vlDays}
+                        unit="Days"
                         tone="blue"
                         icon={<Briefcase size={18} />}
                         borderColor={borderColor}
@@ -508,7 +522,8 @@ const EmployeeInformation = () => {
                       />
                       <MetricTile
                         label="Sick Leave"
-                        value={emp?.balances?.slHours}
+                        value={emp?.balances?.slDays}
+                        unit="Days"
                         tone="rose"
                         icon={<Clock size={18} />}
                         borderColor={borderColor}
@@ -517,8 +532,19 @@ const EmployeeInformation = () => {
                       <MetricTile
                         label="Compensatory"
                         value={emp?.balances?.ctoHours}
+                        unit="Hours"
                         tone="emerald"
                         icon={<Layers size={18} />}
+                        borderColor={borderColor}
+                        resolvedTheme={resolvedTheme}
+                      />
+                      {/* ✅ Added Wellness Leave Tile */}
+                      <MetricTile
+                        label="Wellness Leave"
+                        value={emp?.balances?.wellnessDays}
+                        unit="Days"
+                        tone="amber"
+                        icon={<HeartPulse size={18} />}
                         borderColor={borderColor}
                         resolvedTheme={resolvedTheme}
                       />
@@ -685,12 +711,12 @@ const EmployeeInformation = () => {
                 <div className="space-y-6">
                   <Card
                     title="Employment Details"
-                    subtitle="Department, position, and join date"
+                    subtitle="Division, position, and join date"
                     action={<MoreHorizontal size={16} />}
                     borderColor={borderColor}
                   >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                      <DataBlock label="Department" value={emp?.department} />
+                      <DataBlock label="Division" value={emp?.division} />
                       <DataBlock label="Position" value={emp?.position} />
 
                       <DataBlock
@@ -762,9 +788,11 @@ const TabButton = ({ active, onClick, label, icon, borderColor }) => (
   </button>
 );
 
+// ✅ Add `unit` prop (defaults to "Days" if not provided)
 const MetricTile = ({
   label,
   value,
+  unit = "Days",
   tone,
   icon,
   borderColor,
@@ -805,7 +833,7 @@ const MetricTile = ({
           className="text-xs mt-1 transition-colors duration-300 ease-out"
           style={{ color: "var(--app-muted)" }}
         >
-          Hours
+          {unit}
         </div>
       </div>
 
@@ -1093,7 +1121,14 @@ const EmployeeSkeleton = ({ borderColor, resolvedTheme }) => (
         </div>
 
         <div className="px-4 md:px-6 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div
+              className="h-28 rounded-2xl"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                border: `1px solid ${borderColor}`,
+              }}
+            />
             <div
               className="h-28 rounded-2xl"
               style={{

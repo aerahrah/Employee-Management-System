@@ -513,6 +513,8 @@ export default function WellnessLeavePdf({
   );
   const afdSignature = approvals.find((a) => a.role === "AFD Chief Signature");
   const hrSignature = approvals.find((a) => a.role === "HR Signature");
+  const ardSignature = approvals.find((a) => a.role === "ARD Signature");
+
   const rdSignature = approvals.find(
     (a) => a.role === "Regional Director Signature",
   );
@@ -715,7 +717,7 @@ export default function WellnessLeavePdf({
               Approved:
             </Text>
             <SlotSignatures
-              mainApprover={rdSignature}
+              mainApprover={rdSignature || ardSignature}
               initialApprovers={[afdSignature]}
               fallbackName=""
               fallbackRole={approvedLabel}

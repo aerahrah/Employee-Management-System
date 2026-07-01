@@ -156,12 +156,12 @@ const employeeSchema = new mongoose.Schema(
     },
 
     balances: {
-      vlHours: {
+      vlDays: {
         type: Number,
         default: 0,
       },
 
-      slHours: {
+      slDays: {
         type: Number,
         default: 0,
       },

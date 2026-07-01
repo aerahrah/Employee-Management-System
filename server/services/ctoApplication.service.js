@@ -523,13 +523,39 @@ const addCtoApplicationService = async ({
     const newApplication = new CtoApplication(applicationPayload);
 
     // 4. CREATE APPROVAL STEPS FIRST to get their IDs
+    const approverIds = finalApprovers.map((a) => a.approver);
+
+    const approverEmployees = await Employee.find({
+      _id: { $in: approverIds },
+    })
+      .select(
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position signature",
+      )
+      .lean();
+
+    const approverMap = new Map(
+      approverEmployees.map((emp) => [String(emp._id), emp]),
+    );
+
     const approvalSteps = finalApprovers.map((approverObj, index) => {
+      const approverData = approverMap.get(String(approverObj.approver));
+
       return new ApprovalStep({
         level: index + 1,
         approver: approverObj.approver,
         role: approverObj.role,
         status: "PENDING",
         ctoApplication: newApplication._id,
+
+        approverSnapshot: {
+          prefixTitle: approverData?.prefixTitle || "",
+          firstName: approverData?.firstName || "",
+          middleName: approverData?.middleName || "",
+          lastName: approverData?.lastName || "",
+          nameExtension: approverData?.nameExtension || "",
+          postfixTitle: approverData?.postfixTitle || "",
+          position: approverData?.position || "",
+        },
       });
     });
 

@@ -20,11 +20,11 @@ const {
 // =============================
 const preventPermissionEscalation = async (req, res, next) => {
   try {
-    const { permissions } = req.body;
-    const targetRoleId = req.params.id; // Grabs the ID if this is a PUT or DELETE request
+    const permissions = req.body?.permissions;
+    const targetRoleId = req.params.id;
 
-    // 1. Fetch the person making the request to see if they are a Master Admin
     const requesterRoleId = req.user?.role?._id || req.user?.role;
+
     if (!requesterRoleId) {
       return res.status(403).json({
         success: false,
@@ -33,36 +33,68 @@ const preventPermissionEscalation = async (req, res, next) => {
     }
 
     const requesterRole = await Role.findById(requesterRoleId).lean();
-    const requesterIsAdmin =
-      requesterRole && requesterRole.permissions.includes("*");
 
-    // 2. ESCALATION GUARD: Stop non-admins from granting the "*" permission
-    if (permissions && permissions.includes("*") && !requesterIsAdmin) {
+    if (!requesterRole) {
       return res.status(403).json({
         success: false,
-        message:
-          "Forbidden: You do not have permission to create or grant wildcard (*) access.",
+        message: "Role not found.",
       });
     }
 
-    // 3. MODIFICATION GUARD: Stop non-admins from editing or deleting an existing Admin role
+    const requesterIsAdmin = requesterRole.permissions?.includes("*");
+
+    // =====================================
+    // CREATE / UPDATE GUARD
+    // =====================================
+
+    if (
+      Array.isArray(permissions) &&
+      permissions.includes("*") &&
+      !requesterIsAdmin
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Forbidden: Only administrators can grant wildcard (*) access.",
+      });
+    }
+
+    // =====================================
+    // UPDATE / DELETE GUARD
+    // =====================================
+
     if (targetRoleId && !requesterIsAdmin) {
       const targetRole = await Role.findById(targetRoleId).lean();
 
-      // If the role they are trying to touch has "*", block them!
-      if (targetRole && targetRole.permissions.includes("*")) {
+      if (!targetRole) {
+        return res.status(404).json({
+          success: false,
+          message: "Role not found.",
+        });
+      }
+
+      // Cannot touch system roles
+      if (targetRole.isSystem) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: System roles cannot be modified or deleted.",
+        });
+      }
+
+      // Cannot touch wildcard admin roles
+      if (targetRole.permissions?.includes("*")) {
         return res.status(403).json({
           success: false,
           message:
-            "Forbidden: You do not have permission to modify or delete an Administrator role.",
+            "Forbidden: Administrator roles cannot be modified or deleted.",
         });
       }
     }
 
-    // Safe to proceed!
     next();
   } catch (error) {
     console.error("[PERMISSION ESCALATION GUARD] Error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Server error during permission validation.",

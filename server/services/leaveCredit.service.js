@@ -1,20 +1,20 @@
-// services/wellnessCredit.service.js
+// services/leaveCredit.service.js
 const mongoose = require("mongoose");
-const WellnessCredit = require("../models/wellnessCreditModel");
+const LeaveCredit = require("../models/leaveCreditModel");
 const Employee = require("../models/employeeModel");
 const NotificationService = require("./notificationService");
-
 const sendEmail = require("../utils/sendEmail");
+
 const {
-  wellnessCreditAddedEmail,
-  wellnessCreditRolledBackEmail,
+  leaveCreditAddedEmail,
+  leaveCreditRolledBackEmail,
 } = require("../utils/emailTemplates");
 
 const EMAIL_KEYS = require("../utils/emailNotificationKeys");
 const { isEmailEnabled } = require("../utils/emailNotificationSettings");
 
 // --- CONSTANTS & IMMUTABILITY ---
-const WELLNESS_CREDIT_STATUS = Object.freeze({
+const LEAVE_CREDIT_STATUS = Object.freeze({
   ACTIVE: "ACTIVE",
   CREDITED: "CREDITED",
   ROLLEDBACK: "ROLLEDBACK",
@@ -68,11 +68,10 @@ async function canSend(key) {
 
 async function addCredit({
   employees,
+  leaveType, // "VL" or "SL"
   days,
-  memoNo,
   dateApproved,
   userId,
-  filePath,
 }) {
   if (!Array.isArray(employees) || employees.length === 0) {
     throw createServiceError(
@@ -81,12 +80,10 @@ async function addCredit({
     );
   }
 
-  const safeMemoNo = sanitizeString(memoNo);
-  if (!safeMemoNo) {
-    throw createServiceError("memoNo is required.", 400);
+  if (!["VL", "SL"].includes(leaveType)) {
+    throw createServiceError("Invalid leaveType. Must be 'VL' or 'SL'.", 400);
   }
 
-  const safeFilePath = sanitizeString(filePath);
   assertObjectId(userId, "userId");
 
   const employeeIds = [...new Set(employees.map(String))];
@@ -102,34 +99,19 @@ async function addCredit({
     throw createServiceError("Invalid dateApproved format.", 400);
   }
 
-  // Determine time boundaries for the limits
-  const currentYear = approvedDate.getFullYear();
-  const currentMonth = approvedDate.getMonth(); // 0-11
-  const isFirstHalf = currentMonth < 6; // Jan-Jun is first half, Jul-Dec is second
-
-  const yearStart = new Date(currentYear, 0, 1);
-  const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-
-  const halfStart = new Date(currentYear, isFirstHalf ? 0 : 6, 1);
-  const halfEnd = new Date(
-    currentYear,
-    isFirstHalf ? 5 : 11,
-    isFirstHalf ? 30 : 31,
-    23,
-    59,
-    59,
-    999,
-  );
+  // NOTE: Ensure your Employee model has balances.vlDays / balances.slDays instead of hours
+  const balanceField =
+    leaveType === "VL" ? "balances.vlDays" : "balances.slDays";
 
   const session = await mongoose.startSession();
   try {
     let created;
 
     await session.withTransaction(async () => {
-      // 1. Fetch employees to determine their employment type
+      // 1. Fetch employees to verify they exist
       const employeeRecords = await Employee.find(
         { _id: { $in: employeeIds } },
-        "firstName lastName position employeeType",
+        "firstName lastName position",
       ).session(session);
 
       if (employeeRecords.length !== employeeIds.length) {
@@ -139,70 +121,26 @@ async function addCredit({
         );
       }
 
-      // 2. Validate Limits (5/year for Organic, 2/6-months for JO)
-      for (const emp of employeeRecords) {
-        const isJO = emp.employeeType === "Job Order";
-
-        const limit = isJO ? 2 : 5;
-        const startDate = isJO ? halfStart : yearStart;
-        const endDate = isJO ? halfEnd : yearEnd;
-
-        // Find existing valid credits in the applicable period
-        const existingCredits = await WellnessCredit.aggregate([
-          {
-            $match: {
-              dateApproved: { $gte: startDate, $lte: endDate },
-              status: { $ne: WELLNESS_CREDIT_STATUS.ROLLEDBACK },
-              "employees.employee": emp._id,
-            },
-          },
-          { $unwind: "$employees" },
-          {
-            $match: {
-              "employees.employee": emp._id,
-              "employees.status": { $ne: WELLNESS_CREDIT_STATUS.ROLLEDBACK },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              totalCredited: { $sum: "$employees.creditedDays" },
-            },
-          },
-        ]).session(session);
-
-        const currentCredited = existingCredits[0]?.totalCredited || 0;
-
-        if (currentCredited + creditedDays > limit) {
-          const periodString = isJO ? "this 6-month period" : "this year";
-          throw createServiceError(
-            `Cannot credit ${creditedDays} days to ${emp.firstName} ${emp.lastName}. They already have ${currentCredited} days for ${periodString} (Limit: ${limit}).`,
-            400,
-          );
-        }
-      }
-
-      // 3. Create the Credit Document
+      // 2. Create the Credit Document
       const employeeObjs = employeeIds.map((id) => ({
         employee: id,
         creditedDays: creditedDays,
         usedDays: 0,
         reservedDays: 0,
         remainingDays: creditedDays,
-        status: WELLNESS_CREDIT_STATUS.ACTIVE,
+        status: LEAVE_CREDIT_STATUS.ACTIVE,
         dateCredited: approvedDate,
       }));
 
-      const docs = await WellnessCredit.create(
+      const docs = await LeaveCredit.create(
         [
           {
-            memoNo: safeMemoNo,
+            leaveType: leaveType,
             dateApproved: approvedDate,
-            uploadedMemo: safeFilePath,
             days: creditedDays,
             employees: employeeObjs,
             creditedBy: userId,
-            status: WELLNESS_CREDIT_STATUS.CREDITED,
+            status: LEAVE_CREDIT_STATUS.CREDITED,
           },
         ],
         { session },
@@ -210,10 +148,10 @@ async function addCredit({
 
       created = docs[0];
 
-      // 4. Update Employee Balances
+      // 3. Update Employee Balances (Dynamically updates vlDays or slDays)
       await Employee.updateMany(
         { _id: { $in: employeeIds } },
-        { $inc: { "balances.wellnessDays": creditedDays } },
+        { $inc: { [balanceField]: creditedDays } },
         { session },
       );
     });
@@ -226,24 +164,22 @@ async function addCredit({
 
       await Promise.all(
         employeeIds.map((employeeId) =>
-          NotificationService.notifyEmployeeOnWellnessCredit({
+          NotificationService.notifyEmployeeOnLeaveCredit({
             employeeId,
             hrEmployee,
-            wellnessCredit: created,
+            leaveCredit: created,
             creditedDays: creditedDays,
+            leaveType,
           }),
         ),
       );
     } catch (e) {
-      console.error(
-        "Failed creating Wellness credit notifications:",
-        e?.message,
-      );
+      console.error("Failed creating Leave credit notifications:", e?.message);
     }
 
     // Email Notifications
     try {
-      const enabled = await canSend(EMAIL_KEYS.WELLNESS_CREDIT_ADDED);
+      const enabled = await canSend(EMAIL_KEYS.LEAVE_CREDIT_ADDED);
       if (enabled) {
         const recipients = await Employee.find({ _id: { $in: employeeIds } })
           .select("firstName lastName email")
@@ -253,10 +189,10 @@ async function addCredit({
           recipients.map(async (emp) => {
             if (!emp?.email) return;
 
-            const tpl = wellnessCreditAddedEmail({
+            const tpl = leaveCreditAddedEmail({
               employeeName:
                 `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-              memoNo: safeMemoNo,
+              leaveType,
               creditedDays: creditedDays,
               dateApproved: approvedDate,
             });
@@ -266,10 +202,7 @@ async function addCredit({
         );
       }
     } catch (e) {
-      console.error(
-        "Failed preparing Wellness credit added emails:",
-        e?.message,
-      );
+      console.error("Failed preparing Leave credit added emails:", e?.message);
     }
 
     return created;
@@ -287,67 +220,35 @@ async function rollbackCredit({ creditId, userId }) {
     let updated;
 
     await session.withTransaction(async () => {
-      const credit = await WellnessCredit.findById(creditId).session(session);
+      const credit = await LeaveCredit.findById(creditId).session(session);
       if (!credit) throw createServiceError("Credit request not found.", 404);
 
-      if (credit.status !== WELLNESS_CREDIT_STATUS.CREDITED) {
+      if (credit.status !== LEAVE_CREDIT_STATUS.CREDITED) {
         throw createServiceError(
           "This credit is not active or has already been rolled back.",
           400,
         );
       }
 
-      // 1. Check if days are explicitly marked as used/reserved in the credit doc itself (legacy protection)
       const hasUsedOrReserved = credit.employees.some(
         (e) => (e.usedDays || 0) > 0 || (e.reservedDays || 0) > 0,
       );
 
       if (hasUsedOrReserved) {
         throw createServiceError(
-          "Cannot rollback: Some employees have already used or reserved days directly tied to this credit.",
+          "Cannot rollback: Some employees have already used or reserved days from this credit.",
           400,
         );
       }
 
-      // ============================================================================
-      // ✅ NEW FEATURE: Mathematical Balance Check for Rollbacks
-      // Protects both pending and completed/approved leaves by ensuring the pool
-      // doesn't drop below zero.
-      // ============================================================================
-      const employeeIdsToCheck = credit.employees.map((e) => e.employee);
-
-      const employeeRecords = await Employee.find({
-        _id: { $in: employeeIdsToCheck },
-      })
-        .select("firstName lastName balances")
-        .session(session)
-        .lean();
-
-      const employeeMap = new Map(
-        employeeRecords.map((emp) => [emp._id.toString(), emp]),
-      );
-
-      for (const e of credit.employees) {
-        const empData = employeeMap.get(e.employee.toString());
-        if (!empData) continue; // Skip if employee was deleted
-
-        const currentBalance = empData.balances?.wellnessDays || 0;
-        const daysToRollback = e.creditedDays || 0;
-
-        if (currentBalance < daysToRollback) {
-          throw createServiceError(
-            `Cannot rollback: ${empData.firstName} ${empData.lastName} has already utilized some of these days (Current Balance: ${currentBalance}, Attempted Rollback: ${daysToRollback}). Rolling this back would result in a negative balance.`,
-            400,
-          );
-        }
-      }
-      // ============================================================================
+      const balanceField =
+        credit.leaveType === "VL" ? "balances.vlDays" : "balances.slDays";
 
       // Deduct balances from employees
       const ops = credit.employees.map((e) => ({
         updateOne: {
           filter: { _id: e.employee },
-          update: { $inc: { "balances.wellnessDays": -(e.creditedDays || 0) } },
+          update: { $inc: { [balanceField]: -(e.creditedDays || 0) } },
         },
       }));
 
@@ -358,13 +259,13 @@ async function rollbackCredit({ creditId, userId }) {
       // Mark each employee record as rolled back
       credit.employees = credit.employees.map((e) => ({
         ...e.toObject(),
-        status: WELLNESS_CREDIT_STATUS.ROLLEDBACK,
+        status: LEAVE_CREDIT_STATUS.ROLLEDBACK,
         remainingDays: 0,
         reservedDays: 0,
       }));
 
       // Mark credit document as rolled back
-      credit.status = WELLNESS_CREDIT_STATUS.ROLLEDBACK;
+      credit.status = LEAVE_CREDIT_STATUS.ROLLEDBACK;
       credit.dateRolledBack = new Date();
       credit.rolledBackBy = userId;
 
@@ -379,30 +280,29 @@ async function rollbackCredit({ creditId, userId }) {
 
       await Promise.all(
         (updated.employees || []).map((row) =>
-          NotificationService.notifyEmployeeOnWellnessRollback({
+          NotificationService.notifyEmployeeOnLeaveRollback({
             employeeId: row.employee,
             hrEmployee,
-            wellnessCredit: updated,
+            leaveCredit: updated,
             rolledBackDays: row.creditedDays || 0,
           }),
         ),
       );
     } catch (e) {
       console.error(
-        "Failed creating Wellness rollback notifications:",
+        "Failed creating Leave rollback notifications:",
         e?.message,
       );
     }
 
     // Email Notifications
     try {
-      const enabled = await canSend(EMAIL_KEYS.WELLNESS_CREDIT_ROLLED_BACK);
+      const enabled = await canSend(EMAIL_KEYS.LEAVE_CREDIT_ROLLED_BACK);
       if (enabled) {
-        const creditPopulated = await WellnessCredit.findById(updated._id)
+        const creditPopulated = await LeaveCredit.findById(updated._id)
           .populate("employees.employee", "firstName lastName email")
           .lean();
 
-        const memoNo = creditPopulated?.memoNo || "";
         const dateRolledBack = creditPopulated?.dateRolledBack || new Date();
 
         await Promise.all(
@@ -410,13 +310,13 @@ async function rollbackCredit({ creditId, userId }) {
             const emp = row?.employee;
             if (!emp?.email) return;
 
-            const tpl = wellnessCreditRolledBackEmail({
+            const tpl = leaveCreditRolledBackEmail({
               employeeName:
                 `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-              memoNo,
+              leaveType: creditPopulated.leaveType,
               rolledBackDays: row?.creditedDays || 0,
               dateRolledBack,
-              reason: "Credit memo rolled back by admin.",
+              reason: "Credit rolled back by admin.",
             });
 
             await safeSendEmail(emp.email, tpl.subject, tpl.html);
@@ -425,7 +325,7 @@ async function rollbackCredit({ creditId, userId }) {
       }
     } catch (e) {
       console.error(
-        "Failed preparing Wellness credit rollback emails:",
+        "Failed preparing Leave credit rollback emails:",
         e?.message,
       );
     }
@@ -448,6 +348,7 @@ async function getAllCredits({
 
   const query = {};
   if (filters.status) query.status = sanitizeString(filters.status);
+  if (filters.leaveType) query.leaveType = sanitizeString(filters.leaveType);
 
   const q = sanitizeString(search);
   if (q) {
@@ -464,16 +365,13 @@ async function getAllCredits({
 
     const employeeIds = employees.map((e) => e._id);
 
-    query.$or = [
-      { memoNo: { $regex: safe, $options: "i" } },
-      { "employees.employee": { $in: employeeIds } },
-    ];
+    query["employees.employee"] = { $in: employeeIds };
   }
 
   const [totalCount, items, totalCreditedCount, totalRolledBackCount] =
     await Promise.all([
-      WellnessCredit.countDocuments(query),
-      WellnessCredit.find(query)
+      LeaveCredit.countDocuments(query),
+      LeaveCredit.find(query)
         .populate("employees.employee", "firstName lastName position")
         .populate("rolledBackBy", "firstName lastName position role")
         .populate("creditedBy", "firstName lastName position role")
@@ -481,12 +379,8 @@ async function getAllCredits({
         .skip(skip)
         .limit(parsedLimit)
         .lean(),
-      WellnessCredit.countDocuments({
-        status: WELLNESS_CREDIT_STATUS.CREDITED,
-      }),
-      WellnessCredit.countDocuments({
-        status: WELLNESS_CREDIT_STATUS.ROLLEDBACK,
-      }),
+      LeaveCredit.countDocuments({ status: LEAVE_CREDIT_STATUS.CREDITED }),
+      LeaveCredit.countDocuments({ status: LEAVE_CREDIT_STATUS.ROLLEDBACK }),
     ]);
 
   return {
@@ -503,7 +397,7 @@ async function getEmployeeDetails(employeeId) {
   assertObjectId(employeeId, "employeeId");
 
   const employee = await Employee.findById(employeeId)
-    .select("firstName lastName position department email")
+    .select("firstName lastName position division email")
     .lean();
 
   if (!employee) throw createServiceError("Employee not found.", 404);
@@ -516,24 +410,34 @@ async function getEmployeeCredits(
   { search = "", filters = {}, page = 1, limit = 20 } = {},
 ) {
   assertObjectId(employeeId, "employeeId");
+
+  const employeeCheck = await Employee.findById(employeeId)
+    .select("_id")
+    .lean();
+  if (!employeeCheck) throw createServiceError("Employee not found.", 404);
+
   const employeeObjId = new mongoose.Types.ObjectId(employeeId);
 
   const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
   const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 20), 100);
   const skip = (parsedPage - 1) * parsedLimit;
 
-  const [totalsAgg] = await WellnessCredit.aggregate([
+  // Aggregate totals using days
+  const [totalsAgg] = await LeaveCredit.aggregate([
     {
       $match: {
         "employees.employee": employeeObjId,
-        status: { $ne: WELLNESS_CREDIT_STATUS.ROLLEDBACK },
+        status: { $ne: LEAVE_CREDIT_STATUS.ROLLEDBACK },
+        ...(filters.leaveType
+          ? { leaveType: sanitizeString(filters.leaveType) }
+          : {}),
       },
     },
     { $unwind: "$employees" },
     {
       $match: {
         "employees.employee": employeeObjId,
-        "employees.status": { $ne: WELLNESS_CREDIT_STATUS.ROLLEDBACK },
+        "employees.status": { $ne: LEAVE_CREDIT_STATUS.ROLLEDBACK },
       },
     },
     {
@@ -562,7 +466,6 @@ async function getEmployeeCredits(
     totalCreditedDays: totalsAgg?.totalCreditedDays ?? 0,
   };
 
-  const safeSearch = sanitizeSearch(search, 100);
   const listMatch = {
     employees: {
       $elemMatch: {
@@ -570,12 +473,14 @@ async function getEmployeeCredits(
         ...(filters.status ? { status: sanitizeString(filters.status) } : {}),
       },
     },
-    ...(safeSearch ? { memoNo: { $regex: safeSearch, $options: "i" } } : {}),
+    ...(filters.leaveType
+      ? { leaveType: sanitizeString(filters.leaveType) }
+      : {}),
   };
 
   const [totalCount, credits, statusAggregation] = await Promise.all([
-    WellnessCredit.countDocuments(listMatch),
-    WellnessCredit.find(listMatch)
+    LeaveCredit.countDocuments(listMatch),
+    LeaveCredit.find(listMatch)
       .populate("employees.employee", "firstName lastName position")
       .populate("rolledBackBy", "firstName lastName position role")
       .populate("creditedBy", "firstName lastName position role")
@@ -583,7 +488,7 @@ async function getEmployeeCredits(
       .skip(skip)
       .limit(parsedLimit)
       .lean(),
-    WellnessCredit.aggregate([
+    LeaveCredit.aggregate([
       { $match: { "employees.employee": employeeObjId } },
       { $unwind: "$employees" },
       { $match: { "employees.employee": employeeObjId } },
@@ -599,21 +504,20 @@ async function getEmployeeCredits(
     const creditStatus = String(credit?.status || "").toUpperCase();
     const empStatus = String(empData?.status || "").toUpperCase();
     const isRolledBack =
-      creditStatus === WELLNESS_CREDIT_STATUS.ROLLEDBACK ||
-      empStatus === WELLNESS_CREDIT_STATUS.ROLLEDBACK;
+      creditStatus === LEAVE_CREDIT_STATUS.ROLLEDBACK ||
+      empStatus === LEAVE_CREDIT_STATUS.ROLLEDBACK;
 
     return {
       _id: credit._id,
-      memoNo: credit.memoNo,
+      leaveType: credit.leaveType,
       dateApproved: credit.dateApproved,
-      uploadedMemo: credit.uploadedMemo,
       creditedDays: empData?.creditedDays ?? 0,
       days: credit.days,
       usedDays: empData?.usedDays || 0,
       reservedDays: isRolledBack ? 0 : empData?.reservedDays || 0,
       remainingDays: isRolledBack ? 0 : (empData?.remainingDays ?? 0),
       status: credit.status,
-      employeeStatus: empData?.status || WELLNESS_CREDIT_STATUS.ACTIVE,
+      employeeStatus: empData?.status || LEAVE_CREDIT_STATUS.ACTIVE,
       creditedBy: credit.creditedBy,
       rolledBackBy: credit.rolledBackBy,
     };

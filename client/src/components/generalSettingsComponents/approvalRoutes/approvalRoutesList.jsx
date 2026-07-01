@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import {
   fetchAllApprovalRoutes,
   upsertMyApprovalRoute,
-  fetchApprovalRoles, // ✅ Added dynamic fetch for roles
+  fetchApprovalRoles,
 } from "../../../api/approvalRoute";
 import { fetchApprovers } from "../../../api/cto";
 import {
@@ -115,13 +115,36 @@ const getNoticeToneStyles = (theme, tone = "neutral") => {
   return tones[tone] || tones.neutral;
 };
 
+// Format Full Name based on employee schema
+const formatFullName = (emp) => {
+  if (!emp) return "Unknown Approver";
+
+  const prefix = emp.prefixTitle ? `${emp.prefixTitle.trim()} ` : "";
+  const first = emp.firstName ? `${emp.firstName.trim()} ` : "";
+  const middleInitial = emp.middleName
+    ? `${emp.middleName.trim().charAt(0).toUpperCase()}. `
+    : "";
+  const last = emp.lastName ? `${emp.lastName.trim()}` : "";
+  const extension = emp.nameExtension ? ` ${emp.nameExtension.trim()}` : "";
+  const postfix = emp.postfixTitle ? `, ${emp.postfixTitle.trim()}` : "";
+
+  const fullName = `${prefix}${first}${middleInitial}${last}${extension}${postfix}`;
+  return fullName.trim() || "Unknown Approver";
+};
+
 /* =========================
    UI Primitives
 ========================= */
-const Card = ({ children, className = "", borderColor }) => (
+const Card = ({
+  children,
+  className = "",
+  borderColor,
+  overflowVisible = false,
+}) => (
   <div
     className={[
-      "rounded-xl shadow-sm overflow-hidden transition-colors duration-300 ease-out",
+      "rounded-xl shadow-sm transition-colors duration-300 ease-out",
+      overflowVisible ? "overflow-visible" : "overflow-hidden",
       className,
     ].join(" ")}
     style={{
@@ -271,17 +294,13 @@ const SkeletonLine = ({ width = "100%", height = 16, theme }) => (
 );
 
 const SkeletonRow = ({ theme }) => (
-  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 px-4 py-4 items-center">
-    <div className="col-span-1 lg:col-span-5">
-      <SkeletonLine height={20} theme={theme} />
-    </div>
-    <div className="col-span-1 lg:col-span-4 hidden lg:block">
-      <SkeletonLine height={20} theme={theme} />
-    </div>
-    <div className="col-span-1 lg:col-span-3 hidden lg:block">
-      <SkeletonLine height={20} theme={theme} />
-    </div>
-  </div>
+  <tr>
+    {[...Array(5)].map((_, j) => (
+      <td key={j} className="px-6 py-4">
+        <SkeletonLine height={20} theme={theme} />
+      </td>
+    ))}
+  </tr>
 );
 
 /* =========================
@@ -289,6 +308,7 @@ const SkeletonRow = ({ theme }) => (
 ========================= */
 const ActionMenu = ({ onEdit, onDelete, isBusy, borderColor }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState("bottom");
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -307,6 +327,25 @@ const ActionMenu = ({ onEdit, onDelete, isBusy, borderColor }) => {
     };
   }, []);
 
+  const toggleOpen = (e) => {
+    e.stopPropagation();
+    if (isBusy) return;
+
+    if (!isOpen) {
+      // Calculate remaining space below the button
+      const rect = e.currentTarget.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      // If there's less than 130px space below, pop the menu upwards
+      if (spaceBelow < 130) {
+        setMenuPos("top");
+      } else {
+        setMenuPos("bottom");
+      }
+    }
+    setIsOpen((o) => !o);
+  };
+
   const handle = (cb) => {
     cb?.();
     setIsOpen(false);
@@ -317,29 +356,23 @@ const ActionMenu = ({ onEdit, onDelete, isBusy, borderColor }) => {
       <button
         type="button"
         disabled={isBusy}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (isBusy) return;
-          setIsOpen((o) => !o);
-        }}
-        className="p-2 rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
-        style={{ color: "var(--app-muted)" }}
-        onMouseEnter={(e) => {
-          if (isBusy) return;
-          e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
-          e.currentTarget.style.color = "var(--app-text)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "transparent";
-          e.currentTarget.style.color = "var(--app-muted)";
+        onClick={toggleOpen}
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+        style={{
+          color: "var(--app-text)",
+          borderColor,
+          backgroundColor: "var(--app-surface)",
         }}
       >
-        <MoreVertical size={16} />
+        Actions
+        <MoreVertical size={14} />
       </button>
 
       {isOpen && (
         <div
-          className="absolute right-0 top-full mt-2 w-36 rounded-lg shadow-lg z-30 py-1 border transition-colors duration-300 ease-out"
+          className={`absolute right-0 w-36 rounded-lg shadow-lg z-50 py-1 border transition-colors duration-300 ease-out ${
+            menuPos === "top" ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
           style={{ backgroundColor: "var(--app-surface)", borderColor }}
         >
           <button
@@ -403,7 +436,7 @@ const StepCard = ({
   return (
     <Card
       borderColor={borderColor}
-      className="border-l-4 border-l-[color:var(--accent)]"
+      className="border-l-4 border-l-[color:var(--accent)] mb-3 last:mb-0"
     >
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -553,7 +586,6 @@ export default function ApprovalRoutesList() {
         myRoute.steps.map((s) => ({
           id: Math.random().toString(36).substr(2, 9),
           level: s.level,
-          // FIXED: Strictly cast to String to ensure equality checks work perfectly later
           approver: String(s.approver?._id || s.approver),
           role: s.role || "",
           isEnabled: s.isEnabled !== false,
@@ -570,7 +602,6 @@ export default function ApprovalRoutesList() {
   });
 
   const approverOptions = useMemo(() => {
-    // FIXED: Safely unwrap deeply nested data payloads returned by Axios/Backend
     const list = Array.isArray(approversRaw?.data?.data)
       ? approversRaw.data.data
       : Array.isArray(approversRaw?.data)
@@ -583,12 +614,12 @@ export default function ApprovalRoutesList() {
       .filter((emp) => emp?._id && (emp?.firstName || emp?.lastName))
       .map((emp) => ({
         value: String(emp._id),
-        label: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+        // ✅ Applied dynamic schema-based name formatting
+        label: formatFullName(emp),
         position: emp.position || emp.designation?.name || "Staff",
       }));
   }, [approversRaw]);
 
-  // ✅ Fetch Roles dynamically from backend
   const { data: rolesRaw, isLoading: rolesLoading } = useQuery({
     queryKey: ["approvalRoles"],
     queryFn: fetchApprovalRoles,
@@ -662,7 +693,6 @@ export default function ApprovalRoutesList() {
       const approver = approverOptions.find(
         (o) => o.value === String(step.approver),
       );
-      // ✅ Used normalizedRoles instead of hardcoded APPROVER_ROLES
       const role = normalizedRoles.find((r) => r.id === step.role);
       const hay = `${approver?.label} ${role?.label}`.toLowerCase();
       return hay.includes(q);
@@ -674,7 +704,6 @@ export default function ApprovalRoutesList() {
   }, [steps]);
 
   const isBusy = mutation.isPending;
-  // ✅ Included rolesLoading in overall loading state
   const isLoading = routesLoading || approversLoading || rolesLoading;
 
   return (
@@ -814,7 +843,11 @@ export default function ApprovalRoutesList() {
           </div>
 
           {/* Main List Area */}
-          <Card borderColor={borderColor} className="flex flex-col md:min-h-0">
+          <Card
+            borderColor={borderColor}
+            className="flex flex-col md:min-h-0"
+            overflowVisible={true}
+          >
             {/* Table Header / Toolbar */}
             <div
               className="px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors duration-300 ease-out"
@@ -865,7 +898,7 @@ export default function ApprovalRoutesList() {
             </div>
 
             {/* Data Content */}
-            <div className="w-full overflow-x-hidden lg:overflow-x-auto touch-pan-y">
+            <div className="w-full">
               {!isLoading && steps.length === 0 ? (
                 <div className="p-8">
                   <SoftNotice
@@ -886,156 +919,180 @@ export default function ApprovalRoutesList() {
                   No matching steps found for "{searchInput}".
                 </div>
               ) : (
-                <div className="flex flex-col w-full lg:min-w-[700px]">
-                  {/* Grid Header (Desktop only) */}
-                  <div
-                    className="grid grid-cols-12 gap-4 px-4 py-3 border-b text-[10px] uppercase font-bold tracking-wider transition-colors duration-300 ease-out hidden lg:grid"
-                    style={{
-                      backgroundColor: "var(--app-surface)",
-                      borderColor,
-                      color: "var(--app-muted)",
-                    }}
-                  >
-                    <div className="col-span-1 text-center">Level</div>
-                    <div className="col-span-5">Approver</div>
-                    <div className="col-span-4">Role Mapping</div>
-                    <div className="col-span-1 text-center">Status</div>
-                    <div className="col-span-1 text-right">Actions</div>
-                  </div>
-
-                  {/* List Rows */}
-                  <div
-                    className="transition-colors duration-300 ease-out"
-                    style={{ borderColor }}
-                  >
+                <>
+                  {/* Mobile/Tablet View */}
+                  <div className="block lg:hidden p-4">
                     {isLoading
                       ? [...Array(3)].map((_, i) => (
-                          <SkeletonRow key={i} theme={resolvedTheme} />
+                          <div key={i} className="mb-4">
+                            <SkeletonLine height={80} theme={resolvedTheme} />
+                          </div>
                         ))
-                      : filteredSteps.map((step, i) => {
+                      : filteredSteps.map((step) => {
                           const selectedApprover = approverOptions.find(
                             (o) => String(o.value) === String(step.approver),
                           );
-                          // ✅ Used normalizedRoles instead of hardcoded APPROVER_ROLES
                           const roleObj = normalizedRoles.find(
                             (r) => r.id === step.role,
                           );
-                          const rowBg =
-                            i % 2 === 0
-                              ? "var(--app-surface)"
-                              : "var(--app-surface-2)";
-
                           return (
-                            <React.Fragment key={step.id}>
-                              {/* Mobile Card */}
-                              <div
-                                className="block lg:hidden p-3 border-b last:border-b-0"
-                                style={{ borderColor }}
-                              >
-                                <StepCard
-                                  step={step}
-                                  selectedApprover={selectedApprover}
-                                  roleObj={roleObj}
-                                  isBusy={isBusy}
-                                  toggleStepEnabled={toggleStepEnabled}
-                                  removeStep={removeStep}
-                                  navigate={navigate}
-                                  borderColor={borderColor}
-                                  theme={resolvedTheme}
-                                />
-                              </div>
-
-                              {/* Desktop Row */}
-                              <div
-                                className="hidden lg:grid grid-cols-12 gap-4 px-4 py-3 items-center transition-colors duration-200 ease-out"
-                                style={{ backgroundColor: rowBg }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--accent-soft)";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = rowBg;
-                                }}
-                              >
-                                {/* Level */}
-                                <div className="col-span-1 flex justify-center">
-                                  <div
-                                    className="w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs border"
-                                    style={{
-                                      backgroundColor: "var(--app-surface)",
-                                      color: "var(--app-text)",
-                                      borderColor,
-                                    }}
-                                  >
-                                    {step.level}
-                                  </div>
-                                </div>
-
-                                {/* Approver Info */}
-                                <div className="col-span-5 flex flex-col min-w-0 pr-2">
-                                  <span
-                                    className="text-sm font-semibold truncate"
-                                    style={{ color: "var(--app-text)" }}
-                                  >
-                                    {selectedApprover?.label ||
-                                      "Unknown Approver"}
-                                  </span>
-                                  <span
-                                    className="text-[11px] truncate mt-0.5"
-                                    style={{ color: "var(--app-muted)" }}
-                                  >
-                                    {selectedApprover?.position || "N/A"}
-                                  </span>
-                                </div>
-
-                                {/* Role Mapping */}
-                                <div className="col-span-4">
-                                  <span
-                                    className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold border transition-colors duration-300"
-                                    style={{
-                                      backgroundColor:
-                                        resolvedTheme === "dark"
-                                          ? "rgba(34,197,94,0.12)"
-                                          : "rgba(34,197,94,0.08)",
-                                      color:
-                                        resolvedTheme === "dark"
-                                          ? "#86efac"
-                                          : "#15803d",
-                                      border: `1px solid ${resolvedTheme === "dark" ? "rgba(34,197,94,0.20)" : "rgba(34,197,94,0.16)"}`,
-                                    }}
-                                  >
-                                    {roleObj?.label || "Unmapped"}
-                                  </span>
-                                </div>
-
-                                {/* Status Toggle */}
-                                <div className="col-span-1 flex justify-center">
-                                  <Toggle
-                                    checked={step.isEnabled !== false}
-                                    disabled={isBusy}
-                                    onChange={() => toggleStepEnabled(step.id)}
-                                    borderColor={borderColor}
-                                    theme={resolvedTheme}
-                                  />
-                                </div>
-
-                                {/* Actions */}
-                                <div className="col-span-1 flex items-center justify-end">
-                                  <ActionMenu
-                                    onEdit={() =>
-                                      navigate(`step/${step.approver}`)
-                                    }
-                                    onDelete={() => removeStep(step.id)}
-                                    isBusy={isBusy}
-                                    borderColor={borderColor}
-                                  />
-                                </div>
-                              </div>
-                            </React.Fragment>
+                            <StepCard
+                              key={step.id}
+                              step={step}
+                              selectedApprover={selectedApprover}
+                              roleObj={roleObj}
+                              isBusy={isBusy}
+                              toggleStepEnabled={toggleStepEnabled}
+                              removeStep={removeStep}
+                              navigate={navigate}
+                              borderColor={borderColor}
+                              theme={resolvedTheme}
+                            />
                           );
                         })}
                   </div>
-                </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block w-full align-middle overflow-x-auto pb-4">
+                    <table className="w-full text-left">
+                      <thead
+                        className="sticky top-0 z-10 border-b transition-colors duration-300 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          borderColor: borderColor,
+                        }}
+                      >
+                        <tr
+                          className="text-[10px] uppercase tracking-[0.12em] font-bold"
+                          style={{ color: "var(--app-muted)" }}
+                        >
+                          <th className="px-6 py-4 text-center w-24">Level</th>
+                          <th className="px-6 py-4">Approver</th>
+                          <th className="px-6 py-4">Role Mapping</th>
+                          <th className="px-6 py-4 text-center">Status</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {isLoading
+                          ? [...Array(3)].map((_, i) => (
+                              <SkeletonRow key={i} theme={resolvedTheme} />
+                            ))
+                          : filteredSteps.map((step, i) => {
+                              const selectedApprover = approverOptions.find(
+                                (o) =>
+                                  String(o.value) === String(step.approver),
+                              );
+                              const roleObj = normalizedRoles.find(
+                                (r) => r.id === step.role,
+                              );
+
+                              // ✅ Alternate row background color logic
+                              const rowBg =
+                                i % 2 === 0
+                                  ? "var(--app-surface)"
+                                  : "var(--app-surface-2)";
+
+                              return (
+                                <tr
+                                  key={step.id}
+                                  className="transition-colors duration-200 ease-out"
+                                  style={{ backgroundColor: rowBg }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--accent-soft)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor =
+                                      rowBg;
+                                  }}
+                                >
+                                  <td className="px-6 py-4 text-center">
+                                    <div
+                                      className="w-7 h-7 mx-auto rounded-md flex items-center justify-center font-bold text-xs border transition-colors duration-300"
+                                      style={{
+                                        backgroundColor: "var(--app-surface)",
+                                        color: "var(--app-text)",
+                                        borderColor,
+                                      }}
+                                    >
+                                      {step.level}
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-col min-w-0 pr-2">
+                                      <span
+                                        className="text-sm font-semibold truncate transition-colors duration-300"
+                                        style={{ color: "var(--app-text)" }}
+                                      >
+                                        {selectedApprover?.label ||
+                                          "Unknown Approver"}
+                                      </span>
+                                      <span
+                                        className="text-[11px] truncate mt-0.5 transition-colors duration-300"
+                                        style={{ color: "var(--app-muted)" }}
+                                      >
+                                        {selectedApprover?.position || "N/A"}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-4">
+                                    <span
+                                      className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold border transition-colors duration-300"
+                                      style={{
+                                        backgroundColor:
+                                          resolvedTheme === "dark"
+                                            ? "rgba(34,197,94,0.12)"
+                                            : "rgba(34,197,94,0.08)",
+                                        color:
+                                          resolvedTheme === "dark"
+                                            ? "#86efac"
+                                            : "#15803d",
+                                        border: `1px solid ${
+                                          resolvedTheme === "dark"
+                                            ? "rgba(34,197,94,0.20)"
+                                            : "rgba(34,197,94,0.16)"
+                                        }`,
+                                      }}
+                                    >
+                                      {roleObj?.label || "Unmapped"}
+                                    </span>
+                                  </td>
+
+                                  <td className="px-6 py-4 text-center align-middle">
+                                    <div className="flex justify-center items-center">
+                                      <Toggle
+                                        checked={step.isEnabled !== false}
+                                        disabled={isBusy}
+                                        onChange={() =>
+                                          toggleStepEnabled(step.id)
+                                        }
+                                        borderColor={borderColor}
+                                        theme={resolvedTheme}
+                                      />
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-4 text-right">
+                                    <ActionMenu
+                                      onEdit={() =>
+                                        navigate(`step/${step.approver}`)
+                                      }
+                                      onDelete={() => removeStep(step.id)}
+                                      isBusy={isBusy}
+                                      borderColor={borderColor}
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </Card>

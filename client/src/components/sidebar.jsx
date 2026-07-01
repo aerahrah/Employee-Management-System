@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getEmployees } from "../api/employee";
-import { fetchDashboard, fetchPendingCtoCount } from "../api/cto"; // ✅ Imported fetchPendingCtoCount
+import { fetchDashboard, fetchPendingCtoCount } from "../api/cto";
 import { fetchPendingWellnessCount } from "../api/wellnessApplication";
 import { useAuth } from "../store/authStore";
 import { usePermissions } from "../hooks/usePermissions";
@@ -35,6 +35,7 @@ import {
   Route,
   Activity,
   Banknote,
+  BriefcaseMedical, // ✅ Added for Leave Service
 } from "lucide-react";
 
 /* =========================
@@ -121,16 +122,17 @@ const Sidebar = ({
     staleTime: 1000 * 60,
   });
 
-  // ✅ Updated logic to use the new ctoPendingData directly
   const ctoPendingCount = Number(ctoPendingData || 0);
   const wellnessPendingCount = Number(wellnessPendingData?.pending || 0);
 
   const [hoveredItem, setHoveredItem] = useState(null);
   const [popupCoords, setPopupCoords] = useState({ top: 0, left: 0 });
 
+  // ✅ Added "Leave Service" to default open menus
   const [openMenus, setOpenMenus] = useState({
     "CTO Service": true,
     "Wellness Service": true,
+    "Leave Service": true,
   });
 
   const safeNavigate = (path) => {
@@ -224,6 +226,19 @@ const Sidebar = ({
             icon: <UserCheck size={14} />,
             badge: wellnessPendingCount > 0 ? wellnessPendingCount : null,
             requiredPermission: "wellness.view_application",
+          },
+        ],
+      },
+      // ✅ Added Leave Service
+      {
+        name: "Leave Service",
+        icon: <BriefcaseMedical size={18} />,
+        subItems: [
+          {
+            name: "Credit Leave",
+            path: "/app/leave-credit",
+            icon: <CirclePlus size={14} />,
+            requiredPermission: "leave_credits.manage",
           },
         ],
       },

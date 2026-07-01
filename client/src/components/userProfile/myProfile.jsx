@@ -613,8 +613,6 @@ const MyProfile = () => {
   const projectName = profile.project?.name || "";
 
   // Check if employee is Organic
-  const isOrganic =
-    profile?.employeeType === "Organic" || profile?.contractType === "Organic";
 
   // ✅ SAFELY parse the signature URL to fix any Windows backward slashes
   const signaturePreview = profile?.signature
@@ -683,7 +681,7 @@ const MyProfile = () => {
 
           <div className="lg:col-span-8 space-y-6">
             {/* ✅ SECURED DIGITAL SIGNATURE DISPLAY (View-Only) */}
-            {isOrganic && canUploadSignature && (
+            {canUploadSignature && (
               <Section title="Digital Signature" borderColor={borderColor}>
                 <div className="flex flex-col md:flex-row gap-6 items-start">
                   <div className="w-full md:w-1/3 flex flex-col items-center gap-3">

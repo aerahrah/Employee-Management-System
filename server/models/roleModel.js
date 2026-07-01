@@ -47,7 +47,7 @@ const validPermissions = [
   // Wellness Approver Flow Permissions
   "wellness.view_application", // View specific wellness applications assigned for approval
   "wellness.manage_application", // Approve or reject assigned wellness applications
-
+  "wellness.dashboard.self_view",
   // -------------------------
   // SYSTEM & ADMIN HUBS
   // -------------------------

@@ -28,6 +28,7 @@ export const addCreditRequest = async (formData) => {
       headers: { "Content-Type": "multipart/form-data" },
       withCredentials: true,
     });
+    console.log(formData);
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to add credit request");

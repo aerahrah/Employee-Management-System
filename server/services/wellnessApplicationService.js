@@ -302,9 +302,23 @@ const addWellnessApplicationService = async ({
     await newApplication.save({ session });
 
     // ✅ Inject the role into the ApprovalStep
+    const approverProfiles = await Employee.find({
+      _id: { $in: finalApprovers.map((a) => a.approver) },
+    })
+      .select(
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
+      )
+      .session(session)
+      .lean();
+    const approverMap = new Map(
+      approverProfiles.map((a) => [String(a._id), a]),
+    );
+
     const approvalSteps = await Promise.all(
-      finalApprovers.map((approverObj, index) =>
-        ApprovalStep.create(
+      finalApprovers.map((approverObj, index) => {
+        const approverProfile = approverMap.get(String(approverObj.approver));
+
+        return ApprovalStep.create(
           [
             {
               level: index + 1,
@@ -312,11 +326,25 @@ const addWellnessApplicationService = async ({
               role: approverObj.role,
               status: "PENDING",
               wellnessApplication: newApplication._id,
+
+              approverSnapshot: {
+                prefixTitle: approverProfile?.prefixTitle || "",
+                firstName: approverProfile?.firstName || "",
+                middleName: approverProfile?.middleName || "",
+                lastName: approverProfile?.lastName || "",
+                nameExtension: approverProfile?.nameExtension || "",
+                postfixTitle: approverProfile?.postfixTitle || "",
+                position: approverProfile?.position || "",
+
+                // intentionally blank until approval
+                signatureUrl: null,
+                signedAt: null,
+              },
             },
           ],
           { session },
-        ).then((res) => res[0]),
-      ),
+        ).then((res) => res[0]);
+      }),
     );
 
     newApplication.approvals = approvalSteps.map((step) => step._id);

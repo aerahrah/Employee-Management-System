@@ -63,6 +63,18 @@ const CustomInput = (props) => {
   return <components.Input {...props} maxLength={100} />;
 };
 
+// ✅ Helper function to capitalize the first letter of each word
+const capitalizeName = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .split(" ")
+    .map((word) => {
+      if (!word) return "";
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+};
+
 const ApprovalRouteStepForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -116,7 +128,7 @@ const ApprovalRouteStepForm = () => {
     queryFn: fetchApprovers,
   });
 
-  // ✅ NEW: Fetch Dynamic Roles
+  // Fetch Dynamic Roles
   const { data: rolesRaw, isLoading: rolesLoading } = useQuery({
     queryKey: ["approvalRoles"],
     queryFn: fetchApprovalRoles,
@@ -181,25 +193,51 @@ const ApprovalRouteStepForm = () => {
           ? approversRaw
           : [];
 
-    return list
-      .filter((emp) => emp?._id && (emp?.firstName || emp?.lastName))
-      .map((emp) => {
-        const empId = String(emp._id);
+    return (
+      list
+        .filter((emp) => emp?._id && (emp?.firstName || emp?.lastName))
+        .map((emp) => {
+          const empId = String(emp._id);
 
-        // Prevent selecting someone who is already in another step
-        const isAlreadySelected = steps.some(
-          (s) => s.approver === empId && s.approver !== approverId,
-        );
+          // Prevent selecting someone who is already in another step
+          const isAlreadySelected = steps.some(
+            (s) => s.approver === empId && s.approver !== approverId,
+          );
 
-        return {
-          value: empId,
-          label: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-          email: emp.email || "",
-          position: emp.position || emp.designation?.name || "Staff",
-          isDisabled: isAlreadySelected,
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
+          // ✅ Format each part with capitalization
+          const prefix = capitalizeName(emp.prefix);
+          const firstName = capitalizeName(emp.firstName);
+          const lastName = capitalizeName(emp.lastName);
+          // Fallback for extension/suffix depending on backend key naming
+          const extension = capitalizeName(emp.extension || emp.suffix);
+
+          // Combine all available parts, filter out empties, and join with a space
+          const middleInitial = emp.middleName
+            ? `${emp.middleName.trim().charAt(0).toUpperCase()}.`
+            : "";
+
+          const fullName = [
+            prefix,
+            firstName,
+            middleInitial,
+            lastName,
+            extension,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+
+          return {
+            value: empId,
+            label: fullName,
+            email: emp.email || "",
+            position: emp.position || emp.designation?.name || "Staff",
+            isDisabled: isAlreadySelected,
+          };
+        })
+        // ✅ Automatically sorts alphabetically based on the newly formatted full name
+        .sort((a, b) => a.label.localeCompare(b.label))
+    );
   }, [approversRaw, steps, approverId]);
 
   const selectStyles = useMemo(
@@ -267,7 +305,7 @@ const ApprovalRouteStepForm = () => {
       return;
     }
 
-    // ✅ Enforce Role Uniqueness: Check if the role is already used in this workflow by someone else
+    // Enforce Role Uniqueness: Check if the role is already used in this workflow by someone else
     const isDuplicateRole = steps.some(
       (s) => s.role === modalData.role && s.approver !== approverId,
     );

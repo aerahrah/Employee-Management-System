@@ -38,6 +38,28 @@ const makeClientRequestId = () => {
   return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
 
+/* ------------------ Formatting Utility ------------------ */
+// Helper to capitalize the first letter of each word
+const capitalizeName = (str) => {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .replace(/(?:^|[\s-])\w/g, (match) => match.toUpperCase());
+};
+
+// Formats name as: "LastName NameExtension, FirstName MiddleName" (Alphabetical and Capitalized)
+const formatEmployeeName = (emp) => {
+  if (!emp) return "";
+
+  const firstName = emp.firstName || "";
+  const middleInitial = emp.middleName
+    ? ` ${emp.middleName.trim().charAt(0).toUpperCase()}.`
+    : "";
+  const lastName = emp.lastName ? ` ${emp.lastName}` : "";
+  const extension = emp.nameExtension ? ` ${emp.nameExtension}` : "";
+
+  return `${firstName}${middleInitial}${lastName}${extension}`.trim();
+};
 /* ------------------ Theme Resolvers ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
@@ -189,10 +211,13 @@ const AddCtoCreditForm = () => {
   }, [employeesData]);
 
   const employeeOptions = useMemo(() => {
-    return rawEmployees.map((emp) => ({
-      value: emp._id,
-      label: `${emp.firstName} ${emp.lastName}`.trim(),
+    const options = rawEmployees.map((emp) => ({
+      value: emp._id || emp.id,
+      label: formatEmployeeName(emp),
     }));
+
+    // Sort alphabetically by the generated label
+    return options.sort((a, b) => a.label.localeCompare(b.label));
   }, [rawEmployees]);
 
   // Quick Select Groups
@@ -204,7 +229,7 @@ const AddCtoCreditForm = () => {
           (!e.employeeType &&
             !/JO|Job Order|Contractual/i.test(e.position || "")),
       )
-      .map((e) => e._id);
+      .map((e) => e._id || e.id);
   }, [rawEmployees]);
 
   const joIds = useMemo(() => {
@@ -215,7 +240,7 @@ const AddCtoCreditForm = () => {
           (!e.employeeType &&
             /JO|Job Order|Contractual/i.test(e.position || "")),
       )
-      .map((e) => e._id);
+      .map((e) => e._id || e.id);
   }, [rawEmployees]);
 
   const handleChange = (e) => {
@@ -607,8 +632,13 @@ const AddCtoCreditForm = () => {
                     </div>
                   ) : (
                     formData.employees.map((empId) => {
-                      const emp = rawEmployees.find((e) => e._id === empId);
+                      const emp = rawEmployees.find(
+                        (e) => e._id === empId || e.id === empId,
+                      );
                       if (!emp) return null;
+
+                      const displayName = formatEmployeeName(emp);
+
                       return (
                         <div
                           key={empId}
@@ -621,7 +651,7 @@ const AddCtoCreditForm = () => {
                           }}
                         >
                           <span className="whitespace-nowrap">
-                            {emp.firstName} {emp.lastName}
+                            {displayName}
                           </span>
                           <button
                             type="button"
@@ -635,7 +665,7 @@ const AddCtoCreditForm = () => {
                             onMouseLeave={(e) =>
                               (e.currentTarget.style.color = "var(--accent)")
                             }
-                            aria-label={`Remove ${emp.firstName}`}
+                            aria-label={`Remove ${displayName}`}
                           >
                             <X size={14} />
                           </button>

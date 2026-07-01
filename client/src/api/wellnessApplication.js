@@ -231,6 +231,8 @@ export const fetchMyWellnessCredits = async (params = {}) => {
 export const fetchWellnessDashboard = async () => {
   try {
     const res = await API.get("/wellness/dashboard", withCreds());
+
+    console.log(res.data);
     return unwrap(res)?.data ?? unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave dashboard summary");

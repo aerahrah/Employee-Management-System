@@ -106,7 +106,7 @@ async function canSend(key) {
 ========================= */
 
 const getApproverOptionsService = async () => {
-  // Fetch employees and project the needed fields
+  // Fetch employees and project the explicitly needed fields
   const employees = await Employee.find(
     {},
     "_id prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeType",
@@ -396,17 +396,8 @@ const approveCtoApplicationService = async ({
         $set: {
           status: CTO_STATUS.APPROVED,
           reviewedAt: new Date(),
-          approverSnapshot: {
-            prefixTitle: approver.prefixTitle || "",
-            firstName: approver.firstName || "",
-            middleName: approver.middleName || "",
-            lastName: approver.lastName || "",
-            nameExtension: approver.nameExtension || "",
-            postfixTitle: approver.postfixTitle || "",
-            position: approver.position || "",
-            signatureUrl: approver.signature,
-            signedAt: new Date(),
-          },
+          "approverSnapshot.signatureUrl": approver.signature,
+          "approverSnapshot.signedAt": new Date(),
         },
       },
       { session, runValidators: true },
@@ -691,17 +682,8 @@ const rejectCtoApplicationService = async ({
           status: CTO_STATUS.REJECTED,
           remarks: safeRemarks,
           reviewedAt: new Date(),
-          approverSnapshot: {
-            prefixTitle: approver.prefixTitle || "",
-            firstName: approver.firstName || "",
-            middleName: approver.middleName || "",
-            lastName: approver.lastName || "",
-            nameExtension: approver.nameExtension || "",
-            postfixTitle: approver.postfixTitle || "",
-            position: approver.position || "",
-            signatureUrl: approver.signature,
-            signedAt: new Date(),
-          },
+          "approverSnapshot.signatureUrl": approver.signature,
+          "approverSnapshot.signedAt": new Date(),
         },
       },
       { session, runValidators: true },

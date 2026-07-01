@@ -1,21 +1,22 @@
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Select from "react-select";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
-import { addWellnessCreditRequest } from "../../../../api/wellnessApplication";
+// Ensure this path matches where your addLeaveCreditRequest is exported
+import { addLeaveCreditRequest } from "../../../../api/leaveCredit";
 import { fetchApprovers } from "../../../../api/cto";
 import Breadcrumbs from "../../../breadCrumbs";
 import { toast } from "react-toastify";
 import {
   CalendarDays,
   Users,
-  FileText,
   Calendar,
   X,
   AlertCircle,
+  BriefcaseMedical,
 } from "lucide-react";
 
 import { useAuth } from "../../../../store/authStore";
@@ -25,10 +26,11 @@ const todayISO = () => new Date().toISOString().split("T")[0];
 const isLikelyObjectId = (v) =>
   typeof v === "string" && /^[a-fA-F0-9]{24}$/.test(v);
 
-const clampInt = (value, min, max) => {
-  const n = Number(value);
+// Allow floats for VL/SL since standard PH accrual is 1.25 per month
+const clampFloat = (value, min, max) => {
+  const n = parseFloat(value);
   if (!Number.isFinite(n)) return min;
-  return Math.min(Math.max(Math.trunc(n), min), max);
+  return Math.min(Math.max(n, min), max);
 };
 
 // best effort UUID / idempotency key
@@ -141,7 +143,7 @@ const Banner = ({ tone = "error", message, borderColor }) => {
 };
 
 /* ------------------ Main Form Component ------------------ */
-const AddWellnessCreditForm = () => {
+const AddLeaveCreditForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -182,8 +184,8 @@ const AddWellnessCreditForm = () => {
   const initialState = useMemo(
     () => ({
       employees: [],
-      days: "",
-      memoNo: "",
+      leaveType: "VL", // Default to Vacation Leave
+      days: "1.25", // Default standard accrual per month
       dateApproved: "",
     }),
     [],
@@ -198,9 +200,9 @@ const AddWellnessCreditForm = () => {
     };
   }, []);
 
-  // Fetch Employees
+  // Fetch Employees (Approvers)
   const { data: employeesData, isLoading } = useQuery({
-    queryKey: ["wellnessCreditEmployees"],
+    queryKey: ["leaveCreditEmployees"],
     queryFn: fetchApprovers,
     staleTime: 0,
     refetchOnMount: "always",
@@ -208,15 +210,22 @@ const AddWellnessCreditForm = () => {
   });
 
   const mutation = useMutation({
-    mutationFn: addWellnessCreditRequest,
+    mutationFn: addLeaveCreditRequest,
     retry: 0,
   });
 
   const isBusy = mutation.isPending || submitLockUI || successLatchUI;
 
-  // Extract raw employees for filtering and display
+  // STRICTLY FILTER: Extract ONLY Organic employees for display and selection
   const rawEmployees = useMemo(() => {
-    return employeesData?.data?.data || employeesData?.data || [];
+    // Accounts for backend returning { success: true, count: X, data: [...] }
+    const allEmps = employeesData?.data?.data || employeesData?.data || [];
+    return allEmps.filter(
+      (e) =>
+        e.employeeType === "Organic" ||
+        (!e.employeeType &&
+          !/JO|Job Order|Contractual/i.test(e.position || "")),
+    );
   }, [employeesData]);
 
   const employeeOptions = useMemo(() => {
@@ -229,27 +238,9 @@ const AddWellnessCreditForm = () => {
     return options.sort((a, b) => a.label.localeCompare(b.label));
   }, [rawEmployees]);
 
-  // Quick Select Groups
+  // Quick Select Group - All Filtered Organic Personnel
   const organicIds = useMemo(() => {
-    return rawEmployees
-      .filter(
-        (e) =>
-          e.employeeType === "Organic" ||
-          (!e.employeeType &&
-            !/JO|Job Order|Contractual/i.test(e.position || "")),
-      )
-      .map((e) => e._id || e.id);
-  }, [rawEmployees]);
-
-  const joIds = useMemo(() => {
-    return rawEmployees
-      .filter(
-        (e) =>
-          e.employeeType === "JO" ||
-          (!e.employeeType &&
-            /JO|Job Order|Contractual/i.test(e.position || "")),
-      )
-      .map((e) => e._id || e.id);
+    return rawEmployees.map((e) => e._id || e.id);
   }, [rawEmployees]);
 
   // Handlers
@@ -260,10 +251,9 @@ const AddWellnessCreditForm = () => {
     if (isBusy) return;
 
     if (name === "days") {
-      const days = clampInt(value, 0, 365);
       setFormData((prev) => ({
         ...prev,
-        days: String(days),
+        days: value,
       }));
       return;
     }
@@ -301,7 +291,11 @@ const AddWellnessCreditForm = () => {
       return { ok: false, msg: "Please select at least one employee." };
     }
 
-    const days = clampInt(formData.days, 0, 365);
+    if (!["VL", "SL"].includes(formData.leaveType)) {
+      return { ok: false, msg: "Please select a valid Leave Type." };
+    }
+
+    const days = clampFloat(formData.days, 0, 365);
     if (days <= 0) {
       return {
         ok: false,
@@ -317,16 +311,8 @@ const AddWellnessCreditForm = () => {
       return { ok: false, msg: "Date approved cannot be in the future." };
     }
 
-    const memoNo = String(formData.memoNo || "")
-      .trim()
-      .slice(0, 100);
-
-    if (!memoNo) {
-      return { ok: false, msg: "Please enter the memo reference." };
-    }
-
     const payload = {
-      memoNo,
+      leaveType: formData.leaveType,
       dateApproved,
       employees,
       days,
@@ -361,9 +347,9 @@ const AddWellnessCreditForm = () => {
       successLatchRef.current = true;
       setSuccessLatchUI(true);
 
-      toast.success("Wellness credit added successfully!");
-      queryClient.invalidateQueries({ queryKey: ["wellnessCredits"] });
-      queryClient.invalidateQueries({ queryKey: ["allWellnessCredits"] });
+      toast.success("Leave credit added successfully!");
+      queryClient.invalidateQueries({ queryKey: ["leaveCredits"] });
+      queryClient.invalidateQueries({ queryKey: ["allLeaveCredits"] });
 
       setTimeout(() => {
         navigate(-1);
@@ -401,14 +387,14 @@ const AddWellnessCreditForm = () => {
             className="text-2xl md:text-3xl font-bold tracking-tight font-sans mt-2"
             style={{ color: "var(--app-text)" }}
           >
-            Add Wellness Credit
+            Add Leave Credit
           </h1>
           <p
             className="block text-sm mt-1 max-w-2xl"
             style={{ color: "var(--app-muted)" }}
           >
-            Issue new Wellness Leave credits to selected employees in your
-            organization.
+            Issue new Vacation Leave (VL) or Sick Leave (SL) credits to selected
+            Organic personnel in your organization.
           </p>
         </div>
 
@@ -434,7 +420,7 @@ const AddWellnessCreditForm = () => {
                   color: "var(--accent)",
                 }}
               >
-                <CalendarDays className="w-6 h-6" />
+                <BriefcaseMedical className="w-6 h-6" />
               </div>
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold truncate">
@@ -496,20 +482,7 @@ const AddWellnessCreditForm = () => {
                       borderColor: "rgba(16, 185, 129, 0.2)",
                     }}
                   >
-                    Organic ({organicIds.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectGroup(joIds)}
-                    disabled={isBusy || joIds.length === 0}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border disabled:opacity-50 transition-colors"
-                    style={{
-                      backgroundColor: "rgba(245, 158, 11, 0.1)",
-                      color: "#d97706",
-                      borderColor: "rgba(245, 158, 11, 0.2)",
-                    }}
-                  >
-                    Job Order ({joIds.length})
+                    Select All Organic ({organicIds.length})
                   </button>
                 </div>
 
@@ -535,7 +508,7 @@ const AddWellnessCreditForm = () => {
                         employees: selected ? selected.map((s) => s.value) : [],
                       }));
                     }}
-                    placeholder="Search and add employees..."
+                    placeholder="Search and add organic personnel..."
                     classNames={{
                       control: ({ isFocused }) =>
                         `min-h-[42px] rounded-lg border transition-colors duration-200 ${
@@ -663,8 +636,47 @@ const AddWellnessCreditForm = () => {
                 </div>
               </div>
 
-              {/* Input Grid: Days & Date Approved */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+              {/* Input Grid: Leave Type, Days & Date Approved */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
+                {/* Leave Type */}
+                <div className="space-y-2">
+                  <div
+                    className="flex items-center gap-2 text-sm font-medium"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-md flex items-center justify-center border"
+                      style={{
+                        backgroundColor: "var(--app-surface-2)",
+                        borderColor: borderColor,
+                        color: "var(--app-muted)",
+                      }}
+                    >
+                      <BriefcaseMedical className="w-4 h-4" />
+                    </div>
+                    Leave Type
+                  </div>
+
+                  <select
+                    name="leaveType"
+                    value={formData.leaveType}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out"
+                    style={{
+                      backgroundColor: isBusy
+                        ? "var(--app-surface-2)"
+                        : "var(--app-surface)",
+                      borderColor: borderColor,
+                      color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                    }}
+                  >
+                    <option value="VL">Vacation Leave (VL)</option>
+                    <option value="SL">Sick Leave (SL)</option>
+                  </select>
+                </div>
+
+                {/* Credited Days */}
                 <div className="space-y-2">
                   <div
                     className="flex items-center gap-2 text-sm font-medium"
@@ -686,8 +698,9 @@ const AddWellnessCreditForm = () => {
                   <input
                     type="number"
                     name="days"
-                    placeholder="e.g. 5"
-                    min={1}
+                    step="0.01"
+                    min={0.01}
+                    placeholder="e.g. 1.25"
                     value={formData.days}
                     onChange={handleChange}
                     disabled={isBusy}
@@ -702,6 +715,7 @@ const AddWellnessCreditForm = () => {
                   />
                 </div>
 
+                {/* Date Approved */}
                 <div className="space-y-2">
                   <div
                     className="flex items-center gap-2 text-sm font-medium"
@@ -737,44 +751,6 @@ const AddWellnessCreditForm = () => {
                     }}
                   />
                 </div>
-              </div>
-
-              {/* Memo Reference */}
-              <div className="space-y-2">
-                <div
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center border"
-                    style={{
-                      backgroundColor: "var(--app-surface-2)",
-                      borderColor: borderColor,
-                      color: "var(--app-muted)",
-                    }}
-                  >
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  Memo Reference
-                </div>
-
-                <input
-                  type="text"
-                  name="memoNo"
-                  value={formData.memoNo}
-                  onChange={handleChange}
-                  placeholder="Enter memo or reference number"
-                  maxLength={100}
-                  disabled={isBusy}
-                  className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-sm"
-                  style={{
-                    backgroundColor: isBusy
-                      ? "var(--app-surface-2)"
-                      : "var(--app-surface)",
-                    borderColor: borderColor,
-                    color: isBusy ? "var(--app-muted)" : "var(--app-text)",
-                  }}
-                />
               </div>
             </div>
 
@@ -834,4 +810,4 @@ const AddWellnessCreditForm = () => {
   );
 };
 
-export default AddWellnessCreditForm;
+export default AddLeaveCreditForm;

@@ -506,6 +506,7 @@ export default function CtoApplicationPdf({
   const afdInitial = approvals.find((a) => a.role === "AFD Chief Initial");
   const afdSignature = approvals.find((a) => a.role === "AFD Chief Signature");
   const hrSignature = approvals.find((a) => a.role === "HR Signature"); // ✅ Extracted HR Signature
+  const ardSignature = approvals.find((a) => a.role === "ARD Signature");
   const rdSignature = approvals.find(
     (a) => a.role === "Regional Director Signature",
   );
@@ -662,7 +663,7 @@ export default function CtoApplicationPdf({
               Approved:
             </Text>
             <SlotSignatures
-              mainApprover={rdSignature}
+              mainApprover={rdSignature || ardSignature}
               initialApprovers={[afdSignature]}
               fallbackName=""
               fallbackRole={approvedLabel}
