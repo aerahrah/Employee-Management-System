@@ -28,11 +28,8 @@ async function getSessionSettingsController(req, res) {
 async function updateSessionSettingsController(req, res) {
   try {
     const userId = req.user?.id || req.user?._id || null;
-
-    // ✅ service returns { before, after }
     const { before, after } = await updateSessionSettings(req.body, userId);
 
-    // ✅ expose to audit middleware (recommended pattern)
     res.locals.auditBefore = before;
     res.locals.auditAfter = after;
 
@@ -64,11 +61,8 @@ async function getWorkingDaysSettingsController(req, res) {
 async function updateWorkingDaysSettingsController(req, res) {
   try {
     const userId = req.user?.id || req.user?._id || null;
-
-    // ✅ service returns { before, after }
     const { before, after } = await updateWorkingDaysSettings(req.body, userId);
 
-    // ✅ expose to audit middleware
     res.locals.auditBefore = before;
     res.locals.auditAfter = after;
 
@@ -82,11 +76,8 @@ async function updateWorkingDaysSettingsController(req, res) {
 }
 
 module.exports = {
-  // session
   getSessionSettingsController,
   updateSessionSettingsController,
-
-  // working days
   getWorkingDaysSettingsController,
   updateWorkingDaysSettingsController,
 };

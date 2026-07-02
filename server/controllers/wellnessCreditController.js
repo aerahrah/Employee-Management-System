@@ -1,7 +1,5 @@
 // controllers/wellnessCreditController.js
 const wellnessCreditService = require("../services/wellnessCredit.service");
-const path = require("path");
-const fs = require("fs/promises");
 
 function getUserIdOrThrow(req) {
   const userId = req?.user?.id;
@@ -25,19 +23,6 @@ function parseJsonMaybe(value, fallback) {
   return value;
 }
 
-function safeDateStamp(dateApproved) {
-  const d = dateApproved ? new Date(dateApproved) : new Date();
-  const ok = !Number.isNaN(d.getTime()) ? d : new Date();
-  return ok.toISOString().slice(0, 10).replace(/-/g, "");
-}
-
-function cleanToken(s) {
-  return String(s ?? "")
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9_]/g, "");
-}
-
 function sendError(res, err) {
   const status = err.statusCode || err.status || 500;
   return res.status(status).json({ message: err.message || "Server error" });
@@ -47,7 +32,7 @@ const addWellnessCreditRequest = async (req, res) => {
   try {
     const userId = getUserIdOrThrow(req);
 
-    const { employees, days, memoNo, dateApproved } = req.body;
+    const { employees, days, dateApproved } = req.body;
 
     // robust parsing (supports form-data string OR JSON body)
     const employeesArray = parseJsonMaybe(employees, employees);
@@ -56,50 +41,11 @@ const addWellnessCreditRequest = async (req, res) => {
     req.body.employees = employeesArray;
     req.body.days = days;
 
-    if (!memoNo) {
-      return res.status(400).json({ message: "memoNo is required" });
-    }
-
-    let fileName = null; // just "xxx.pdf"
-    let filePath = null; // "/uploads/wellness_memos/xxx.pdf" (what we store)
-
-    // If a file was uploaded via multer
-    if (req.file?.path && req.file?.originalname) {
-      const extension = path.extname(req.file.originalname).toLowerCase();
-
-      // Allow only pdf/images
-      const allowed = new Set([".pdf", ".png", ".jpg", ".jpeg"]);
-      if (!allowed.has(extension)) {
-        await fs.unlink(req.file.path).catch(() => {});
-        return res
-          .status(400)
-          .json({ message: "Invalid file type. Upload PDF/JPG/PNG only." });
-      }
-
-      const cleanMemoNo = cleanToken(memoNo) || "memo";
-      const cleanDate = safeDateStamp(dateApproved);
-      const newFileName = `${cleanMemoNo}_${cleanDate}${extension}`;
-
-      const uploadDir = path.dirname(req.file.path);
-      const newAbsPath = path.join(uploadDir, newFileName);
-
-      try {
-        await fs.rename(req.file.path, newAbsPath);
-        fileName = newFileName;
-      } catch {
-        fileName = path.basename(req.file.path);
-      }
-
-      filePath = `/uploads/wellness_memos/${fileName}`;
-    }
-
     const creditRequest = await wellnessCreditService.addCredit({
       employees: employeesArray,
       days,
-      memoNo,
       dateApproved,
       userId,
-      filePath,
     });
 
     // ✅ BEST: provide DB doc for audit summary (days + employees objects)
@@ -124,7 +70,7 @@ const rollbackWellnessCreditRequest = async (req, res) => {
       userId,
     });
 
-    // ✅ provide updated doc to audit builder (has memoNo + employees + creditedDays)
+    // ✅ provide updated doc to audit builder (has employees + creditedDays)
     res.locals.auditAfter = credit;
 
     return res.json({

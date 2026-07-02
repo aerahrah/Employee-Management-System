@@ -136,8 +136,12 @@ const restoreMemoHours = async ({ employeeId, memoItems }) => {
     const appliedHours = strictNumber(m.appliedHours);
     if (appliedHours <= 0) continue;
 
+    // ✅ FIX: Use $elemMatch to ensure exact targeting during cancellation
     await CtoCredit.updateOne(
-      { _id: m.memoId, "employees.employee": employeeId },
+      {
+        _id: m.memoId,
+        employees: { $elemMatch: { employee: employeeId } },
+      },
       {
         $inc: {
           "employees.$.reservedHours": -appliedHours,
@@ -395,6 +399,7 @@ const addCtoApplicationService = async ({
     console.log(
       "[addCtoApplicationService] Beginning Memo Hours Deduction Loop...",
     );
+
     // 1. DEDUCT HOURS
     for (const input of sanitizedMemos) {
       const credit = credits.find(
@@ -428,18 +433,27 @@ const addCtoApplicationService = async ({
         );
       }
 
-      empCredit.reservedHours =
-        (empCredit.reservedHours || 0) + input.appliedHours;
-      empCredit.remainingHours = empCredit.remainingHours - input.appliedHours;
-      empCredit.status = empCredit.status || "ACTIVE";
-
+      // ✅ FIX: Use $elemMatch to ensure we target the EXACT employee subdocument
+      // that matches BOTH the employee ID and the remainingHours requirement.
       const updateResult = await CtoCredit.updateOne(
         {
           _id: credit._id,
-          "employees.employee": employee._id,
-          "employees.remainingHours": { $gte: input.appliedHours },
+          employees: {
+            $elemMatch: {
+              employee: employee._id,
+              remainingHours: { $gte: input.appliedHours },
+            },
+          },
         },
-        { $set: { "employees.$": empCredit } },
+        {
+          $inc: {
+            "employees.$.reservedHours": input.appliedHours,
+            "employees.$.remainingHours": -input.appliedHours,
+          },
+          $set: {
+            "employees.$.status": empCredit.status || "ACTIVE",
+          },
+        },
       );
 
       if (updateResult.modifiedCount === 0) {
@@ -503,20 +517,37 @@ const addCtoApplicationService = async ({
       commutation: commutation || "Not Requested",
     };
 
+    // ✅ ENFORCE CSC FORM 6 REQUIREMENTS ONLY FOR ORGANIC EMPLOYEES
     if (isOrganic) {
       applicationPayload.applicantSignatureUrl = employee.signature;
       applicationPayload.applicantSnapshot.salaryGrade = employee.salary?.grade;
       applicationPayload.applicantSnapshot.salaryAmount =
         employee.salary?.amount;
 
+      // Automatically save SL and VL days from the employee profile into certificationOfLeaveCredits
+      const currentVlDays = employee.balances?.vlDays || 0;
+      const currentSlDays = employee.balances?.slDays || 0;
+
+      applicationPayload.certificationOfLeaveCredits = {
+        ...(certificationOfLeaveCredits || {}),
+        asOfDate: certificationOfLeaveCredits?.asOfDate || new Date(),
+        vacationLeave: {
+          ...(certificationOfLeaveCredits?.vacationLeave || {}),
+          totalEarned: currentVlDays,
+          balance: currentVlDays,
+        },
+        sickLeave: {
+          ...(certificationOfLeaveCredits?.sickLeave || {}),
+          totalEarned: currentSlDays,
+          balance: currentSlDays,
+        },
+      };
+
       console.log(
-        `[addCtoApplicationService] Attached Organic fields: Signature, SG ${employee.salary?.grade}, Amount: ${employee.salary?.amount}`,
+        `[addCtoApplicationService] Attached Organic fields: Signature, SG ${employee.salary?.grade}, Amount: ${employee.salary?.amount}, Leave Credits (VL: ${currentVlDays}, SL: ${currentSlDays})`,
       );
     }
 
-    if (certificationOfLeaveCredits)
-      applicationPayload.certificationOfLeaveCredits =
-        certificationOfLeaveCredits;
     if (actionDetails) applicationPayload.actionDetails = actionDetails;
 
     // 3. INSTANTIATE (DO NOT SAVE YET)
@@ -650,8 +681,12 @@ const addCtoApplicationService = async ({
 
     for (const action of rollbackActions) {
       try {
+        // ✅ FIX: Also updated the error rollback to strictly target via $elemMatch
         await CtoCredit.updateOne(
-          { _id: action.memoId, "employees.employee": employee._id },
+          {
+            _id: action.memoId,
+            employees: { $elemMatch: { employee: employee._id } },
+          },
           {
             $inc: {
               "employees.$.reservedHours": -action.appliedHours,
@@ -775,7 +810,7 @@ const getAllCtoApplicationsService = async (
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
-        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl applicantSnapshot",
+        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl applicantSnapshot certificationOfLeaveCredits",
       )
       .populate({
         path: "approvals",

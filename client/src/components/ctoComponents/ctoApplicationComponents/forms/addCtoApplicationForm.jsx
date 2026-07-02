@@ -35,21 +35,27 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-const isWeekendISO = (iso) => {
+// ✅ UPDATED: Dynamic non-working day checker
+const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
-  return day === 0 || day === 6;
+  return !activeWorkingDays.includes(day);
 };
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 
-const requiredDaysFromHours = (hours) => {
+// ✅ UPDATED: Dynamic hours calculation
+const requiredDaysFromHours = (hours, hoursPerDay = 8) => {
   const h = Number(hours || 0);
   if (!Number.isFinite(h) || h <= 0) return 0;
-  return Math.ceil(h / 8);
+  return Math.ceil(h / hoursPerDay);
 };
 
-const getMinSelectableDateISO = (leadTimeDays = 5) => {
+// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
+const getMinSelectableDateISO = (
+  leadTimeDays = 5,
+  activeWorkingDays = [1, 2, 3, 4, 5],
+) => {
   const lead = Number(leadTimeDays);
   const date = new Date();
 
@@ -62,12 +68,13 @@ const getMinSelectableDateISO = (leadTimeDays = 5) => {
   while (count < lead) {
     date.setDate(date.getDate() + 1);
     const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
+    if (activeWorkingDays.includes(day)) count++;
   }
 
   date.setDate(date.getDate() + 1);
 
-  while (date.getDay() === 0 || date.getDay() === 6) {
+  // Skip ahead if we landed on a non-working day
+  while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
 
@@ -122,12 +129,15 @@ function useResolvedTheme(prefTheme) {
   return theme;
 }
 
+// ✅ UPDATED: Pass dynamic HR settings to validation
 const validateDate = ({
   value,
   requestedHours,
   inclusiveDates,
   minDate,
   leadTimeMsg,
+  activeWorkingDays,
+  hoursPerDay,
 }) => {
   if (!value) return "";
   if (!isFullISODate(value)) return "";
@@ -135,10 +145,13 @@ const validateDate = ({
   const rh = Number(requestedHours || 0);
   if (!rh || rh <= 0) return "Please enter requested hours first.";
   if (value < minDate) return leadTimeMsg;
-  if (isWeekendISO(value)) return "Please select a working day (Mon–Fri).";
+
+  if (isNonWorkingDay(value, activeWorkingDays))
+    return "Please select a valid scheduled working day.";
+
   if (inclusiveDates.includes(value)) return "That date is already selected.";
 
-  const requiredDays = requiredDaysFromHours(rh);
+  const requiredDays = requiredDaysFromHours(rh, hoursPerDay);
   if (requiredDays > 0 && inclusiveDates.length >= requiredDays) {
     return `You must select exactly ${requiredDays} day(s) for ${rh} hours.`;
   }
@@ -282,6 +295,10 @@ const AddCtoApplicationForm = () => {
 
   const workingDoc = workingDaysRes?.data;
 
+  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
+  const hoursPerDay = workingDoc?.hoursPerDay || 8;
+  const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
+
   const leadTimeDays = useMemo(() => {
     const enabled =
       typeof workingDoc?.workingDaysEnable === "boolean"
@@ -292,9 +309,10 @@ const AddCtoApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
+  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
-    () => getMinSelectableDateISO(leadTimeDays),
-    [leadTimeDays],
+    () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
+    [leadTimeDays, activeWorkingDays],
   );
 
   useEffect(() => {
@@ -341,7 +359,6 @@ const AddCtoApplicationForm = () => {
     setMaxRequestedHours(totalRemaining);
   }, [validMemos]);
 
-  // ✅ Extract user's specific route
   const myRoute = useMemo(() => {
     if (!routesResponse || !Array.isArray(routesResponse)) return null;
     return routesResponse.find(
@@ -351,11 +368,9 @@ const AddCtoApplicationForm = () => {
     );
   }, [routesResponse, admin]);
 
-  // ✅ Determine if the route is valid and has at least one active approver
   const hasValidApprovalRoute = useMemo(() => {
     if (!myRoute) return false;
     if (!myRoute.steps || myRoute.steps.length === 0) return false;
-    // Must have at least one step that isn't explicitly disabled AND has an approver
     return myRoute.steps.some(
       (step) => step.isEnabled !== false && step.approver,
     );
@@ -373,9 +388,10 @@ const AddCtoApplicationForm = () => {
     return `Applications must be filed at least ${leadTimeDays} working day(s) in advance.`;
   }, [leadTimeDays]);
 
+  // ✅ Pass hoursPerDay
   const requiredDays = useMemo(
-    () => requiredDaysFromHours(formData.requestedHours),
-    [formData.requestedHours],
+    () => requiredDaysFromHours(formData.requestedHours, hoursPerDay),
+    [formData.requestedHours, hoursPerDay],
   );
 
   useEffect(() => {
@@ -403,12 +419,15 @@ const AddCtoApplicationForm = () => {
   }, [requiredDays]);
 
   useEffect(() => {
+    // ✅ Pass dynamic variables
     const err = validateDate({
       value: dateValue,
       requestedHours: formData.requestedHours,
       inclusiveDates: formData.inclusiveDates,
       minDate,
       leadTimeMsg,
+      activeWorkingDays,
+      hoursPerDay,
     });
     setDateError(err);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -418,6 +437,8 @@ const AddCtoApplicationForm = () => {
     formData.inclusiveDates,
     minDate,
     leadTimeMsg,
+    activeWorkingDays,
+    hoursPerDay,
   ]);
 
   const allocateMemosForHours = useCallback(
@@ -504,12 +525,15 @@ const AddCtoApplicationForm = () => {
     const v = e.target.value;
     setDateValue(v);
 
+    // ✅ Pass dynamic variables
     const err = validateDate({
       value: v,
       requestedHours: formData.requestedHours,
       inclusiveDates: formData.inclusiveDates,
       minDate,
       leadTimeMsg,
+      activeWorkingDays,
+      hoursPerDay,
     });
 
     setDateError(err);
@@ -520,12 +544,15 @@ const AddCtoApplicationForm = () => {
     const v = e.target.value;
     setDateValue(v);
 
+    // ✅ Pass dynamic variables
     const err = validateDate({
       value: v,
       requestedHours: formData.requestedHours,
       inclusiveDates: formData.inclusiveDates,
       minDate,
       leadTimeMsg,
+      activeWorkingDays,
+      hoursPerDay,
     });
 
     setDateError(err);
@@ -538,7 +565,8 @@ const AddCtoApplicationForm = () => {
     if (err) return;
 
     const rh = Number(formData.requestedHours || 0);
-    const reqDays = requiredDaysFromHours(rh);
+    // ✅ Use dynamic hours
+    const reqDays = requiredDaysFromHours(rh, hoursPerDay);
 
     if (reqDays > 0 && formData.inclusiveDates.length >= reqDays) {
       setDateError(
@@ -599,19 +627,19 @@ const AddCtoApplicationForm = () => {
       routeId: yup
         .string()
         .required("Please select an approval route.")
-        // ✅ Added validation test to block form if no active approvers exist
         .test(
           "has-active-steps",
           "Your approval workflow has no active approvers. Please enable them in your settings.",
           () => hasValidApprovalRoute,
         ),
-      employeeType: yup.string().optional(), // ✅ Accept employeeType in validation
+      employeeType: yup.string().optional(),
       inclusiveDates: yup
         .array()
         .of(yup.string())
         .test("required-days-match", function (dates) {
           const reqHours = this.parent.requestedHours;
-          const reqDays = requiredDaysFromHours(reqHours);
+          // ✅ Pass dynamic hours to Yup validation
+          const reqDays = requiredDaysFromHours(reqHours, hoursPerDay);
           if (reqDays <= 0)
             return this.createError({
               message: "Please enter requested hours.",
@@ -629,10 +657,12 @@ const AddCtoApplicationForm = () => {
         })
         .test(
           "no-weekends",
-          "One or more selected dates are not working days (Mon–Fri).",
+          // ✅ Generic error message instead of Mon-Fri
+          "One or more selected dates fall on a non-working day.",
           (dates) => {
             if (!dates) return true;
-            return !dates.some((d) => isWeekendISO(d));
+            // ✅ Check against dynamic active working days
+            return !dates.some((d) => isNonWorkingDay(d, activeWorkingDays));
           },
         ),
       memos: yup
@@ -657,7 +687,9 @@ const AddCtoApplicationForm = () => {
     workingDaysLoading,
     minDate,
     leadTimeMsg,
-    hasValidApprovalRoute, // ✅ Dependency added
+    hasValidApprovalRoute,
+    hoursPerDay, // ✅ Added dependencies to recalculate schema when settings change
+    activeWorkingDays, // ✅ Added dependencies
   ]);
 
   const startSubmit = async () => {
@@ -1233,7 +1265,6 @@ const AddCtoApplicationForm = () => {
                   {isRoutesLoading ? (
                     <Skeleton height={40} borderRadius={8} count={2} />
                   ) : !hasValidApprovalRoute ? (
-                    // ✅ UI warning if no valid route or all approvers are disabled
                     <div
                       className="p-3 rounded-lg border flex items-start sm:items-center gap-2 text-xs font-medium transition-colors duration-300 ease-out"
                       style={{
@@ -1333,7 +1364,6 @@ const AddCtoApplicationForm = () => {
 
               <button
                 type="submit"
-                // ✅ Disabled submit if the route is invalid
                 disabled={
                   isBusy ||
                   (workingDaysLoading && !workingDaysIsError) ||

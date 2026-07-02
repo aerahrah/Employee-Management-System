@@ -9,14 +9,7 @@ import { addWellnessCreditRequest } from "../../../../api/wellnessApplication";
 import { fetchApprovers } from "../../../../api/cto";
 import Breadcrumbs from "../../../breadCrumbs";
 import { toast } from "react-toastify";
-import {
-  CalendarDays,
-  Users,
-  FileText,
-  Calendar,
-  X,
-  AlertCircle,
-} from "lucide-react";
+import { CalendarDays, Users, Calendar, X, AlertCircle } from "lucide-react";
 
 import { useAuth } from "../../../../store/authStore";
 
@@ -183,7 +176,6 @@ const AddWellnessCreditForm = () => {
     () => ({
       employees: [],
       days: "",
-      memoNo: "",
       dateApproved: "",
     }),
     [],
@@ -317,16 +309,7 @@ const AddWellnessCreditForm = () => {
       return { ok: false, msg: "Date approved cannot be in the future." };
     }
 
-    const memoNo = String(formData.memoNo || "")
-      .trim()
-      .slice(0, 100);
-
-    if (!memoNo) {
-      return { ok: false, msg: "Please enter the memo reference." };
-    }
-
     const payload = {
-      memoNo,
       dateApproved,
       employees,
       days,
@@ -737,44 +720,6 @@ const AddWellnessCreditForm = () => {
                     }}
                   />
                 </div>
-              </div>
-
-              {/* Memo Reference */}
-              <div className="space-y-2">
-                <div
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center border"
-                    style={{
-                      backgroundColor: "var(--app-surface-2)",
-                      borderColor: borderColor,
-                      color: "var(--app-muted)",
-                    }}
-                  >
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  Memo Reference
-                </div>
-
-                <input
-                  type="text"
-                  name="memoNo"
-                  value={formData.memoNo}
-                  onChange={handleChange}
-                  placeholder="Enter memo or reference number"
-                  maxLength={100}
-                  disabled={isBusy}
-                  className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-sm"
-                  style={{
-                    backgroundColor: isBusy
-                      ? "var(--app-surface-2)"
-                      : "var(--app-surface)",
-                    borderColor: borderColor,
-                    color: isBusy ? "var(--app-muted)" : "var(--app-text)",
-                  }}
-                />
               </div>
             </div>
 

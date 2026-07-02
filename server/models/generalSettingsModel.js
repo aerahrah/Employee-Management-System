@@ -1,13 +1,14 @@
+// models/GeneralSetting.js
 const mongoose = require("mongoose");
 
 const generalSettingSchema = new mongoose.Schema(
   {
+    // --- SESSION SETTINGS ---
     sessionTimeoutEnabled: {
       type: Boolean,
       required: true,
       default: true,
     },
-
     sessionTimeoutMinutes: {
       type: Number,
       required: true,
@@ -16,18 +17,43 @@ const generalSettingSchema = new mongoose.Schema(
       max: 60 * 24 * 30, // up to 30 days
     },
 
+    // --- LEAD TIME SETTINGS (Unchanged) ---
     workingDaysEnable: {
       type: Boolean,
       required: true,
       default: true,
     },
-
     workingDaysValue: {
       type: Number,
       required: true,
       default: 5,
       min: 1,
       max: 7,
+    },
+
+    // --- WORK SCHEDULE SETTINGS (New) ---
+    hoursPerDay: {
+      type: Number,
+      required: true,
+      default: 8,
+      min: 1,
+      max: 24, // Prevents impossible hour configurations
+    },
+    activeWorkingDays: {
+      type: [Number], // 0 = Sun, 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri, 6 = Sat
+      required: true,
+      default: [1, 2, 3, 4, 5], // Defaults to Monday-Friday
+      validate: {
+        validator: function (arr) {
+          // Ensure it's an array, not empty, and all numbers are between 0 and 6
+          return (
+            Array.isArray(arr) &&
+            arr.length > 0 &&
+            arr.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+          );
+        },
+        message: "activeWorkingDays must contain valid days of the week (0-6).",
+      },
     },
   },
   { timestamps: true },

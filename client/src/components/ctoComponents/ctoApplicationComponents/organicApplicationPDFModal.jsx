@@ -7,6 +7,7 @@ import { X } from "lucide-react"; // Import the close icon
 const OrganicApplicationPdfModal = ({ app, isOpen, onClose }) => {
   if (!isOpen || !app) return null;
 
+  console.log(app);
   return (
     <Modal
       isOpen={isOpen}

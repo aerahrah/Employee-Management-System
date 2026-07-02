@@ -31,15 +31,20 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-const isWeekendISO = (iso) => {
+// ✅ UPDATED: Dynamic non-working day checker
+const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
-  return day === 0 || day === 6;
+  return !activeWorkingDays.includes(day);
 };
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 
-const getMinSelectableDateISO = (leadTimeDays = 5) => {
+// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
+const getMinSelectableDateISO = (
+  leadTimeDays = 5,
+  activeWorkingDays = [1, 2, 3, 4, 5],
+) => {
   const lead = Number(leadTimeDays);
   const date = new Date();
 
@@ -52,10 +57,13 @@ const getMinSelectableDateISO = (leadTimeDays = 5) => {
   while (count < lead) {
     date.setDate(date.getDate() + 1);
     const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
+    if (activeWorkingDays.includes(day)) count++;
   }
+
   date.setDate(date.getDate() + 1);
-  while (date.getDay() === 0 || date.getDay() === 6) {
+
+  // Skip ahead if we landed on a non-working day
+  while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
 
@@ -268,6 +276,10 @@ const AddOrganicCtoApplicationForm = () => {
 
   const workingDoc = workingDaysRes?.data;
 
+  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
+  const hoursPerDay = workingDoc?.hoursPerDay || 8;
+  const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
+
   const leadTimeDays = useMemo(() => {
     const enabled =
       typeof workingDoc?.workingDaysEnable === "boolean"
@@ -277,9 +289,10 @@ const AddOrganicCtoApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
+  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
-    () => getMinSelectableDateISO(leadTimeDays),
-    [leadTimeDays],
+    () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
+    [leadTimeDays, activeWorkingDays],
   );
 
   useEffect(() => {
@@ -358,9 +371,10 @@ const AddOrganicCtoApplicationForm = () => {
     return `Applications must be filed at least ${leadTimeDays} working day(s) in advance.`;
   }, [leadTimeDays]);
 
+  // ✅ Pass dynamic hours
   const requiredDays = useMemo(() => {
-    return Math.ceil(Number(formData.requestedHours || 0) / 8);
-  }, [formData.requestedHours]);
+    return Math.ceil(Number(formData.requestedHours || 0) / hoursPerDay);
+  }, [formData.requestedHours, hoursPerDay]);
 
   useEffect(() => {
     if (!formData.inclusiveDates?.length) return;
@@ -384,6 +398,7 @@ const AddOrganicCtoApplicationForm = () => {
     );
   }, [requiredDays]);
 
+  // ✅ Update Validation Logic Context
   const validateDateLogic = useCallback(
     (value) => {
       if (!value) return "";
@@ -393,7 +408,8 @@ const AddOrganicCtoApplicationForm = () => {
       if (!rh || rh <= 0) return "Please enter requested hours first.";
 
       if (value < minDate) return leadTimeMsg;
-      if (isWeekendISO(value)) return "Please select a working day (Mon–Fri).";
+      if (isNonWorkingDay(value, activeWorkingDays))
+        return "Please select a valid scheduled working day.";
       if (formData.inclusiveDates.includes(value))
         return "That date is already selected.";
 
@@ -408,6 +424,7 @@ const AddOrganicCtoApplicationForm = () => {
       minDate,
       leadTimeMsg,
       requiredDays,
+      activeWorkingDays,
     ],
   );
 
@@ -531,6 +548,7 @@ const AddOrganicCtoApplicationForm = () => {
     }));
   };
 
+  // ✅ Updated Schema constraints
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       requestedHours: yup
@@ -571,7 +589,7 @@ const AddOrganicCtoApplicationForm = () => {
         .of(yup.string())
         .test("required-days-match", function (dates) {
           const reqDays = Math.ceil(
-            Number(this.parent.requestedHours || 0) / 8,
+            Number(this.parent.requestedHours || 0) / hoursPerDay,
           );
           if (reqDays <= 0)
             return this.createError({
@@ -587,8 +605,13 @@ const AddOrganicCtoApplicationForm = () => {
         .test("lead-time", leadTimeMsg, (dates) =>
           !dates ? true : !dates.some((d) => d < minDate),
         )
-        .test("no-weekends", "Dates must be Mon-Fri.", (dates) =>
-          !dates ? true : !dates.some((d) => isWeekendISO(d)),
+        .test(
+          "no-weekends",
+          "One or more selected dates fall on a non-working day.",
+          (dates) =>
+            !dates
+              ? true
+              : !dates.some((d) => isNonWorkingDay(d, activeWorkingDays)),
         ),
       memos: yup
         .array()
@@ -612,6 +635,8 @@ const AddOrganicCtoApplicationForm = () => {
     hasValidApprovalRoute,
     maxRequestedHours,
     memoLoading,
+    hoursPerDay,
+    activeWorkingDays,
   ]);
 
   const startSubmit = async () => {

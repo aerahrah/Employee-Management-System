@@ -433,6 +433,16 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
   const finalSignatureSrc = safeImageUrl(rawFinalSignatureSrc);
 
   // ===============================================
+  // ✅ EXTRACT CERTIFICATION OF LEAVE CREDITS
+  // ===============================================
+  const certLeave = app?.certificationOfLeaveCredits || {};
+  const certAsOfDate = certLeave.asOfDate
+    ? fmtDateLong(certLeave.asOfDate)
+    : "";
+  const certVL = certLeave.vacationLeave || {};
+  const certSL = certLeave.sickLeave || {};
+
+  // ===============================================
   // ✅ EXACT ROLE MAPPINGS INTO SPECIFIC VARIABLES
   // ===============================================
   const approvals = app?.approvals || [];
@@ -909,9 +919,9 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                 }}
               >
                 <Text style={styles.labelTitle}>As of </Text>
-                <View
-                  style={[styles.inputUnderlineCenter, { width: 80 }]}
-                ></View>
+                <View style={[styles.inputUnderlineCenter, { width: 80 }]}>
+                  <Text style={styles.valueText}>{certAsOfDate}</Text>
+                </View>
               </View>
 
               <View style={styles.innerTable}>
@@ -934,12 +944,12 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                   </View>
                   <View style={styles.innerCell}>
                     <Text style={styles.labelTitle}>
-                      {app?.balances?.vacation || ""}
+                      {certVL.totalEarned ?? app?.balances?.vacation ?? ""}
                     </Text>
                   </View>
                   <View style={[styles.innerCell, { borderRightWidth: 0 }]}>
                     <Text style={styles.labelTitle}>
-                      {app?.balances?.sick || ""}
+                      {certSL.totalEarned ?? app?.balances?.sick ?? ""}
                     </Text>
                   </View>
                 </View>
@@ -950,10 +960,14 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                     </Text>
                   </View>
                   <View style={styles.innerCell}>
-                    <Text style={styles.labelTitle}></Text>
+                    <Text style={styles.labelTitle}>
+                      {certVL.lessThisApplication ?? ""}
+                    </Text>
                   </View>
                   <View style={[styles.innerCell, { borderRightWidth: 0 }]}>
-                    <Text style={styles.labelTitle}></Text>
+                    <Text style={styles.labelTitle}>
+                      {certSL.lessThisApplication ?? ""}
+                    </Text>
                   </View>
                 </View>
                 <View style={[styles.innerRow, { borderBottomWidth: 0 }]}>
@@ -961,10 +975,14 @@ export default function OrganicApplicationPdf({ app, logoSrc, signatureSrc }) {
                     <Text style={{ textAlign: "center" }}>Balance</Text>
                   </View>
                   <View style={styles.innerCell}>
-                    <Text style={styles.labelTitle}></Text>
+                    <Text style={styles.labelTitle}>
+                      {certVL.balance ?? ""}
+                    </Text>
                   </View>
                   <View style={[styles.innerCell, { borderRightWidth: 0 }]}>
-                    <Text style={styles.labelTitle}></Text>
+                    <Text style={styles.labelTitle}>
+                      {certSL.balance ?? ""}
+                    </Text>
                   </View>
                 </View>
               </View>

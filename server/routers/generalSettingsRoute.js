@@ -1,10 +1,8 @@
+// routes/generalSettings.js
 const express = require("express");
 const {
-  // ✅ session controllers
   getSessionSettingsController,
   updateSessionSettingsController,
-
-  // ✅ working days controllers
   getWorkingDaysSettingsController,
   updateWorkingDaysSettingsController,
 } = require("../controllers/generalSettingsController");

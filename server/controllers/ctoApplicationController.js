@@ -98,7 +98,7 @@ const getCtoApplicationsByEmployeeRequest = async (req, res) => {
 const cancelCtoApplicationRequest = async (req, res) => {
   try {
     const userId = req.user.id;
-    const applicationId = req.params.id;
+    const applicationId = req.params.applicationId;
 
     const application = await cancelCtoApplicationService({
       userId,

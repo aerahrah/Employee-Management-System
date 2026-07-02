@@ -13,6 +13,8 @@ import {
   CalendarDays,
   CheckCircle2,
   ShieldAlert,
+  Briefcase,
+  Hourglass,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -341,11 +343,14 @@ const SkeletonBlock = ({ theme }) => (
 ========================= */
 const QK = ["workingDaysSettings"];
 
-const presets = [
-  { label: "4 days", value: 4 },
-  { label: "5 days", value: 5 },
-  { label: "6 days", value: 6 },
-  { label: "7 days", value: 7 },
+const DAYS_OF_WEEK = [
+  { label: "Sun", value: 0 },
+  { label: "Mon", value: 1 },
+  { label: "Tue", value: 2 },
+  { label: "Wed", value: 3 },
+  { label: "Thu", value: 4 },
+  { label: "Fri", value: 5 },
+  { label: "Sat", value: 6 },
 ];
 
 export default function WorkingDaysSettings() {
@@ -377,6 +382,8 @@ export default function WorkingDaysSettings() {
   // form state
   const [workingDaysEnable, setWorkingDaysEnable] = useState(true);
   const [workingDaysValue, setWorkingDaysValue] = useState(5);
+  const [hoursPerDay, setHoursPerDay] = useState(8);
+  const [activeWorkingDays, setActiveWorkingDays] = useState([1, 2, 3, 4, 5]);
 
   // initial snapshot for dirty detection
   const [initial, setInitial] = useState(null);
@@ -387,7 +394,6 @@ export default function WorkingDaysSettings() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // API returns { ok, data } → settings inside .data
   const doc = settingsQuery.data?.data;
 
   useEffect(() => {
@@ -395,23 +401,42 @@ export default function WorkingDaysSettings() {
 
     const enabled = Boolean(doc.workingDaysEnable);
     const days = clamp(toInt(doc.workingDaysValue, 5), 1, 7);
+    const hpd = clamp(toInt(doc.hoursPerDay, 8), 1, 24);
+    const awd = Array.isArray(doc.activeWorkingDays)
+      ? doc.activeWorkingDays
+      : [1, 2, 3, 4, 5];
 
     setWorkingDaysEnable(enabled);
     setWorkingDaysValue(days);
+    setHoursPerDay(hpd);
+    setActiveWorkingDays(awd);
 
     setInitial({
       workingDaysEnable: enabled,
       workingDaysValue: days,
+      hoursPerDay: hpd,
+      activeWorkingDays: awd,
     });
   }, [doc]);
 
   const isDirty = useMemo(() => {
     if (!initial) return false;
-    return (
-      initial.workingDaysEnable !== workingDaysEnable ||
-      initial.workingDaysValue !== workingDaysValue
-    );
-  }, [initial, workingDaysEnable, workingDaysValue]);
+    if (initial.workingDaysEnable !== workingDaysEnable) return true;
+    if (initial.workingDaysValue !== workingDaysValue) return true;
+    if (initial.hoursPerDay !== hoursPerDay) return true;
+    if (initial.activeWorkingDays.length !== activeWorkingDays.length)
+      return true;
+
+    const sortedInitial = [...initial.activeWorkingDays].sort();
+    const sortedCurrent = [...activeWorkingDays].sort();
+    return sortedInitial.some((v, i) => v !== sortedCurrent[i]);
+  }, [
+    initial,
+    workingDaysEnable,
+    workingDaysValue,
+    hoursPerDay,
+    activeWorkingDays,
+  ]);
 
   const refetch = useCallback(async () => {
     setInlineError("");
@@ -428,6 +453,8 @@ export default function WorkingDaysSettings() {
       setInitial({
         workingDaysEnable,
         workingDaysValue,
+        hoursPerDay,
+        activeWorkingDays,
       });
     },
     onError: (err) => {
@@ -440,9 +467,24 @@ export default function WorkingDaysSettings() {
   const onSave = () => {
     setInlineError("");
 
+    if (activeWorkingDays.length === 0) {
+      const msg = "You must select at least one active working day.";
+      setInlineError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const hpd = clamp(toInt(hoursPerDay, NaN), 1, 24);
+    if (!Number.isFinite(hpd)) {
+      const msg = "Hours per day must be between 1 and 24.";
+      setInlineError(msg);
+      toast.error(msg);
+      return;
+    }
+
     const days = clamp(toInt(workingDaysValue, NaN), 1, 7);
     if (!Number.isFinite(days)) {
-      const msg = "Working days must be a valid number.";
+      const msg = "Lead time value must be between 1 and 7 days.";
       setInlineError(msg);
       toast.error(msg);
       return;
@@ -451,6 +493,8 @@ export default function WorkingDaysSettings() {
     saveMutation.mutate({
       workingDaysEnable: Boolean(workingDaysEnable),
       workingDaysValue: days,
+      hoursPerDay: hpd,
+      activeWorkingDays: activeWorkingDays,
     });
   };
 
@@ -458,13 +502,18 @@ export default function WorkingDaysSettings() {
     setInlineError("");
     setWorkingDaysEnable(true);
     setWorkingDaysValue(5);
+    setHoursPerDay(8);
+    setActiveWorkingDays([1, 2, 3, 4, 5]);
     toast.info("Default values applied (not saved yet)");
   };
 
-  const effectiveText = useMemo(() => {
-    if (!workingDaysEnable) return "Working-days rules are disabled.";
-    return `System assumes a ${workingDaysValue}-day work week.`;
-  }, [workingDaysEnable, workingDaysValue]);
+  const toggleWorkingDay = (dayValue) => {
+    setActiveWorkingDays((prev) =>
+      prev.includes(dayValue)
+        ? prev.filter((d) => d !== dayValue)
+        : [...prev, dayValue].sort(),
+    );
+  };
 
   const isRefreshing = settingsQuery.isRefetching;
   const isSaving = saveMutation.isPending;
@@ -487,13 +536,14 @@ export default function WorkingDaysSettings() {
               className="text-2xl md:text-3xl font-bold tracking-tight transition-colors duration-300 ease-out"
               style={{ color: "var(--app-text)" }}
             >
-              Lead Working <span className="font-bold">Days</span>
+              Work Schedule <span className="font-bold">Settings</span>
             </h1>
             <p
               className="text-sm mt-1 transition-colors duration-300 ease-out"
               style={{ color: "var(--app-muted)" }}
             >
-              Configure your organization’s default work-week settings.
+              Configure your organization’s default work-week and leave request
+              lead time.
             </p>
           </div>
 
@@ -533,15 +583,15 @@ export default function WorkingDaysSettings() {
                     className="text-sm font-semibold transition-colors duration-300 ease-out"
                     style={{ color: "var(--app-text)" }}
                   >
-                    Work-week policy
+                    Work Schedule & Lead Time
                   </div>
                 </div>
                 <div
                   className="text-xs mt-1 transition-colors duration-300 ease-out"
                   style={{ color: "var(--app-muted)" }}
                 >
-                  Defines the number of working days used for calculations and
-                  defaults throughout the system.
+                  Defines the standard schedule and lead time required for
+                  applications.
                 </div>
               </div>
 
@@ -566,127 +616,189 @@ export default function WorkingDaysSettings() {
                   </div>
                 </div>
               ) : (
-                <div className="p-4 space-y-4">
-                  <Toggle
-                    checked={workingDaysEnable}
-                    disabled={isSaving}
-                    onChange={(v) => setWorkingDaysEnable(v)}
-                    label="Enable working days"
-                    hint="If disabled, working-day based rules won’t be applied."
-                    borderColor={borderColor}
-                    theme={resolvedTheme}
-                  />
+                <div className="p-4 space-y-6">
+                  {/* Hours & Schedule Section */}
+                  <div className="space-y-4">
+                    <h3
+                      className="text-sm font-bold flex items-center gap-2"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      <Briefcase className="w-4 h-4" /> Work Schedule
+                    </h3>
 
-                  <div
-                    className="rounded-xl p-2 md:p-4 transition-colors duration-300 ease-out"
-                    style={{
-                      backgroundColor: "var(--app-surface)",
-                      border: `1px solid ${borderColor}`,
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Hours Per Day */}
+                      <div
+                        className="rounded-xl p-4 transition-colors duration-300 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          border: `1px solid ${borderColor}`,
+                        }}
+                      >
                         <div
                           className="text-sm font-semibold transition-colors duration-300 ease-out"
                           style={{ color: "var(--app-text)" }}
                         >
-                          Working days per week
+                          Hours per Day
                         </div>
                         <div
-                          className="text-xs mt-0.5 transition-colors duration-300 ease-out"
+                          className="text-[11px] mt-1 mb-3 transition-colors duration-300 ease-out"
                           style={{ color: "var(--app-muted)" }}
                         >
-                          Choose a value from 1–7. Common defaults are 5 or 6.
+                          Standard hours in a single workday.
                         </div>
-                      </div>
-
-                      <div
-                        className="inline-flex items-center gap-2 rounded-full min-w-16 px-3 py-1.5 text-xs font-medium transition-colors duration-300 ease-out"
-                        style={{
-                          backgroundColor: subtleBg,
-                          border: `1px solid ${borderColor}`,
-                          color: "var(--app-text)",
-                        }}
-                      >
-                        {workingDaysValue} day
-                        {workingDaysValue === 1 ? "" : "s"}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-col sm:flex-row gap-3 sm:items-center">
-                      <div className="flex-1">
                         <input
                           type="number"
-                          inputMode="numeric"
                           min={1}
-                          max={7}
-                          value={workingDaysValue}
-                          disabled={isSaving || !workingDaysEnable}
+                          max={24}
+                          value={hoursPerDay}
+                          disabled={isSaving}
                           onChange={(e) => {
                             const next = toInt(e.target.value, 0);
                             if (!Number.isFinite(next)) return;
-                            setWorkingDaysValue(clamp(next, 1, 7));
+                            setHoursPerDay(clamp(next, 1, 24));
                           }}
                           className="w-full h-11 rounded-lg px-3 text-sm outline-none transition-colors duration-200 ease-out"
                           style={{
-                            backgroundColor:
-                              !workingDaysEnable || isSaving
-                                ? disabledBg
-                                : subtleBg,
-                            color:
-                              !workingDaysEnable || isSaving
-                                ? "var(--app-muted)"
-                                : "var(--app-text)",
+                            backgroundColor: isSaving ? disabledBg : subtleBg,
+                            color: isSaving
+                              ? "var(--app-muted)"
+                              : "var(--app-text)",
                             border: `1px solid ${borderColor}`,
-                            cursor:
-                              !workingDaysEnable || isSaving
-                                ? "not-allowed"
-                                : "text",
-                            opacity: isSaving ? 0.7 : 1,
+                            cursor: isSaving ? "not-allowed" : "text",
                           }}
-                          placeholder="e.g. 5"
                         />
-                        <div
-                          className="mt-2 text-[11px] transition-colors duration-300 ease-out"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          Range: 1 to 7 days
-                        </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        {presets.map((p) => {
-                          const isActive = workingDaysValue === p.value;
+                      {/* Active Working Days */}
+                      <div
+                        className="rounded-xl p-4 transition-colors duration-300 ease-out"
+                        style={{
+                          backgroundColor: "var(--app-surface)",
+                          border: `1px solid ${borderColor}`,
+                        }}
+                      >
+                        <div
+                          className="text-sm font-semibold transition-colors duration-300 ease-out"
+                          style={{ color: "var(--app-text)" }}
+                        >
+                          Active Working Days
+                        </div>
+                        <div
+                          className="text-[11px] mt-1 mb-3 transition-colors duration-300 ease-out"
+                          style={{ color: "var(--app-muted)" }}
+                        >
+                          Select the days of the week employees work.
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {DAYS_OF_WEEK.map((day) => {
+                            const isSelected = activeWorkingDays.includes(
+                              day.value,
+                            );
+                            return (
+                              <button
+                                key={day.value}
+                                type="button"
+                                disabled={isSaving}
+                                onClick={() => toggleWorkingDay(day.value)}
+                                className="w-10 h-10 rounded-full text-xs font-bold transition-colors duration-200 ease-out flex items-center justify-center"
+                                style={{
+                                  backgroundColor: isSelected
+                                    ? "var(--accent)"
+                                    : "var(--app-surface)",
+                                  color: isSelected
+                                    ? "#ffffff"
+                                    : "var(--app-text)",
+                                  border: `1px solid ${
+                                    isSelected ? "var(--accent)" : borderColor
+                                  }`,
+                                  opacity: isSaving ? 0.6 : 1,
+                                }}
+                              >
+                                {day.label[0]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                          return (
-                            <button
-                              key={p.value}
-                              type="button"
-                              disabled={isSaving || !workingDaysEnable}
-                              onClick={() => setWorkingDaysValue(p.value)}
-                              className="px-3 py-2 rounded-full text-xs font-bold transition-colors duration-200 ease-out"
-                              style={{
-                                backgroundColor: isActive
-                                  ? "var(--accent-soft)"
-                                  : "var(--app-surface)",
-                                color: isActive
-                                  ? "var(--accent)"
+                  <hr style={{ borderColor: borderColor }} />
+
+                  {/* Lead Time Section */}
+                  <div className="space-y-4">
+                    <h3
+                      className="text-sm font-bold flex items-center gap-2"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      <Hourglass className="w-4 h-4" /> Request Lead Time
+                    </h3>
+
+                    <Toggle
+                      checked={workingDaysEnable}
+                      disabled={isSaving}
+                      onChange={(v) => setWorkingDaysEnable(v)}
+                      label="Enforce Application Lead Time"
+                      hint="If enabled, employees must apply for leaves X working days in advance."
+                      borderColor={borderColor}
+                      theme={resolvedTheme}
+                    />
+
+                    <div
+                      className="rounded-xl p-4 transition-colors duration-300 ease-out"
+                      style={{
+                        backgroundColor: "var(--app-surface)",
+                        border: `1px solid ${borderColor}`,
+                      }}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex-1">
+                          <div
+                            className="text-sm font-semibold transition-colors duration-300 ease-out"
+                            style={{ color: "var(--app-text)" }}
+                          >
+                            Minimum Working Days Notice
+                          </div>
+                          <div
+                            className="text-[11px] mt-1 transition-colors duration-300 ease-out"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            Number of active work days before the leave start
+                            date.
+                          </div>
+                        </div>
+
+                        <div className="w-full sm:w-32">
+                          <input
+                            type="number"
+                            min={1}
+                            max={7}
+                            value={workingDaysValue}
+                            disabled={isSaving || !workingDaysEnable}
+                            onChange={(e) => {
+                              const next = toInt(e.target.value, 0);
+                              if (!Number.isFinite(next)) return;
+                              setWorkingDaysValue(clamp(next, 1, 7));
+                            }}
+                            className="w-full h-11 rounded-lg px-3 text-sm outline-none transition-colors duration-200 ease-out"
+                            style={{
+                              backgroundColor:
+                                !workingDaysEnable || isSaving
+                                  ? disabledBg
+                                  : subtleBg,
+                              color:
+                                !workingDaysEnable || isSaving
+                                  ? "var(--app-muted)"
                                   : "var(--app-text)",
-                                border: `1px solid ${
-                                  isActive ? "var(--accent-soft2)" : borderColor
-                                }`,
-                                opacity:
-                                  !workingDaysEnable || isSaving ? 0.5 : 1,
-                                cursor:
-                                  !workingDaysEnable || isSaving
-                                    ? "not-allowed"
-                                    : "pointer",
-                              }}
-                            >
-                              {p.label}
-                            </button>
-                          );
-                        })}
+                              border: `1px solid ${borderColor}`,
+                              cursor:
+                                !workingDaysEnable || isSaving
+                                  ? "not-allowed"
+                                  : "text",
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -697,7 +809,9 @@ export default function WorkingDaysSettings() {
                     title="Effective behavior"
                     theme={resolvedTheme}
                   >
-                    {effectiveText}
+                    {workingDaysEnable
+                      ? `Employees are required to file applications at least ${workingDaysValue} working days in advance.`
+                      : "Working-days rules are disabled."}
                   </SoftNotice>
 
                   <SoftNotice
@@ -713,9 +827,9 @@ export default function WorkingDaysSettings() {
 
                   <InlineError message={inlineError} theme={resolvedTheme} />
 
-                  <div className="pt-1 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                  <div className="pt-1 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between border-t mt-4 border-[color:var(--app-border)]">
                     <div
-                      className="text-xs transition-colors duration-300 ease-out"
+                      className="text-xs transition-colors duration-300 ease-out pt-3"
                       style={{ color: "var(--app-muted)" }}
                     >
                       {isDirty ? (
@@ -723,21 +837,21 @@ export default function WorkingDaysSettings() {
                           className="font-medium"
                           style={{ color: "var(--app-text)" }}
                         >
-                          You have unsaved changes.
+                          You have unsaved schedule changes.
                         </span>
                       ) : (
-                        <span>All changes saved.</span>
+                        <span>Schedule settings up to date.</span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pt-3">
                       <GhostButton
                         onClick={onResetToDefault}
                         disabled={isSaving}
                         borderColor={borderColor}
                         theme={resolvedTheme}
                       >
-                        Reset defaults
+                        Reset
                       </GhostButton>
 
                       <PrimaryButton
@@ -747,7 +861,7 @@ export default function WorkingDaysSettings() {
                         theme={resolvedTheme}
                       >
                         <Save className="w-4 h-4" />
-                        {isSaving ? "Saving..." : "Save changes"}
+                        {isSaving ? "Saving..." : "Save Schedule"}
                       </PrimaryButton>
                     </div>
                   </div>
@@ -781,6 +895,7 @@ export default function WorkingDaysSettings() {
               </div>
 
               <div className="p-4 space-y-3">
+                {/* Schedule Summary */}
                 <div
                   className="rounded-xl p-4 transition-colors duration-300 ease-out"
                   style={{
@@ -789,50 +904,52 @@ export default function WorkingDaysSettings() {
                   }}
                 >
                   <div
-                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
+                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out flex items-center gap-1"
                     style={{ color: "var(--app-muted)" }}
                   >
-                    Working days
+                    <Briefcase className="w-3 h-3" /> Schedule
                   </div>
                   <div
-                    className="mt-1 text-sm font-semibold transition-colors duration-300 ease-out"
+                    className="mt-2 text-sm font-semibold transition-colors duration-300 ease-out"
                     style={{ color: "var(--app-text)" }}
                   >
-                    {workingDaysEnable ? "Enabled" : "Disabled"}
+                    {hoursPerDay} Hrs / Day
+                  </div>
+                  <div
+                    className="mt-1 text-xs transition-colors duration-300 ease-out"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    {activeWorkingDays.length} active working days.
+                  </div>
+                </div>
+
+                {/* Lead Time Summary */}
+                <div
+                  className="rounded-xl p-4 transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: subtleBg,
+                    border: `1px solid ${borderColor}`,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out flex items-center gap-1"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    <Hourglass className="w-3 h-3" /> Lead Time
+                  </div>
+                  <div
+                    className="mt-2 text-sm font-semibold transition-colors duration-300 ease-out"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    {workingDaysEnable ? "Enforced" : "Disabled"}
                   </div>
                   <div
                     className="mt-1 text-xs transition-colors duration-300 ease-out"
                     style={{ color: "var(--app-muted)" }}
                   >
                     {workingDaysEnable
-                      ? `${workingDaysValue} day${
-                          workingDaysValue === 1 ? "" : "s"
-                        } per week`
-                      : "Not applied"}
-                  </div>
-                </div>
-
-                <div
-                  className="rounded-xl p-2 md:p-4 transition-colors duration-300 ease-out"
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    border: `1px solid ${borderColor}`,
-                  }}
-                >
-                  <div
-                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Limits
-                  </div>
-                  <div
-                    className="mt-2 text-xs leading-relaxed transition-colors duration-300 ease-out"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    • Minimum: 1 day
-                    <br />
-                    • Maximum: 7 days
-                    <br />
+                      ? `${workingDaysValue} working days prior to leave.`
+                      : "No advance notice required."}
                   </div>
                 </div>
 
@@ -840,7 +957,7 @@ export default function WorkingDaysSettings() {
                   onClick={refetch}
                   disabled={isRefreshing}
                   type="button"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold transition-colors duration-200 ease-out disabled:opacity-40"
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold transition-colors duration-200 ease-out disabled:opacity-40"
                   style={{
                     backgroundColor: "var(--app-surface)",
                     border: `1px solid ${borderColor}`,

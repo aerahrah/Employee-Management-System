@@ -105,71 +105,61 @@ async function updateSessionSettings(payload = {}, userId = null) {
   return { before, after };
 }
 
-/* =========================
-   WORKING DAYS SETTINGS
-   ========================= */
-
 async function getWorkingDaysSettings() {
-  const doc = await getOrCreateSettingsDoc();
+  let settings = await GeneralSetting.findOne();
+  if (!settings) {
+    settings = await GeneralSetting.create({});
+  }
   return {
-    workingDaysEnable: doc.workingDaysEnable,
-    workingDaysValue: doc.workingDaysValue,
+    workingDaysEnable: settings.workingDaysEnable,
+    workingDaysValue: settings.workingDaysValue,
+    hoursPerDay: settings.hoursPerDay,
+    activeWorkingDays: settings.activeWorkingDays,
   };
 }
 
-async function updateWorkingDaysSettings(payload = {}, userId = null) {
-  const doc = await getOrCreateSettingsDoc();
+async function updateWorkingDaysSettings(payload, userId) {
+  let settings = await GeneralSetting.findOne();
+  if (!settings) {
+    settings = new GeneralSetting();
+  }
 
   const before = {
-    workingDaysEnable: doc.workingDaysEnable,
-    workingDaysValue: doc.workingDaysValue,
+    workingDaysEnable: settings.workingDaysEnable,
+    workingDaysValue: settings.workingDaysValue,
+    hoursPerDay: settings.hoursPerDay,
+    activeWorkingDays: settings.activeWorkingDays,
   };
 
-  if (payload.workingDaysEnable !== undefined) {
-    const enabled = toBool(payload.workingDaysEnable, undefined);
-    if (enabled === undefined) {
-      throw new Error("workingDaysEnable must be a boolean");
-    }
-    doc.workingDaysEnable = enabled;
+  // Update fields if they exist in the payload
+  if (typeof payload.workingDaysEnable === "boolean") {
+    settings.workingDaysEnable = payload.workingDaysEnable;
+  }
+  if (payload.workingDaysValue) {
+    settings.workingDaysValue = payload.workingDaysValue;
+  }
+  if (payload.hoursPerDay) {
+    settings.hoursPerDay = payload.hoursPerDay;
+  }
+  if (payload.activeWorkingDays) {
+    settings.activeWorkingDays = payload.activeWorkingDays;
   }
 
-  if (payload.workingDaysValue !== undefined) {
-    const days = toInt(payload.workingDaysValue, NaN);
-
-    if (!Number.isFinite(days)) {
-      throw new Error("workingDaysValue must be a number");
-    }
-    if (days < 1 || days > 7) {
-      throw new Error("workingDaysValue must be between 1 and 7");
-    }
-
-    doc.workingDaysValue = days;
-  }
-
-  // consistency check
-  if (doc.workingDaysEnable && !doc.workingDaysValue) {
-    throw new Error(
-      "workingDaysValue is required when workingDaysEnable is true",
-    );
-  }
-
-  setUpdatedBy(doc, userId);
-  await doc.save();
+  await settings.save();
 
   const after = {
-    workingDaysEnable: doc.workingDaysEnable,
-    workingDaysValue: doc.workingDaysValue,
+    workingDaysEnable: settings.workingDaysEnable,
+    workingDaysValue: settings.workingDaysValue,
+    hoursPerDay: settings.hoursPerDay,
+    activeWorkingDays: settings.activeWorkingDays,
   };
 
   return { before, after };
 }
 
 module.exports = {
-  // session
   getSessionSettings,
   updateSessionSettings,
-
-  // working days
   getWorkingDaysSettings,
   updateWorkingDaysSettings,
 };

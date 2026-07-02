@@ -66,14 +66,7 @@ async function canSend(key) {
 
 // --- SERVICE METHODS ---
 
-async function addCredit({
-  employees,
-  days,
-  memoNo,
-  dateApproved,
-  userId,
-  filePath,
-}) {
+async function addCredit({ employees, days, dateApproved, userId }) {
   if (!Array.isArray(employees) || employees.length === 0) {
     throw createServiceError(
       "Employees array is required and must not be empty.",
@@ -81,12 +74,6 @@ async function addCredit({
     );
   }
 
-  const safeMemoNo = sanitizeString(memoNo);
-  if (!safeMemoNo) {
-    throw createServiceError("memoNo is required.", 400);
-  }
-
-  const safeFilePath = sanitizeString(filePath);
   assertObjectId(userId, "userId");
 
   const employeeIds = [...new Set(employees.map(String))];
@@ -196,9 +183,7 @@ async function addCredit({
       const docs = await WellnessCredit.create(
         [
           {
-            memoNo: safeMemoNo,
             dateApproved: approvedDate,
-            uploadedMemo: safeFilePath,
             days: creditedDays,
             employees: employeeObjs,
             creditedBy: userId,
@@ -256,7 +241,6 @@ async function addCredit({
             const tpl = wellnessCreditAddedEmail({
               employeeName:
                 `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-              memoNo: safeMemoNo,
               creditedDays: creditedDays,
               dateApproved: approvedDate,
             });
@@ -402,7 +386,6 @@ async function rollbackCredit({ creditId, userId }) {
           .populate("employees.employee", "firstName lastName email")
           .lean();
 
-        const memoNo = creditPopulated?.memoNo || "";
         const dateRolledBack = creditPopulated?.dateRolledBack || new Date();
 
         await Promise.all(
@@ -413,10 +396,9 @@ async function rollbackCredit({ creditId, userId }) {
             const tpl = wellnessCreditRolledBackEmail({
               employeeName:
                 `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-              memoNo,
               rolledBackDays: row?.creditedDays || 0,
               dateRolledBack,
-              reason: "Credit memo rolled back by admin.",
+              reason: "Credit rolled back by admin.",
             });
 
             await safeSendEmail(emp.email, tpl.subject, tpl.html);
@@ -464,10 +446,7 @@ async function getAllCredits({
 
     const employeeIds = employees.map((e) => e._id);
 
-    query.$or = [
-      { memoNo: { $regex: safe, $options: "i" } },
-      { "employees.employee": { $in: employeeIds } },
-    ];
+    query["employees.employee"] = { $in: employeeIds };
   }
 
   const [totalCount, items, totalCreditedCount, totalRolledBackCount] =
@@ -562,7 +541,6 @@ async function getEmployeeCredits(
     totalCreditedDays: totalsAgg?.totalCreditedDays ?? 0,
   };
 
-  const safeSearch = sanitizeSearch(search, 100);
   const listMatch = {
     employees: {
       $elemMatch: {
@@ -570,7 +548,6 @@ async function getEmployeeCredits(
         ...(filters.status ? { status: sanitizeString(filters.status) } : {}),
       },
     },
-    ...(safeSearch ? { memoNo: { $regex: safeSearch, $options: "i" } } : {}),
   };
 
   const [totalCount, credits, statusAggregation] = await Promise.all([
@@ -604,9 +581,7 @@ async function getEmployeeCredits(
 
     return {
       _id: credit._id,
-      memoNo: credit.memoNo,
       dateApproved: credit.dateApproved,
-      uploadedMemo: credit.uploadedMemo,
       creditedDays: empData?.creditedDays ?? 0,
       days: credit.days,
       usedDays: empData?.usedDays || 0,

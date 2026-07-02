@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { addWellnessApplicationRequest } from "../../../../api/wellnessApplication";
-import { fetchWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
+import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { getMyWellnessBalance } from "../../../../api/employee";
 import { useAuth } from "../../../../store/authStore";
@@ -261,7 +261,7 @@ const AddWellnessApplicationForm = () => {
     isError: workingDaysIsError,
   } = useQuery({
     queryKey: ["workingDaysSettings"],
-    queryFn: fetchWorkingDaysGeneralSettings,
+    queryFn: fetchPublicWorkingDaysGeneralSettings,
     staleTime: 1000 * 60 * 5,
   });
 
