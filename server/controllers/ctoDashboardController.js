@@ -1,5 +1,5 @@
-// controllers/ctoDashboardController.js
-const ctoDashboardService = require("../services/ctoDashboard.service");
+// controllers/dashboardController.js
+const dashboardService = require("../services/dashboardService");
 
 function sendError(res, err) {
   const status = err.statusCode || err.status || 500;
@@ -8,7 +8,7 @@ function sendError(res, err) {
     .json({ success: false, message: err.message || "Server Error" });
 }
 
-const ctoDashboardController = {
+const dashboardController = {
   getDashboard: async (req, res) => {
     try {
       const { id: employeeId } = req.user || {};
@@ -30,55 +30,63 @@ const ctoDashboardController = {
 
       let dashboardData = {};
 
-      // 1. Personal CTO summary (Base Dashboard - Employee Level)
+      // 1. Personal Summary (Base Dashboard - Employee Level)
+      // Note: Adjust permission strings if you use unified ones like 'dashboard.self_view'
       if (
         hasPerm("cto.dashboard.self_view") ||
+        hasPerm("wellness.dashboard.self_view") ||
         permissions.length === 0 /* Fallback if roles aren't fully seeded yet */
       ) {
-        dashboardData =
-          await ctoDashboardService.getEmployeeSummary(employeeId);
+        dashboardData = await dashboardService.getEmployeeSummary(employeeId);
       } else {
-        dashboardData = { myCtoSummary: null };
+        dashboardData = { mySummary: { wellness: null, cto: null } };
       }
 
       // 2. Approver Insights: Fetch if they have the specific approver view permission
-      if (hasPerm("cto.view_application")) {
+      if (
+        hasPerm("cto.view_application") ||
+        hasPerm("wellness.view_application")
+      ) {
         const approverData =
-          await ctoDashboardService.getSupervisorSummary(employeeId);
+          await dashboardService.getSupervisorSummary(employeeId);
         dashboardData = {
           ...dashboardData,
-          teamPendingApprovals: approverData.teamPendingApprovals || 0,
-          pendingRequests: approverData.pendingRequests || [],
-          // ✅ ADDED THIS SO YOUR FRONTEND GETS THE STATS
-          approverStats: approverData.approverStats || {
-            all: 0,
-            pending: 0,
-            approved: 0,
-            rejected: 0,
-          },
+          wellnessApprovals:
+            approverData.wellnessApprovals || getEmptyApproverStats(),
+          ctoApprovals: approverData.ctoApprovals || getEmptyApproverStats(),
         };
       } else {
         // Default fallbacks if they aren't an approver
-        dashboardData.teamPendingApprovals = 0;
-        dashboardData.pendingRequests = [];
-        dashboardData.approverStats = {
-          all: 0,
-          pending: 0,
-          approved: 0,
-          rejected: 0,
-        };
+        dashboardData.wellnessApprovals = getEmptyApproverStats();
+        dashboardData.ctoApprovals = getEmptyApproverStats();
       }
 
       // 3. HR Insights (Credit Management & Records)
-      if (hasPerm("cto.dashboard.hr_view")) {
-        const hrData = await ctoDashboardService.getHrSummary(employeeId);
-        dashboardData = { ...dashboardData, ...hrData };
+      if (
+        hasPerm("cto.dashboard.hr_view") ||
+        hasPerm("wellness.dashboard.hr_view")
+      ) {
+        const hrData = await dashboardService.getHrSummary(employeeId);
+        // Safely merge so we don't overwrite previous properties
+        dashboardData.wellness = {
+          ...dashboardData.wellness,
+          ...hrData.wellness,
+        };
+        dashboardData.cto = { ...dashboardData.cto, ...hrData.cto };
       }
 
       // 4. Global Admin Insights (Organization-wide data)
-      if (hasPerm("cto.dashboard.admin_view")) {
-        const adminData = await ctoDashboardService.getAdminSummary(employeeId);
-        dashboardData = { ...dashboardData, ...adminData };
+      if (
+        hasPerm("cto.dashboard.admin_view") ||
+        hasPerm("wellness.dashboard.admin_view")
+      ) {
+        const adminData = await dashboardService.getAdminSummary(employeeId);
+        // Safely merge again to include the macro totals from the admin query
+        dashboardData.wellness = {
+          ...dashboardData.wellness,
+          ...adminData.wellness,
+        };
+        dashboardData.cto = { ...dashboardData.cto, ...adminData.cto };
       }
 
       return res.json({ success: true, data: dashboardData });
@@ -89,4 +97,19 @@ const ctoDashboardController = {
   },
 };
 
-module.exports = ctoDashboardController;
+// --- Helper to keep the fallback data structures clean ---
+function getEmptyApproverStats() {
+  return {
+    teamPendingApprovals: 0,
+    pendingRequests: [],
+    approverStats: {
+      all: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      cancelled: 0,
+    },
+  };
+}
+
+module.exports = dashboardController;

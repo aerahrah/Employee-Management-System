@@ -32,10 +32,11 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-const isWeekendISO = (iso) => {
+// ✅ UPDATED: Dynamic non-working day checker
+const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
-  return day === 0 || day === 6;
+  return !activeWorkingDays.includes(day);
 };
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
@@ -43,7 +44,11 @@ const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 /**
  * Lead-time rule: Must have N working days between today (exclusive) and selected date (exclusive).
  */
-const getMinSelectableDateISO = (leadTimeDays = 5) => {
+// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
+const getMinSelectableDateISO = (
+  leadTimeDays = 5,
+  activeWorkingDays = [1, 2, 3, 4, 5],
+) => {
   const lead = Number(leadTimeDays);
   const date = new Date();
 
@@ -56,11 +61,13 @@ const getMinSelectableDateISO = (leadTimeDays = 5) => {
   while (count < lead) {
     date.setDate(date.getDate() + 1);
     const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
+    if (activeWorkingDays.includes(day)) count++;
   }
 
   date.setDate(date.getDate() + 1);
-  while (date.getDay() === 0 || date.getDay() === 6) {
+
+  // Skip ahead if we landed on a non-working day
+  while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
 
@@ -121,12 +128,14 @@ const validateDate = ({
   minDate,
   leadTimeMsg,
   maxWellnessDays,
+  activeWorkingDays,
 }) => {
   if (!value) return "";
   if (!isFullISODate(value)) return "";
 
   if (value < minDate) return leadTimeMsg;
-  if (isWeekendISO(value)) return "Please select a working day (Mon–Fri).";
+  if (isNonWorkingDay(value, activeWorkingDays))
+    return "Please select a valid scheduled working day.";
   if (inclusiveDates.includes(value)) return "That date is already selected.";
 
   const tempDates = [...inclusiveDates, value];
@@ -266,6 +275,10 @@ const AddWellnessApplicationForm = () => {
   });
 
   const workingDoc = workingDaysRes?.data;
+
+  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
+  const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
+
   const leadTimeDays = useMemo(() => {
     const enabled =
       typeof workingDoc?.workingDaysEnable === "boolean"
@@ -275,9 +288,10 @@ const AddWellnessApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
+  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
-    () => getMinSelectableDateISO(leadTimeDays),
-    [leadTimeDays],
+    () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
+    [leadTimeDays, activeWorkingDays],
   );
 
   const leadTimeMsg = useMemo(() => {
@@ -350,6 +364,7 @@ const AddWellnessApplicationForm = () => {
       minDate,
       leadTimeMsg,
       maxWellnessDays,
+      activeWorkingDays,
     });
     setDateError(err);
   }, [
@@ -358,6 +373,7 @@ const AddWellnessApplicationForm = () => {
     minDate,
     leadTimeMsg,
     maxWellnessDays,
+    activeWorkingDays,
   ]);
 
   // Strip invalid dates if lead time config shifts
@@ -387,6 +403,7 @@ const AddWellnessApplicationForm = () => {
       minDate,
       leadTimeMsg,
       maxWellnessDays,
+      activeWorkingDays,
     });
     setDateError(err);
 

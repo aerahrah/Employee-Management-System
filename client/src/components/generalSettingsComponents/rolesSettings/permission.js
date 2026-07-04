@@ -149,6 +149,36 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    name: "Leave Service",
+    permissions: [
+      {
+        id: "leave_credits.manage",
+        label: "Manage Leave Credits",
+        hint: "Add or manage regular leave credits for employees.",
+      },
+    ],
+  },
+  {
+    name: "Calendar",
+    permissions: [
+      {
+        id: "calendar.view_self",
+        label: "View Own Calendar",
+        hint: "View personal approved and pending leave dates.",
+      },
+      {
+        id: "calendar.view_all",
+        label: "View Company Calendar",
+        hint: "View leave dates for all employees.",
+      },
+      // {
+      //   id: "calendar.view_department",
+      //   label: "View Department Calendar",
+      //   hint: "View leave dates specifically for the user's department.",
+      // },
+    ],
+  },
+  {
     name: "System & Administration",
     permissions: [
       {
@@ -166,16 +196,6 @@ export const PERMISSION_GROUPS = [
   {
     name: "Settings & Configuration",
     permissions: [
-      // {
-      //   id: "settings.view",
-      //   label: "View Settings",
-      //   hint: "Access the settings hub.",
-      // },
-      // {
-      //   id: "settings.edit",
-      //   label: "Edit Legacy Settings",
-      //   hint: "Edit standard legacy configurations.",
-      // },
       {
         id: "settings.general",
         label: "Core Settings",
@@ -226,8 +246,6 @@ export const PERMISSION_GROUPS = [
         label: "Manage Backups",
         hint: "Trigger system backups and restores.",
       },
-
-      // ✅ Added Salary Grade Permissions Here
       {
         id: "salary_grades.view",
         label: "View Salary Grades",

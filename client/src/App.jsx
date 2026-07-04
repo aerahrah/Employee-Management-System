@@ -54,6 +54,10 @@ import AddLeaveCreditForm from "./components/leaveComponents/leaveCreditComponen
 /* Organic Leave Components */
 import AddOrganicLeaveApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addOrganicLeaveForm";
 
+/* ✅ Calendar Components */
+import MyCalendarPage from "./components/calendarComponents/myCalendarPage";
+import CompanyCalendarPage from "./components/calendarComponents/allCalendarPage";
+
 import AddEmployeeForm from "./components/employeeDashboard/forms/addEmployeeForm";
 import EmployeeInformation from "./components/employeeDashboard/employeeInformation";
 
@@ -166,6 +170,14 @@ function App() {
           {/* ===================== */}
           {/* SELF-SERVICE */}
           {/* ===================== */}
+
+          {/* ✅ Calendar: View Self */}
+          <Route
+            element={<ProtectedRoute requiredPermission="calendar.view_self" />}
+          >
+            <Route path="my-calendar" element={<MyCalendarPage />} />
+          </Route>
+
           <Route
             element={
               <ProtectedRoute requiredPermission="employees.view_self" />
@@ -226,6 +238,14 @@ function App() {
           {/* ===================== */}
           {/* RESTRICTED HUBS */}
           {/* ===================== */}
+
+          {/* ✅ Calendar: View All (HR/Admin) */}
+          <Route
+            element={<ProtectedRoute requiredPermission="calendar.view_all" />}
+          >
+            <Route path="company-calendar" element={<CompanyCalendarPage />} />
+          </Route>
+
           <Route
             element={
               <ProtectedRoute requiredPermission="settings.cto_workflow" />

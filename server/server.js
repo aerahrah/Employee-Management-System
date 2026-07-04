@@ -42,6 +42,9 @@ const wellnessRoutes = require("./routers/wellnessRoutes");
 // ✅ NEW: Import the wellness dashboard router
 const wellnessDashboardRoutes = require("./routers/wellnessDashboardRoute");
 
+// ✅ NEW: Import the calendar router
+const calendarRoutes = require("./routers/calendarRoute");
+
 const auditLogger = require("./middlewares/auditLogMiddleware");
 const initWellnessCron = require("./cron/wellnessCron");
 
@@ -269,6 +272,9 @@ app.use("/api/leave", leaveRoutes);
 // ✅ WELLNESS ROUTES (Base logic + Dashboard)
 app.use("/api/wellness", wellnessRoutes);
 app.use("/api/wellness", wellnessDashboardRoutes); // Mounts the dashboard on /api/wellness/dashboard
+
+// ✅ CALENDAR ROUTES
+app.use("/api/calendar", calendarRoutes);
 
 /* ======================================================
    404 HANDLER

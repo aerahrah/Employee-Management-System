@@ -25,15 +25,20 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-const isWeekendISO = (iso) => {
+// ✅ UPDATED: Dynamic non-working day checker
+const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
-  return day === 0 || day === 6;
+  return !activeWorkingDays.includes(day);
 };
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 
-const getMinSelectableDateISO = (leadTimeDays = 5) => {
+// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
+const getMinSelectableDateISO = (
+  leadTimeDays = 5,
+  activeWorkingDays = [1, 2, 3, 4, 5],
+) => {
   const lead = Number(leadTimeDays);
   const date = new Date();
 
@@ -46,10 +51,13 @@ const getMinSelectableDateISO = (leadTimeDays = 5) => {
   while (count < lead) {
     date.setDate(date.getDate() + 1);
     const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
+    if (activeWorkingDays.includes(day)) count++;
   }
+
   date.setDate(date.getDate() + 1);
-  while (date.getDay() === 0 || date.getDay() === 6) {
+
+  // Skip ahead if we landed on a non-working day
+  while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
 
@@ -255,6 +263,9 @@ const AddOrganicWellnessApplicationForm = () => {
 
   const workingDoc = workingDaysRes?.data;
 
+  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
+  const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
+
   const leadTimeDays = useMemo(() => {
     const enabled =
       typeof workingDoc?.workingDaysEnable === "boolean"
@@ -264,9 +275,10 @@ const AddOrganicWellnessApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
+  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
-    () => getMinSelectableDateISO(leadTimeDays),
-    [leadTimeDays],
+    () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
+    [leadTimeDays, activeWorkingDays],
   );
 
   useEffect(() => {
@@ -332,19 +344,21 @@ const AddOrganicWellnessApplicationForm = () => {
     }
   }, [minDate]);
 
+  // ✅ Update Validation Logic Context
   const validateDateLogic = useCallback(
     (value) => {
       if (!value) return "";
       if (!isFullISODate(value)) return "";
 
       if (value < minDate) return leadTimeMsg;
-      if (isWeekendISO(value)) return "Please select a working day (Mon–Fri).";
+      if (isNonWorkingDay(value, activeWorkingDays))
+        return "Please select a valid scheduled working day.";
       if (formData.inclusiveDates.includes(value))
         return "That date is already selected.";
 
       return "";
     },
-    [formData.inclusiveDates, minDate, leadTimeMsg],
+    [formData.inclusiveDates, minDate, leadTimeMsg, activeWorkingDays],
   );
 
   useEffect(() => {
@@ -408,7 +422,7 @@ const AddOrganicWellnessApplicationForm = () => {
     }));
   };
 
-  // ✅ Make validation specific to catch empty reasons on the frontend
+  // ✅ Updated Schema constraints
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       commutation: yup
@@ -437,11 +451,16 @@ const AddOrganicWellnessApplicationForm = () => {
         .test("lead-time", leadTimeMsg, (dates) =>
           !dates ? true : !dates.some((d) => d < minDate),
         )
-        .test("no-weekends", "Dates must be Mon-Fri.", (dates) =>
-          !dates ? true : !dates.some((d) => isWeekendISO(d)),
+        .test(
+          "no-weekends",
+          "One or more selected dates fall on a non-working day.",
+          (dates) =>
+            !dates
+              ? true
+              : !dates.some((d) => isNonWorkingDay(d, activeWorkingDays)),
         ),
     });
-  }, [minDate, leadTimeMsg, hasValidApprovalRoute]);
+  }, [minDate, leadTimeMsg, hasValidApprovalRoute, activeWorkingDays]);
 
   const startSubmit = async () => {
     clearBanner();

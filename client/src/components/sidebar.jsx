@@ -30,12 +30,14 @@ import {
   MapPin,
   FolderKanban,
   HardDrive,
+  Calendar, // ✅ Added for main Calendar menu
   CalendarDays,
+  Users, // ✅ Added for Company Calendar icon
   Mail,
   Route,
   Activity,
   Banknote,
-  BriefcaseMedical, // ✅ Added for Leave Service
+  BriefcaseMedical,
 } from "lucide-react";
 
 /* =========================
@@ -128,11 +130,12 @@ const Sidebar = ({
   const [hoveredItem, setHoveredItem] = useState(null);
   const [popupCoords, setPopupCoords] = useState({ top: 0, left: 0 });
 
-  // ✅ Added "Leave Service" to default open menus
+  // Default open menus
   const [openMenus, setOpenMenus] = useState({
     "CTO Service": true,
     "Wellness Service": true,
     "Leave Service": true,
+    "Calendar & Schedule": true, // ✅ Added Calendar to default open
   });
 
   const safeNavigate = (path) => {
@@ -229,7 +232,6 @@ const Sidebar = ({
           },
         ],
       },
-      // ✅ Added Leave Service
       {
         name: "Leave Service",
         icon: <BriefcaseMedical size={18} />,
@@ -239,6 +241,25 @@ const Sidebar = ({
             path: "/app/leave-credit",
             icon: <CirclePlus size={14} />,
             requiredPermission: "leave_credits.manage",
+          },
+        ],
+      },
+      // ✅ Added Calendar Service Section
+      {
+        name: "Calendar & Schedule",
+        icon: <Calendar size={18} />,
+        subItems: [
+          {
+            name: "My Calendar",
+            path: "/app/my-calendar",
+            icon: <CalendarDays size={14} />,
+            requiredPermission: "calendar.view_self",
+          },
+          {
+            name: "Company Calendar",
+            path: "/app/company-calendar",
+            icon: <Users size={14} />,
+            requiredPermission: "calendar.view_all",
           },
         ],
       },

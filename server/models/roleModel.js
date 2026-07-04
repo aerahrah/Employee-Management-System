@@ -65,6 +65,13 @@ const validPermissions = [
   "settings.cto_workflow", // CTO Approval routes/approver setup
 
   // -------------------------
+  // CALENDAR & SCHEDULING
+  // -------------------------
+  "calendar.view_self", // View own approved/pending dates
+  "calendar.view_all", // View all employees' dates (HR/Admin)
+  "calendar.view_department", // (Optional future-proofing) View dates for own department
+
+  // -------------------------
   // RESOURCE MANAGEMENT
   // -------------------------
   "designations.manage", // Create/edit/delete designations
