@@ -19,13 +19,30 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: [
+        // CTO Applications
         "CTO_APPLICATION_SUBMITTED",
         "CTO_APPLICATION_APPROVED",
         "CTO_APPLICATION_REJECTED",
         "CTO_APPLICATION_CANCELLED",
-        "WELLNESS_APPROVAL_REQUIRED",
+        "CTO_FOLLOW_UP",
+
+        // CTO Credits
         "CTO_CREDITED",
         "CTO_ROLLEDBACK",
+
+        // Wellness Applications
+        "WELLNESS_APPLICATION_SUBMITTED",
+        "WELLNESS_APPROVAL_REQUIRED",
+        "WELLNESS_APPLICATION_APPROVED",
+        "WELLNESS_APPLICATION_REJECTED",
+        "WELLNESS_APPLICATION_CANCELLED",
+        "WELLNESS_FOLLOW_UP",
+
+        // Wellness Credits
+        "WELLNESS_CREDITED",
+        "WELLNESS_ROLLEDBACK",
+
+        // Misc
         "GENERAL",
       ],
       index: true,
@@ -87,6 +104,9 @@ const notificationSchema = new mongoose.Schema(
         ref: "Employee",
         default: null,
       },
+      // The "extra" mixed object will easily handle any Wellness IDs
+      // (like wellnessApplicationId or wellnessCreditId) without needing
+      // strictly defined schema paths.
       extra: {
         type: mongoose.Schema.Types.Mixed,
         default: {},

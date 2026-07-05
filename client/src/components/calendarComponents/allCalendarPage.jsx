@@ -167,7 +167,7 @@ const CompanyCalendarPage = () => {
             <div className="p-4 md:p-6">
               <SharedCalendarView
                 events={events}
-                variant="all"
+                variant="personal"
                 title="Company Leave Schedule"
                 isLoading={isLoading}
               />

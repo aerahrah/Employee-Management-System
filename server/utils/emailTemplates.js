@@ -314,6 +314,41 @@ function ctoApprovalEmail({
   };
 }
 
+function ctoFollowUpEmail({
+  approverName,
+  employeeName,
+  requestedHours,
+  level,
+  link,
+  brandName = BRAND.name,
+}) {
+  const safeApprover = escapeHtml(approverName || "Approver");
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeHours = escapeHtml(requestedHours ?? "0");
+  const safeLevel = escapeHtml(level ?? "—");
+
+  const details = `
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Requested Hours", `${safeHours} hrs`)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`, true)}
+  `;
+
+  return {
+    subject: `Reminder: CTO Application Pending Approval — ${employeeName || "Pending"}`,
+    html: emailLayout({
+      title: "CTO Application Follow-up",
+      preheader: `Reminder to review the pending CTO request from ${employeeName}`,
+      greeting: `Hi <strong>${safeApprover}</strong>,`,
+      intro: `<strong>${safeEmployee}</strong> has requested a follow-up on their pending Compensatory Time-Off (CTO) application. Please review it at your earliest convenience.`,
+      detailsRowsHtml: details,
+      cta: { label: "Review Application", url: link },
+      outro:
+        "Prompt action helps ensure smooth processing of employee leave records.",
+      brandName,
+    }),
+  };
+}
+
 function ctoFinalApprovalEmail({
   employeeName,
   requestedHours,
@@ -406,6 +441,41 @@ function wellnessApprovalEmail({
       greeting: `Hi <strong>${safeApprover}</strong>,`,
       intro:
         "A Wellness Leave application requires your review. Please verify the schedule and details provided below.",
+      detailsRowsHtml: details,
+      cta: { label: "Review Application", url: link },
+      outro:
+        "Prompt action helps ensure smooth processing of employee leave records.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessFollowUpEmail({
+  approverName,
+  employeeName,
+  requestedDays,
+  level,
+  link,
+  brandName = BRAND.name,
+}) {
+  const safeApprover = escapeHtml(approverName || "Approver");
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeDays = escapeHtml(requestedDays ?? "0");
+  const safeLevel = escapeHtml(level ?? "—");
+
+  const details = `
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Requested Days", `${safeDays} day(s)`)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`, true)}
+  `;
+
+  return {
+    subject: `Reminder: Wellness Leave Pending Approval — ${employeeName || "Pending"}`,
+    html: emailLayout({
+      title: "Wellness Leave Follow-up",
+      preheader: `Reminder to review the pending Wellness Leave request from ${employeeName}`,
+      greeting: `Hi <strong>${safeApprover}</strong>,`,
+      intro: `<strong>${safeEmployee}</strong> has requested a follow-up on their pending Wellness Leave application. Please review it at your earliest convenience.`,
       detailsRowsHtml: details,
       cta: { label: "Review Application", url: link },
       outro:
@@ -638,11 +708,13 @@ function wellnessCreditRolledBackEmail({
 module.exports = {
   employeeWelcomeEmail,
   ctoApprovalEmail,
+  ctoFollowUpEmail,
   ctoFinalApprovalEmail,
   ctoRejectionEmail,
   ctoCreditAddedEmail,
   ctoCreditRolledBackEmail,
   wellnessApprovalEmail,
+  wellnessFollowUpEmail,
   wellnessFinalApprovalEmail,
   wellnessRejectionEmail,
   wellnessCreditAddedEmail,

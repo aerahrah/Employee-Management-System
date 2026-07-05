@@ -71,7 +71,8 @@ const CalendarThemeStyles = () => (
       .rbc-calendar {
         font-family: inherit;
         color: var(--app-text);
-        min-height: 650px;
+        /* ✅ FIX: Changed from min-height to height so the container knows when to start scrolling */
+        height: 650px; 
       }
       
       .rbc-overlay {
@@ -106,13 +107,22 @@ const CalendarThemeStyles = () => (
         border-left: 1px solid var(--app-border) !important;
       }
 
-      /* Grid Cells */
-      .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-day-view {
+      /* ✅ FIX: Separated the agenda view from the others so it can scroll independently */
+      .rbc-month-view, .rbc-time-view, .rbc-day-view {
         border: 1px solid var(--app-border) !important;
         background-color: var(--app-surface);
         border-radius: 0.5rem;
         overflow: hidden;
       }
+
+      /* ✅ FIX: Agenda view explicitly set to scroll */
+      .rbc-agenda-view {
+        border: 1px solid var(--app-border) !important;
+        background-color: var(--app-surface);
+        border-radius: 0.5rem;
+        overflow-y: auto !important; 
+      }
+
       .rbc-day-bg, .rbc-month-row, .rbc-time-header-content {
         border-color: var(--app-border) !important;
       }
@@ -205,6 +215,9 @@ const CalendarThemeStyles = () => (
         color: var(--app-muted);
         background-color: var(--app-surface); 
         border-right: none !important;
+        position: sticky; /* Keeps the table header visible when scrolling */
+        top: 0;
+        z-index: 10;
       }
 
       .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
@@ -244,7 +257,6 @@ const CalendarThemeStyles = () => (
   </style>
 );
 
-// ✅ Add variant="all" as the default prop
 const SharedCalendarView = ({ events = [], isLoading, variant = "all" }) => {
   const { data: settingsData } = useQuery({
     queryKey: ["workingDaysSettings"],
@@ -256,7 +268,6 @@ const SharedCalendarView = ({ events = [], isLoading, variant = "all" }) => {
     1, 2, 3, 4, 5,
   ];
 
-  // Force start and end to be actual Date objects.
   const formattedEvents = useMemo(() => {
     return events.map((event) => ({
       ...event,
@@ -291,11 +302,10 @@ const SharedCalendarView = ({ events = [], isLoading, variant = "all" }) => {
     noEventsInRange: "No events found in this date range.",
   };
 
-  // ✅ Conditionally set the allowed views based on the variant
   const allowedViews =
     variant === "personal"
-      ? ["month", "agenda"] // Personal calendar only gets Month & List
-      : ["month", "week", "day", "agenda"]; // Shared calendar gets all views
+      ? ["month", "agenda"]
+      : ["month", "week", "day", "agenda"];
 
   return (
     <div className="flex flex-col w-full gap-4">
@@ -391,10 +401,11 @@ const SharedCalendarView = ({ events = [], isLoading, variant = "all" }) => {
             endAccessor="end"
             eventPropGetter={eventPropGetter}
             dayPropGetter={dayPropGetter}
-            views={allowedViews} // ✅ Injects dynamic views here
+            views={allowedViews}
             defaultView="month"
             messages={calendarMessages}
-            popup={true} // Ensures "+X more" works on the month view without a day view to fall back on
+            popup={true}
+            length={90}
             components={{
               agenda: {
                 event: CustomAgendaEvent,

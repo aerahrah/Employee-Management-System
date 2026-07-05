@@ -1,7 +1,10 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { addWellnessApplicationRequest } from "../../../../api/wellnessApplication";
+import {
+  addWellnessApplicationRequest,
+  fetchMyWellnessApplications,
+} from "../../../../api/wellnessApplication";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { getMyProfile } from "../../../../api/employee";
@@ -295,13 +298,45 @@ const AddOrganicWellnessApplicationForm = () => {
     queryFn: fetchAllApprovalRoutes,
   });
 
+  // ✅ NEW: Fetch the user's Wellness applications to determine overlapping dates
+  const { data: appsResponse, isLoading: appsLoading } = useQuery({
+    queryKey: ["myWellnessApplications"],
+    queryFn: fetchMyWellnessApplications,
+  });
+
+  // ✅ NEW: Extract all dates from PENDING or APPROVED applications
+  const blockedDates = useMemo(() => {
+    const apps =
+      appsResponse?.data?.data || appsResponse?.data || appsResponse || [];
+    if (!Array.isArray(apps)) return [];
+
+    const blocked = [];
+    apps.forEach((app) => {
+      if (app.overallStatus === "PENDING" || app.overallStatus === "APPROVED") {
+        if (Array.isArray(app.inclusiveDates)) {
+          app.inclusiveDates.forEach((d) => {
+            if (!d) return;
+            const dateString =
+              typeof d === "string" ? d : new Date(d).toISOString();
+            const shortDate = dateString.split("T")[0];
+            if (shortDate) blocked.push(shortDate);
+          });
+        }
+      }
+    });
+    return Array.from(new Set(blocked));
+  }, [appsResponse]);
+
   const mutation = useMutation({
     mutationFn: addWellnessApplicationRequest,
     retry: 0,
   });
 
   const isBusy = mutation.isPending || successLatchUI;
-  const isFormDisabled = !hasSignature || checkingProfile || isBusy;
+
+  // ✅ Block form interaction while apps are loading to prevent bypassing
+  const isFormDisabled =
+    !hasSignature || checkingProfile || isBusy || appsLoading;
 
   // Find approval route based on live profile ID, falling back to session ID
   const userId =
@@ -344,7 +379,7 @@ const AddOrganicWellnessApplicationForm = () => {
     }
   }, [minDate]);
 
-  // ✅ Update Validation Logic Context
+  // ✅ Update Validation Logic Context to include blockedDates
   const validateDateLogic = useCallback(
     (value) => {
       if (!value) return "";
@@ -356,9 +391,20 @@ const AddOrganicWellnessApplicationForm = () => {
       if (formData.inclusiveDates.includes(value))
         return "That date is already selected.";
 
+      // ✅ PREVENT OVERLAPPING WITH EXISTING PENDING/APPROVED DATES
+      if (blockedDates.includes(value)) {
+        return "You already have a Pending/Approved application for this date.";
+      }
+
       return "";
     },
-    [formData.inclusiveDates, minDate, leadTimeMsg, activeWorkingDays],
+    [
+      formData.inclusiveDates,
+      minDate,
+      leadTimeMsg,
+      activeWorkingDays,
+      blockedDates,
+    ],
   );
 
   useEffect(() => {
@@ -422,7 +468,7 @@ const AddOrganicWellnessApplicationForm = () => {
     }));
   };
 
-  // ✅ Updated Schema constraints
+  // ✅ Updated Schema constraints with overlap block
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       commutation: yup
@@ -458,9 +504,23 @@ const AddOrganicWellnessApplicationForm = () => {
             !dates
               ? true
               : !dates.some((d) => isNonWorkingDay(d, activeWorkingDays)),
+        )
+        .test(
+          "no-overlapping-dates",
+          "You already have a Pending or Approved application for one or more selected dates.",
+          (dates) => {
+            if (!dates) return true;
+            return !dates.some((d) => blockedDates.includes(d));
+          },
         ),
     });
-  }, [minDate, leadTimeMsg, hasValidApprovalRoute, activeWorkingDays]);
+  }, [
+    minDate,
+    leadTimeMsg,
+    hasValidApprovalRoute,
+    activeWorkingDays,
+    blockedDates,
+  ]);
 
   const startSubmit = async () => {
     clearBanner();
@@ -1050,7 +1110,7 @@ const AddOrganicWellnessApplicationForm = () => {
                 }}
                 onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               >
-                {checkingProfile
+                {checkingProfile || appsLoading
                   ? "Checking Status..."
                   : !hasSignature
                     ? "Signature Required"

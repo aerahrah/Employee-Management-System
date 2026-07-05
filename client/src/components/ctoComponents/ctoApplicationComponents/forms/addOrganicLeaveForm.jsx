@@ -1,7 +1,11 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { addApplicationRequest, fetchMyCtoMemos } from "../../../../api/cto";
+import {
+  addApplicationRequest,
+  fetchMyCtoMemos,
+  fetchMyCtoApplications, // ✅ IMPORT ADDED
+} from "../../../../api/cto";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { getMyProfile } from "../../../../api/employee";
@@ -314,6 +318,35 @@ const AddOrganicCtoApplicationForm = () => {
     queryFn: fetchMyCtoMemos,
   });
 
+  // ✅ NEW: Fetch the user's CTO applications to determine overlapping dates
+  const { data: appsResponse, isLoading: appsLoading } = useQuery({
+    queryKey: ["ctoApplications"],
+    queryFn: fetchMyCtoApplications,
+  });
+
+  // ✅ NEW: Extract all dates from PENDING or APPROVED applications
+  const blockedDates = useMemo(() => {
+    const apps =
+      appsResponse?.data?.data || appsResponse?.data || appsResponse || [];
+    if (!Array.isArray(apps)) return [];
+
+    const blocked = [];
+    apps.forEach((app) => {
+      if (app.overallStatus === "PENDING" || app.overallStatus === "APPROVED") {
+        if (Array.isArray(app.inclusiveDates)) {
+          app.inclusiveDates.forEach((d) => {
+            if (!d) return;
+            const dateString =
+              typeof d === "string" ? d : new Date(d).toISOString();
+            const shortDate = dateString.split("T")[0];
+            if (shortDate) blocked.push(shortDate);
+          });
+        }
+      }
+    });
+    return Array.from(new Set(blocked));
+  }, [appsResponse]);
+
   const validMemos = useMemo(() => {
     const list = memoResponse?.memos || [];
     return list.filter(
@@ -336,7 +369,7 @@ const AddOrganicCtoApplicationForm = () => {
     retry: 0,
   });
 
-  const isBusy = mutation.isPending || successLatchUI;
+  const isBusy = mutation.isPending || successLatchUI || appsLoading;
   const isFormDisabled = !hasSignature || checkingProfile || isBusy;
 
   // Find approval route based on live profile ID, falling back to session ID
@@ -398,7 +431,7 @@ const AddOrganicCtoApplicationForm = () => {
     );
   }, [requiredDays]);
 
-  // ✅ Update Validation Logic Context
+  // ✅ Update Validation Logic Context to include blockedDates
   const validateDateLogic = useCallback(
     (value) => {
       if (!value) return "";
@@ -413,6 +446,11 @@ const AddOrganicCtoApplicationForm = () => {
       if (formData.inclusiveDates.includes(value))
         return "That date is already selected.";
 
+      // ✅ PREVENT OVERLAPPING WITH EXISTING PENDING/APPROVED DATES
+      if (blockedDates.includes(value)) {
+        return "You already have a Pending/Approved application for this date.";
+      }
+
       if (requiredDays > 0 && formData.inclusiveDates.length >= requiredDays) {
         return `You must select exactly ${requiredDays} day(s).`;
       }
@@ -425,6 +463,7 @@ const AddOrganicCtoApplicationForm = () => {
       leadTimeMsg,
       requiredDays,
       activeWorkingDays,
+      blockedDates,
     ],
   );
 
@@ -548,7 +587,7 @@ const AddOrganicCtoApplicationForm = () => {
     }));
   };
 
-  // ✅ Updated Schema constraints
+  // ✅ Updated Schema constraints with overlap block
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       requestedHours: yup
@@ -612,6 +651,14 @@ const AddOrganicCtoApplicationForm = () => {
             !dates
               ? true
               : !dates.some((d) => isNonWorkingDay(d, activeWorkingDays)),
+        )
+        .test(
+          "no-overlapping-dates",
+          "You already have a Pending or Approved application for one or more selected dates.",
+          (dates) => {
+            if (!dates) return true;
+            return !dates.some((d) => blockedDates.includes(d));
+          },
         ),
       memos: yup
         .array()
@@ -637,6 +684,7 @@ const AddOrganicCtoApplicationForm = () => {
     memoLoading,
     hoursPerDay,
     activeWorkingDays,
+    blockedDates,
   ]);
 
   const startSubmit = async () => {
@@ -1275,7 +1323,8 @@ const AddOrganicCtoApplicationForm = () => {
                 disabled={
                   isFormDisabled ||
                   (workingDaysLoading && !workingDaysIsError) ||
-                  !hasValidApprovalRoute
+                  !hasValidApprovalRoute ||
+                  appsLoading // ✅ Disable button if still loading past apps
                 }
                 className="px-8 py-2 rounded font-semibold text-sm disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 text-white"
                 style={{ backgroundColor: "var(--accent)" }}
@@ -1285,7 +1334,7 @@ const AddOrganicCtoApplicationForm = () => {
                 }}
                 onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               >
-                {checkingProfile
+                {checkingProfile || appsLoading
                   ? "Checking Status..."
                   : !hasSignature
                     ? "Signature Required"

@@ -9,6 +9,7 @@ import {
   fetchMyCtoApplications,
   fetchMyCreditRequests,
   cancelCtoApplicationRequest,
+  followUpCtoApplicationRequest, // ✅ Added Follow Up API Import
 } from "../../../api/cto";
 
 import Modal from "../../modal";
@@ -26,7 +27,6 @@ import {
   Clock,
   Calendar,
   FileText,
-  MoreVertical,
   CheckCircle2,
   XCircle,
   AlertCircle,
@@ -37,14 +37,15 @@ import {
   FileDown,
   ArrowUp,
   FileBadge,
-  ChevronDown, // ✅ Added ChevronDown for the new Action button
+  ChevronDown,
+  Bell, // ✅ Added Bell icon for Follow-up
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
 import MemoList from "../ctoMemoModal";
 import { toast } from "react-toastify";
 import CtoApplicationPdfModal from "./ctoApplicationPDFModal";
-import OrganicApplicationPdfModal from "./organicApplicationPDFModal"; // ✅ New Import
+import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 
 import { useAuth } from "../../../store/authStore";
 
@@ -186,10 +187,12 @@ const ApplicationActionMenu = ({
   onViewDetails,
   onViewMemos,
   onViewPdf,
-  onViewCscForm6, // ✅ Added Action Prop
+  onViewCscForm6,
   onCancel,
   cancelling,
-  isOrganicApp, // ✅ Auth Check Prop
+  onFollowUp, // ✅ Added Props for Follow Up
+  followingUp,
+  isOrganicApp,
   borderColor,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -216,14 +219,12 @@ const ApplicationActionMenu = ({
     setIsOpen(false);
   };
 
-  const canCancel =
+  const isPending =
     String(app?.overallStatus || "").toUpperCase() === "PENDING";
-
   const hasMemos = Array.isArray(app?.memo) && app.memo.length > 0;
 
   return (
     <div className="relative inline-flex justify-end" ref={menuRef}>
-      {/* ✅ Replaced the trigger button design here */}
       <button
         aria-haspopup="true"
         aria-expanded={isOpen}
@@ -292,7 +293,6 @@ const ApplicationActionMenu = ({
             <FileDown size={14} /> View General PDF
           </button>
 
-          {/* ✅ CSC Form 6 Conditional Menu Item */}
           {isOrganicApp && (
             <button
               onClick={() => handle(onViewCscForm6)}
@@ -331,13 +331,35 @@ const ApplicationActionMenu = ({
             <FileText size={14} /> View Memos
           </button>
 
+          {/* ✅ Follow Up Menu Item */}
+          {isPending && (
+            <button
+              disabled={followingUp}
+              onClick={() => handle(onFollowUp)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+              type="button"
+            >
+              <Bell size={14} /> {followingUp ? "Sending..." : "Send Follow-up"}
+            </button>
+          )}
+
           <button
-            disabled={!canCancel || cancelling}
+            disabled={!isPending || cancelling}
             onClick={() => handle(onCancel)}
             className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
             type="button"
             title={
-              !canCancel ? "Only PENDING applications can be cancelled" : ""
+              !isPending ? "Only PENDING applications can be cancelled" : ""
             }
             style={{ color: "#ef4444" }}
             onMouseEnter={(e) => {
@@ -361,14 +383,16 @@ const ApplicationCard = ({
   leftStripClassName,
   onViewDetails,
   onViewPdf,
-  onViewCscForm6, // ✅ Added Action Prop
+  onViewCscForm6,
   onViewMemos,
   onCancel,
   cancelling,
-  isOrganicApp, // ✅ Auth Check Prop
+  onFollowUp, // ✅ Added Props for Follow Up
+  followingUp,
+  isOrganicApp,
   borderColor,
 }) => {
-  const canCancel =
+  const isPending =
     String(app?.overallStatus || "").toUpperCase() === "PENDING";
 
   const memoLabel =
@@ -482,7 +506,6 @@ const ApplicationCard = ({
           backgroundColor: "var(--app-surface)",
         }}
       >
-        {/* ✅ Flex wrap ensures buttons don't get squished if there are many */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onViewMemos}
@@ -542,7 +565,6 @@ const ApplicationCard = ({
             Gen PDF
           </button>
 
-          {/* ✅ CSC Form 6 Conditional Mobile Button */}
           {isOrganicApp && (
             <button
               onClick={onViewCscForm6}
@@ -566,7 +588,33 @@ const ApplicationCard = ({
             </button>
           )}
 
-          {canCancel && (
+          {/* ✅ Follow Up Mobile Button */}
+          {isPending && (
+            <button
+              onClick={onFollowUp}
+              disabled={followingUp}
+              className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+              type="button"
+              title="Follow Up"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface)";
+              }}
+            >
+              <Bell className="w-4 h-4" />
+              {followingUp ? "..." : "Follow Up"}
+            </button>
+          )}
+
+          {isPending && (
             <button
               onClick={onCancel}
               disabled={cancelling}
@@ -784,7 +832,7 @@ const MyCtoApplications = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [memoModal, setMemoModal] = useState({ isOpen: false, memos: [] });
   const [pdfApp, setPdfApp] = useState(null);
-  const [organicPdfApp, setOrganicPdfApp] = useState(null); // ✅ CSC Form 6 State
+  const [organicPdfApp, setOrganicPdfApp] = useState(null);
 
   const [statusFilter, setStatusFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -844,7 +892,6 @@ const MyCtoApplications = () => {
   const appQueryKey = "ctoApplications";
   const balanceQueryKey = "myCtoBalanceHours";
 
-  // Unified Fetch Applications
   const { data, isLoading, refetch } = useQuery({
     queryKey: [appQueryKey, page, limit, statusFilter, searchFilter],
     queryFn: () => {
@@ -859,7 +906,6 @@ const MyCtoApplications = () => {
     placeholderData: (prev) => prev,
   });
 
-  // Unified Fetch Balances
   const {
     data: creditSummaryData,
     isLoading: isBalanceLoading,
@@ -870,7 +916,6 @@ const MyCtoApplications = () => {
     staleTime: 1000 * 60,
   });
 
-  // Unified Cancel Application Mutation
   const cancelMutation = useMutation({
     mutationFn: (applicationId) => cancelCtoApplicationRequest(applicationId),
     onSuccess: (payload) => {
@@ -893,6 +938,19 @@ const MyCtoApplications = () => {
       refetchBalance();
     },
     onError: (err) => toast.error(err?.message || "Failed to cancel request."),
+  });
+
+  // ✅ New Mutation for Follow-up request
+  const followUpMutation = useMutation({
+    mutationFn: (applicationId) => followUpCtoApplicationRequest(applicationId),
+    onSuccess: (payload) => {
+      toast.success(
+        payload?.message || "Follow-up notification sent successfully.",
+      );
+    },
+    onError: (err) => {
+      toast.error(err?.message || "Failed to send follow-up.");
+    },
   });
 
   const applications = useMemo(() => data?.data || [], [data]);
@@ -1376,6 +1434,10 @@ const MyCtoApplications = () => {
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
 
+                              const followingUp =
+                                followUpMutation.isPending &&
+                                followUpMutation.variables === app._id;
+
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
                                 app?.category === "Organic" ||
@@ -1390,12 +1452,16 @@ const MyCtoApplications = () => {
                                     app.overallStatus,
                                   )}
                                   cancelling={cancelling}
+                                  followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
+                                  onFollowUp={() =>
+                                    followUpMutation.mutate(app._id)
+                                  }
                                 />
                               );
                             })}
@@ -1433,6 +1499,10 @@ const MyCtoApplications = () => {
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
 
+                              const followingUp =
+                                followUpMutation.isPending &&
+                                followUpMutation.variables === app._id;
+
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
                                 app?.category === "Organic" ||
@@ -1447,12 +1517,16 @@ const MyCtoApplications = () => {
                                     app.overallStatus,
                                   )}
                                   cancelling={cancelling}
+                                  followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
+                                  onFollowUp={() =>
+                                    followUpMutation.mutate(app._id)
+                                  }
                                 />
                               );
                             })}
@@ -1512,6 +1586,10 @@ const MyCtoApplications = () => {
                                 const cancelling =
                                   cancelMutation.isPending &&
                                   cancelMutation.variables === app._id;
+
+                                const followingUp =
+                                  followUpMutation.isPending &&
+                                  followUpMutation.variables === app._id;
 
                                 const isAppOrganic =
                                   app?.employeeType === "Organic" ||
@@ -1610,6 +1688,10 @@ const MyCtoApplications = () => {
                                         }
                                         onCancel={() => openCancelModal(app)}
                                         cancelling={cancelling}
+                                        onFollowUp={() =>
+                                          followUpMutation.mutate(app._id)
+                                        }
+                                        followingUp={followingUp}
                                       />
                                     </td>
                                   </tr>

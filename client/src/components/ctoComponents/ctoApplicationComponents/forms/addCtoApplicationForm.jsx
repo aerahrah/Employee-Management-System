@@ -1,7 +1,11 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { addApplicationRequest, fetchMyCtoMemos } from "../../../../api/cto";
+import {
+  addApplicationRequest,
+  fetchMyCtoMemos,
+  fetchMyCtoApplications,
+} from "../../../../api/cto";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { useAuth } from "../../../../store/authStore";
@@ -35,7 +39,6 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-// ✅ UPDATED: Dynamic non-working day checker
 const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
@@ -44,14 +47,12 @@ const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 
-// ✅ UPDATED: Dynamic hours calculation
 const requiredDaysFromHours = (hours, hoursPerDay = 8) => {
   const h = Number(hours || 0);
   if (!Number.isFinite(h) || h <= 0) return 0;
   return Math.ceil(h / hoursPerDay);
 };
 
-// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
 const getMinSelectableDateISO = (
   leadTimeDays = 5,
   activeWorkingDays = [1, 2, 3, 4, 5],
@@ -73,7 +74,6 @@ const getMinSelectableDateISO = (
 
   date.setDate(date.getDate() + 1);
 
-  // Skip ahead if we landed on a non-working day
   while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
@@ -129,11 +129,11 @@ function useResolvedTheme(prefTheme) {
   return theme;
 }
 
-// ✅ UPDATED: Pass dynamic HR settings to validation
 const validateDate = ({
   value,
   requestedHours,
   inclusiveDates,
+  blockedDates,
   minDate,
   leadTimeMsg,
   activeWorkingDays,
@@ -150,6 +150,10 @@ const validateDate = ({
     return "Please select a valid scheduled working day.";
 
   if (inclusiveDates.includes(value)) return "That date is already selected.";
+
+  if (blockedDates.includes(value)) {
+    return "You already have a Pending/Approved application for this date.";
+  }
 
   const requiredDays = requiredDaysFromHours(rh, hoursPerDay);
   if (requiredDays > 0 && inclusiveDates.length >= requiredDays) {
@@ -295,7 +299,6 @@ const AddCtoApplicationForm = () => {
 
   const workingDoc = workingDaysRes?.data;
 
-  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
   const hoursPerDay = workingDoc?.hoursPerDay || 8;
   const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
 
@@ -309,7 +312,6 @@ const AddCtoApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
-  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
     () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
     [leadTimeDays, activeWorkingDays],
@@ -335,12 +337,42 @@ const AddCtoApplicationForm = () => {
     queryFn: fetchMyCtoMemos,
   });
 
+  const { data: appsResponse, isLoading: appsLoading } = useQuery({
+    queryKey: ["ctoApplications"],
+    queryFn: fetchMyCtoApplications,
+  });
+
+  // ✅ FIX: Normalize all incoming ISO dates to strictly match the YYYY-MM-DD input string
+  const blockedDates = useMemo(() => {
+    const apps =
+      appsResponse?.data?.data || appsResponse?.data || appsResponse || [];
+    if (!Array.isArray(apps)) return [];
+
+    const blocked = [];
+    apps.forEach((app) => {
+      if (app.overallStatus === "PENDING" || app.overallStatus === "APPROVED") {
+        if (Array.isArray(app.inclusiveDates)) {
+          app.inclusiveDates.forEach((d) => {
+            if (!d) return;
+            // Whether it arrives as "2026-07-16T00:00:00.000Z" or an actual Date object,
+            // convert to standard string and split at the "T"
+            const dateString =
+              typeof d === "string" ? d : new Date(d).toISOString();
+            const shortDate = dateString.split("T")[0];
+            if (shortDate) blocked.push(shortDate);
+          });
+        }
+      }
+    });
+    return Array.from(new Set(blocked));
+  }, [appsResponse]);
+
   const mutation = useMutation({
     mutationFn: addApplicationRequest,
     retry: 0,
   });
 
-  const isBusy = mutation.isPending || successLatchUI;
+  const isBusy = mutation.isPending || successLatchUI || appsLoading;
 
   const validMemos = useMemo(() => {
     const list = memoResponse?.memos || [];
@@ -388,7 +420,6 @@ const AddCtoApplicationForm = () => {
     return `Applications must be filed at least ${leadTimeDays} working day(s) in advance.`;
   }, [leadTimeDays]);
 
-  // ✅ Pass hoursPerDay
   const requiredDays = useMemo(
     () => requiredDaysFromHours(formData.requestedHours, hoursPerDay),
     [formData.requestedHours, hoursPerDay],
@@ -419,11 +450,11 @@ const AddCtoApplicationForm = () => {
   }, [requiredDays]);
 
   useEffect(() => {
-    // ✅ Pass dynamic variables
     const err = validateDate({
       value: dateValue,
       requestedHours: formData.requestedHours,
       inclusiveDates: formData.inclusiveDates,
+      blockedDates,
       minDate,
       leadTimeMsg,
       activeWorkingDays,
@@ -435,6 +466,7 @@ const AddCtoApplicationForm = () => {
     dateValue,
     formData.requestedHours,
     formData.inclusiveDates,
+    blockedDates,
     minDate,
     leadTimeMsg,
     activeWorkingDays,
@@ -525,11 +557,11 @@ const AddCtoApplicationForm = () => {
     const v = e.target.value;
     setDateValue(v);
 
-    // ✅ Pass dynamic variables
     const err = validateDate({
       value: v,
       requestedHours: formData.requestedHours,
       inclusiveDates: formData.inclusiveDates,
+      blockedDates,
       minDate,
       leadTimeMsg,
       activeWorkingDays,
@@ -544,11 +576,11 @@ const AddCtoApplicationForm = () => {
     const v = e.target.value;
     setDateValue(v);
 
-    // ✅ Pass dynamic variables
     const err = validateDate({
       value: v,
       requestedHours: formData.requestedHours,
       inclusiveDates: formData.inclusiveDates,
+      blockedDates,
       minDate,
       leadTimeMsg,
       activeWorkingDays,
@@ -565,7 +597,6 @@ const AddCtoApplicationForm = () => {
     if (err) return;
 
     const rh = Number(formData.requestedHours || 0);
-    // ✅ Use dynamic hours
     const reqDays = requiredDaysFromHours(rh, hoursPerDay);
 
     if (reqDays > 0 && formData.inclusiveDates.length >= reqDays) {
@@ -638,7 +669,6 @@ const AddCtoApplicationForm = () => {
         .of(yup.string())
         .test("required-days-match", function (dates) {
           const reqHours = this.parent.requestedHours;
-          // ✅ Pass dynamic hours to Yup validation
           const reqDays = requiredDaysFromHours(reqHours, hoursPerDay);
           if (reqDays <= 0)
             return this.createError({
@@ -657,12 +687,18 @@ const AddCtoApplicationForm = () => {
         })
         .test(
           "no-weekends",
-          // ✅ Generic error message instead of Mon-Fri
           "One or more selected dates fall on a non-working day.",
           (dates) => {
             if (!dates) return true;
-            // ✅ Check against dynamic active working days
             return !dates.some((d) => isNonWorkingDay(d, activeWorkingDays));
+          },
+        )
+        .test(
+          "no-overlapping-dates",
+          "You already have a Pending or Approved application for one or more selected dates.",
+          (dates) => {
+            if (!dates) return true;
+            return !dates.some((d) => blockedDates.includes(d));
           },
         ),
       memos: yup
@@ -688,8 +724,9 @@ const AddCtoApplicationForm = () => {
     minDate,
     leadTimeMsg,
     hasValidApprovalRoute,
-    hoursPerDay, // ✅ Added dependencies to recalculate schema when settings change
-    activeWorkingDays, // ✅ Added dependencies
+    hoursPerDay,
+    activeWorkingDays,
+    blockedDates,
   ]);
 
   const startSubmit = async () => {
@@ -767,7 +804,8 @@ const AddCtoApplicationForm = () => {
     return `Min. Lead Time: ${leadTimeDays} Work Day${leadTimeDays === 1 ? "" : "s"}`;
   }, [leadTimeDays, workingDaysLoading]);
 
-  const dateDisabled = !formData.requestedHours || isBusy || workingDaysLoading;
+  const dateDisabled =
+    !formData.requestedHours || isBusy || workingDaysLoading || appsLoading;
 
   return (
     <div
@@ -1367,7 +1405,8 @@ const AddCtoApplicationForm = () => {
                 disabled={
                   isBusy ||
                   (workingDaysLoading && !workingDaysIsError) ||
-                  !hasValidApprovalRoute
+                  !hasValidApprovalRoute ||
+                  appsLoading
                 }
                 className="w-full sm:w-auto px-8 py-2.5 sm:py-2 rounded-lg font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
                 style={{
@@ -1381,7 +1420,7 @@ const AddCtoApplicationForm = () => {
                 }}
                 onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               >
-                {workingDaysLoading
+                {workingDaysLoading || appsLoading
                   ? "Loading..."
                   : mutation.isPending
                     ? "Submitting..."

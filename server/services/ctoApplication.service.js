@@ -9,7 +9,11 @@ const NotificationService = require("./notificationService");
 
 const EMAIL_KEYS = require("../utils/emailNotificationKeys");
 const { isEmailEnabled } = require("../utils/emailNotificationSettings");
-const { ctoApprovalEmail } = require("../utils/emailTemplates");
+// ✅ Added ctoFollowUpEmail to the imports here
+const {
+  ctoApprovalEmail,
+  ctoFollowUpEmail,
+} = require("../utils/emailTemplates");
 const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 
 /* =========================
@@ -76,7 +80,6 @@ const populateApplicationById = async (applicationId) => {
   assertObjectId(applicationId, "Application ID");
 
   const app = await CtoApplication.findById(applicationId)
-    // ✅ Include division and extended name fields
     .populate(
       "employee",
       "prefixTitle firstName middleName lastName nameExtension postfixTitle division position email employeeId signature",
@@ -85,7 +88,6 @@ const populateApplicationById = async (applicationId) => {
       path: "approvals",
       populate: {
         path: "approver",
-        // ✅ Include division and extended name fields for approvers
         select:
           "prefixTitle firstName middleName lastName nameExtension postfixTitle division position email",
       },
@@ -136,7 +138,6 @@ const restoreMemoHours = async ({ employeeId, memoItems }) => {
     const appliedHours = strictNumber(m.appliedHours);
     if (appliedHours <= 0) continue;
 
-    // ✅ FIX: Use $elemMatch to ensure exact targeting during cancellation
     await CtoCredit.updateOne(
       {
         _id: m.memoId,
@@ -274,6 +275,24 @@ const addCtoApplicationService = async ({
     `[addCtoApplicationService] Employee fetched. Name: ${employee.firstName} ${employee.lastName}, Type: ${employee.employeeType}, isOrganic: ${isOrganic}`,
   );
 
+  console.log(`[addCtoApplicationService] Checking for overlapping dates...`);
+
+  const existingApplications = await CtoApplication.find({
+    employee: userId,
+    overallStatus: { $in: ["PENDING", "APPROVED"] },
+    inclusiveDates: { $in: inclusiveDates },
+  });
+
+  if (existingApplications.length > 0) {
+    console.error(
+      "[addCtoApplicationService] Validation Error: Overlapping dates found.",
+    );
+    throw createServiceError(
+      "You already have a Pending or Approved CTO application for one or more of the selected dates.",
+      400,
+    );
+  }
+
   if (isOrganic) {
     console.log("[addCtoApplicationService] Running Organic strict checks...");
     if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
@@ -400,7 +419,6 @@ const addCtoApplicationService = async ({
       "[addCtoApplicationService] Beginning Memo Hours Deduction Loop...",
     );
 
-    // 1. DEDUCT HOURS
     for (const input of sanitizedMemos) {
       const credit = credits.find(
         (c) => String(c._id) === String(input.memoId),
@@ -433,8 +451,6 @@ const addCtoApplicationService = async ({
         );
       }
 
-      // ✅ FIX: Use $elemMatch to ensure we target the EXACT employee subdocument
-      // that matches BOTH the employee ID and the remainingHours requirement.
       const updateResult = await CtoCredit.updateOne(
         {
           _id: credit._id,
@@ -494,11 +510,10 @@ const addCtoApplicationService = async ({
     console.log(
       "[addCtoApplicationService] Constructing Application Payload and Applicant Snapshot...",
     );
-    // 2. CREATE APPLICATION PAYLOAD WITH SNAPSHOT
+
     const applicationPayload = {
       employee: employee._id,
       employeeType,
-      // ✅ Included full robust snapshot mapping including division
       applicantSnapshot: {
         prefixTitle: employee.prefixTitle || "",
         firstName: employee.firstName || "",
@@ -517,14 +532,12 @@ const addCtoApplicationService = async ({
       commutation: commutation || "Not Requested",
     };
 
-    // ✅ ENFORCE CSC FORM 6 REQUIREMENTS ONLY FOR ORGANIC EMPLOYEES
     if (isOrganic) {
       applicationPayload.applicantSignatureUrl = employee.signature;
       applicationPayload.applicantSnapshot.salaryGrade = employee.salary?.grade;
       applicationPayload.applicantSnapshot.salaryAmount =
         employee.salary?.amount;
 
-      // Automatically save SL and VL days from the employee profile into certificationOfLeaveCredits
       const currentVlDays = employee.balances?.vlDays || 0;
       const currentSlDays = employee.balances?.slDays || 0;
 
@@ -550,10 +563,8 @@ const addCtoApplicationService = async ({
 
     if (actionDetails) applicationPayload.actionDetails = actionDetails;
 
-    // 3. INSTANTIATE (DO NOT SAVE YET)
     const newApplication = new CtoApplication(applicationPayload);
 
-    // 4. CREATE APPROVAL STEPS FIRST to get their IDs
     const approverIds = finalApprovers.map((a) => a.approver);
 
     const approverEmployees = await Employee.find({
@@ -590,13 +601,11 @@ const addCtoApplicationService = async ({
       });
     });
 
-    // 5. ATTACH APPROVALS TO APP
     newApplication.approvals = approvalSteps.map((step) => step._id);
 
     console.log(
       "[addCtoApplicationService] Saving Application and ApprovalSteps to Database...",
     );
-    // 6. SAVE EVERYTHING
     await newApplication.save();
     await ApprovalStep.insertMany(approvalSteps);
     console.log(
@@ -609,7 +618,6 @@ const addCtoApplicationService = async ({
     console.log(
       "[addCtoApplicationService] Dispatching In-App Notifications...",
     );
-    // 7. FIRE OFF NOTIFICATIONS
     try {
       await NotificationService.notifyApproversOnCtoSubmission({
         approverIds: justApproverIds,
@@ -672,7 +680,6 @@ const addCtoApplicationService = async ({
     );
     return populatedApp;
   } catch (error) {
-    // 🚨 IF ANYTHING ABOVE FAILS, WE MANUALLY ROLL BACK THE HOURS
     console.error(
       "\n=========================================\n[addCtoApplicationService] 🚨 FATAL ERROR ENCOUNTERED! 🚨\nError Message:",
       error.message,
@@ -681,7 +688,6 @@ const addCtoApplicationService = async ({
 
     for (const action of rollbackActions) {
       try {
-        // ✅ FIX: Also updated the error rollback to strictly target via $elemMatch
         await CtoCredit.updateOne(
           {
             _id: action.memoId,
@@ -767,6 +773,96 @@ const cancelCtoApplicationService = async ({ userId, applicationId }) => {
   return populateApplicationById(app._id);
 };
 
+// ✅ NEW SERVICE: Follow Up Application
+const followUpCtoApplicationService = async ({ userId, applicationId }) => {
+  assertObjectId(userId, "User ID");
+  assertObjectId(applicationId, "Application ID");
+
+  // Fetch the application and populate the approvals to find the pending one
+  const app = await CtoApplication.findById(applicationId)
+    .populate("employee", "firstName lastName")
+    .populate({
+      path: "approvals",
+      populate: {
+        path: "approver",
+        select: "firstName lastName email",
+      },
+      options: { sort: { level: 1 } },
+    });
+
+  if (!app) {
+    throw createServiceError("Application not found.", 404);
+  }
+
+  // Security: Ensure the user clicking "Follow Up" actually owns the application
+  if (String(app.employee._id) !== String(userId)) {
+    throw createServiceError(
+      "Not authorized to follow up on this application.",
+      403,
+    );
+  }
+
+  if (app.overallStatus !== "PENDING") {
+    throw createServiceError(
+      "You can only follow up on PENDING applications.",
+      400,
+    );
+  }
+
+  // Find the exact step that is currently waiting for approval
+  const currentStep = app.approvals.find((step) => step.status === "PENDING");
+
+  if (!currentStep || !currentStep.approver) {
+    throw createServiceError(
+      "No pending approver found to follow up with.",
+      404,
+    );
+  }
+
+  const approverUser = currentStep.approver;
+
+  if (!approverUser.email) {
+    throw createServiceError(
+      "The current approver does not have an email address on file.",
+      400,
+    );
+  }
+
+  // Send the follow-up email
+  // Note: Reusing the CTO_APPROVAL key, or create a specific CTO_FOLLOW_UP key in your settings
+  const enabled = await canSend(EMAIL_KEYS.CTO_APPROVAL);
+
+  if (enabled) {
+    const tpl = ctoFollowUpEmail({
+      approverName: `${approverUser.firstName} ${approverUser.lastName}`,
+      employeeName: `${app.employee.firstName} ${app.employee.lastName}`,
+      requestedHours: app.requestedHours,
+      level: currentStep.level,
+      link: `${process.env.FRONTEND_URL}/app/cto-approvals/${app._id}`,
+    });
+
+    await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
+
+    // Log an in-app notification for the approver too
+    await NotificationService.createNotification({
+      recipient: approverUser._id,
+      actor: app.employee._id,
+      type: "CTO_FOLLOW_UP",
+      title: "Reminder: CTO Approval Pending",
+      message: `${app.employee.firstName} has requested a follow-up on their pending CTO application.`,
+      link: `/app/cto-approvals/${app._id}`,
+      priority: "HIGH",
+    });
+  } else {
+    throw createServiceError(
+      "Email notifications are currently disabled in the system settings.",
+      400,
+    );
+  }
+
+  return { message: "Follow-up notification sent successfully." };
+};
+
 const getAllCtoApplicationsService = async (
   filters = {},
   page = 1,
@@ -817,14 +913,12 @@ const getAllCtoApplicationsService = async (
         options: { sort: { level: 1 } },
         populate: {
           path: "approver",
-          // ✅ Add division and extended name fields for Mongoose find query
           select:
             "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id",
         },
       })
       .populate(
         "employee",
-        // ✅ Add division and extended name fields for Employee populate
         "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id signature",
       )
       .populate("memo.memoId", "memoNo uploadedMemo totalHours appliedHours")
@@ -991,7 +1085,6 @@ const getCtoApplicationsByEmployeeService = async (
             remarks: 1,
             role: 1,
             approverSignature: 1,
-            // ✅ Include approverSnapshot
             approverSnapshot: 1,
             approver: {
               _id: "$approver._id",
@@ -1121,4 +1214,5 @@ module.exports = {
   cancelCtoApplicationService,
   getAllCtoApplicationsService,
   getCtoApplicationsByEmployeeService,
+  followUpCtoApplicationService, // ✅ Added export here
 };

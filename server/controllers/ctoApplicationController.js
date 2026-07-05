@@ -3,6 +3,7 @@ const {
   getAllCtoApplicationsService,
   getCtoApplicationsByEmployeeService,
   cancelCtoApplicationService,
+  followUpCtoApplicationService, // ✅ Imported new service
 } = require("../services/ctoApplication.service");
 
 const addCtoApplicationRequest = async (req, res) => {
@@ -93,7 +94,7 @@ const getCtoApplicationsByEmployeeRequest = async (req, res) => {
 
 /**
  * Cancel CTO application (employee-initiated)
- * Route suggestion: PATCH /cto/applications/:id/cancel
+ * Route suggestion: PATCH /cto/applications/:applicationId/cancel
  */
 const cancelCtoApplicationRequest = async (req, res) => {
   try {
@@ -116,9 +117,34 @@ const cancelCtoApplicationRequest = async (req, res) => {
   }
 };
 
+/**
+ * Follow-up on a pending CTO application (employee-initiated)
+ * Route suggestion: POST /cto/applications/:applicationId/follow-up
+ */
+const followUpCtoApplicationRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const applicationId = req.params.applicationId;
+
+    const result = await followUpCtoApplicationService({
+      userId,
+      applicationId,
+    });
+
+    res.status(200).json({
+      message: result.message,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Server error while sending follow-up",
+    });
+  }
+};
+
 module.exports = {
   addCtoApplicationRequest,
   getAllCtoApplicationsRequest,
   getCtoApplicationsByEmployeeRequest,
   cancelCtoApplicationRequest,
+  followUpCtoApplicationRequest,
 };

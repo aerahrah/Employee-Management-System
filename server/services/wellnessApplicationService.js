@@ -155,6 +155,25 @@ const addWellnessApplicationService = async ({
     throw Object.assign(new Error("Employee not found."), { status: 404 });
   }
 
+  // ==========================================
+  // NEW CHECK: PREVENT DUPLICATE DATES
+  // ==========================================
+  const existingApplications = await WellnessApplication.find({
+    employee: userId,
+    overallStatus: { $in: ["PENDING", "APPROVED"] },
+    inclusiveDates: { $in: inclusiveDates },
+  });
+
+  if (existingApplications.length > 0) {
+    throw Object.assign(
+      new Error(
+        "You already have a Pending or Approved Wellness Leave application for one or more of the selected dates.",
+      ),
+      { status: 400 },
+    );
+  }
+  // ==========================================
+
   // ✅ Determine final employee type (fallback to DB value if not provided in payload)
   const finalEmployeeType = employeeType || employee.employeeType || "Organic";
   const isOrganic = finalEmployeeType === "Organic";

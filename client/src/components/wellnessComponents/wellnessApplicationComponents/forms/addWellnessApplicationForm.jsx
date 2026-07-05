@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { addWellnessApplicationRequest } from "../../../../api/wellnessApplication";
+import {
+  addWellnessApplicationRequest,
+  fetchMyWellnessApplications,
+} from "../../../../api/wellnessApplication";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { getMyWellnessBalance } from "../../../../api/employee";
@@ -32,7 +35,6 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-// ✅ UPDATED: Dynamic non-working day checker
 const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
@@ -41,10 +43,6 @@ const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 
-/**
- * Lead-time rule: Must have N working days between today (exclusive) and selected date (exclusive).
- */
-// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
 const getMinSelectableDateISO = (
   leadTimeDays = 5,
   activeWorkingDays = [1, 2, 3, 4, 5],
@@ -66,7 +64,6 @@ const getMinSelectableDateISO = (
 
   date.setDate(date.getDate() + 1);
 
-  // Skip ahead if we landed on a non-working day
   while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
@@ -122,9 +119,11 @@ function useResolvedTheme(prefTheme) {
 /* =========================
    Validation Logic
 ========================= */
+// ✅ UPDATED: Added blockedDates parameter to prevent overlaps
 const validateDate = ({
   value,
   inclusiveDates,
+  blockedDates,
   minDate,
   leadTimeMsg,
   maxWellnessDays,
@@ -137,6 +136,11 @@ const validateDate = ({
   if (isNonWorkingDay(value, activeWorkingDays))
     return "Please select a valid scheduled working day.";
   if (inclusiveDates.includes(value)) return "That date is already selected.";
+
+  // ✅ PREVENT OVERLAPPING WITH EXISTING PENDING/APPROVED DATES
+  if (blockedDates.includes(value)) {
+    return "You already have a Pending/Approved application for this date.";
+  }
 
   const tempDates = [...inclusiveDates, value];
 
@@ -276,7 +280,6 @@ const AddWellnessApplicationForm = () => {
 
   const workingDoc = workingDaysRes?.data;
 
-  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
   const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
 
   const leadTimeDays = useMemo(() => {
@@ -288,7 +291,6 @@ const AddWellnessApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
-  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
     () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
     [leadTimeDays, activeWorkingDays],
@@ -325,6 +327,35 @@ const AddWellnessApplicationForm = () => {
     queryFn: fetchAllApprovalRoutes,
   });
 
+  // ✅ NEW: Fetch the user's Wellness applications to determine overlapping dates
+  const { data: appsResponse, isLoading: appsLoading } = useQuery({
+    queryKey: ["myWellnessApplications"],
+    queryFn: fetchMyWellnessApplications,
+  });
+
+  // ✅ NEW: Extract all dates from PENDING or APPROVED applications
+  const blockedDates = useMemo(() => {
+    const apps =
+      appsResponse?.data?.data || appsResponse?.data || appsResponse || [];
+    if (!Array.isArray(apps)) return [];
+
+    const blocked = [];
+    apps.forEach((app) => {
+      if (app.overallStatus === "PENDING" || app.overallStatus === "APPROVED") {
+        if (Array.isArray(app.inclusiveDates)) {
+          app.inclusiveDates.forEach((d) => {
+            if (!d) return;
+            const dateString =
+              typeof d === "string" ? d : new Date(d).toISOString();
+            const shortDate = dateString.split("T")[0];
+            if (shortDate) blocked.push(shortDate);
+          });
+        }
+      }
+    });
+    return Array.from(new Set(blocked));
+  }, [appsResponse]);
+
   // Auto-select route
   const myRoute = useMemo(() => {
     if (!routesResponse || !Array.isArray(routesResponse)) return null;
@@ -354,13 +385,14 @@ const AddWellnessApplicationForm = () => {
     retry: 0,
   });
 
-  const isBusy = mutation.isPending || successLatchUI;
+  const isBusy = mutation.isPending || successLatchUI || appsLoading;
 
   // Validate typed dates instantly
   useEffect(() => {
     const err = validateDate({
       value: dateValue,
       inclusiveDates: formData.inclusiveDates,
+      blockedDates, // ✅ Pass blocked dates
       minDate,
       leadTimeMsg,
       maxWellnessDays,
@@ -370,6 +402,7 @@ const AddWellnessApplicationForm = () => {
   }, [
     dateValue,
     formData.inclusiveDates,
+    blockedDates,
     minDate,
     leadTimeMsg,
     maxWellnessDays,
@@ -390,6 +423,17 @@ const AddWellnessApplicationForm = () => {
   const handleDateInput = (e) => {
     clearBanner();
     setDateValue(e.target.value);
+
+    const err = validateDate({
+      value: e.target.value,
+      inclusiveDates: formData.inclusiveDates,
+      blockedDates, // ✅ Pass blocked dates
+      minDate,
+      leadTimeMsg,
+      maxWellnessDays,
+      activeWorkingDays,
+    });
+    setDateError(err);
   };
 
   const handleDateCommit = (e) => {
@@ -400,6 +444,7 @@ const AddWellnessApplicationForm = () => {
     const err = validateDate({
       value: v,
       inclusiveDates: formData.inclusiveDates,
+      blockedDates, // ✅ Pass blocked dates
       minDate,
       leadTimeMsg,
       maxWellnessDays,
@@ -466,6 +511,18 @@ const AddWellnessApplicationForm = () => {
       };
     }
 
+    // ✅ NEW VALIDATION: Final check before submitting just in case
+    const overlaps = formData.inclusiveDates.filter((d) =>
+      blockedDates.includes(d),
+    );
+    if (overlaps.length > 0) {
+      return {
+        ok: false,
+        message: `You already have a Pending or Approved application for: ${overlaps.join(", ")}`,
+        isToastOnly: true,
+      };
+    }
+
     if (!formData.routeId) {
       return { ok: false, message: "Please select an approval route." };
     }
@@ -495,7 +552,7 @@ const AddWellnessApplicationForm = () => {
         reason,
         routeId: formData.routeId,
         clientRequestId: makeClientRequestId(),
-        employeeType: admin?.employeeType || "JO", // ✅ Added employeeType for Schema validation
+        employeeType: admin?.employeeType || "JO",
       },
     };
   };
@@ -554,7 +611,8 @@ const AddWellnessApplicationForm = () => {
     }`;
   }, [leadTimeDays, workingDaysLoading]);
 
-  const dateDisabled = isBusy || workingDaysLoading;
+  // ✅ Also disabled while fetching applications
+  const dateDisabled = isBusy || workingDaysLoading || appsLoading;
 
   return (
     <div
@@ -1004,7 +1062,8 @@ const AddWellnessApplicationForm = () => {
                   isBusy ||
                   (workingDaysLoading && !workingDaysIsError) ||
                   !hasValidApprovalRoute ||
-                  formData.inclusiveDates.length === 0
+                  formData.inclusiveDates.length === 0 ||
+                  appsLoading // ✅ Disable button if still loading past apps
                 }
                 className="w-full sm:w-auto px-8 py-2.5 sm:py-2 rounded-lg font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
                 style={{
@@ -1018,7 +1077,7 @@ const AddWellnessApplicationForm = () => {
                 }}
                 onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               >
-                {workingDaysLoading
+                {workingDaysLoading || appsLoading
                   ? "Loading..."
                   : mutation.isPending
                     ? "Submitting..."

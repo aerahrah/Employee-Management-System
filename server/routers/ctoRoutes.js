@@ -33,6 +33,7 @@ const {
   getAllCtoApplicationsRequest,
   getCtoApplicationsByEmployeeRequest,
   cancelCtoApplicationRequest,
+  followUpCtoApplicationRequest, // ✅ Added follow-up controller import
 } = require("../controllers/ctoApplicationController.js");
 
 // Organic Leaves Controllers
@@ -127,6 +128,13 @@ router.patch(
   "/applications/:applicationId/cancel",
   ...requirePerm("cto.view_self"),
   cancelCtoApplicationRequest,
+);
+
+// ✅ NEW: Follow-up on a pending CTO application
+router.post(
+  "/applications/:applicationId/follow-up",
+  ...requirePerm("cto.view_self"),
+  followUpCtoApplicationRequest,
 );
 
 /* =========================================

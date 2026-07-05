@@ -153,6 +153,19 @@ export const cancelCtoApplicationRequest = async (applicationId) => {
   }
 };
 
+export const followUpCtoApplicationRequest = async (applicationId) => {
+  try {
+    const res = await API.post(
+      `/cto/applications/${applicationId}/follow-up`,
+      {},
+      { withCredentials: true },
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to send follow-up request");
+  }
+};
+
 /* =========================
    ORGANIC APPLICATIONS (WELLNESS, ETC.)
 ========================= */
