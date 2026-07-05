@@ -3,6 +3,7 @@ const {
   getAllWellnessApplicationsService,
   getWellnessApplicationsByEmployeeService,
   cancelWellnessApplicationService,
+  followUpWellnessApplicationService, // ✅ Added import
 } = require("../services/wellnessApplicationService"); // Adjust path if necessary
 
 /* =========================
@@ -94,9 +95,30 @@ const cancelWellnessApplicationRequest = async (req, res, next) => {
   }
 };
 
+// ✅ NEW: Follow-up Controller
+const followUpWellnessApplicationRequest = async (req, res, next) => {
+  try {
+    const applicationId = req.params.id;
+    const userId = req.user.id || req.user._id;
+
+    const result = await followUpWellnessApplicationService({
+      userId,
+      applicationId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   addWellnessApplicationRequest,
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
   cancelWellnessApplicationRequest,
+  followUpWellnessApplicationRequest, // ✅ Exported
 };

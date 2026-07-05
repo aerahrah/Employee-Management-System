@@ -10,7 +10,10 @@ const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
 const sendEmail = require("../utils/sendEmail");
 const EMAIL_KEYS = require("../utils/emailNotificationKeys");
 const { isEmailEnabled } = require("../utils/emailNotificationSettings");
-const { wellnessApprovalEmail } = require("../utils/emailTemplates");
+const {
+  wellnessApprovalEmail,
+  wellnessFollowUpEmail, // ✅ Added Follow-up template import
+} = require("../utils/emailTemplates");
 
 /* =========================
    Helpers
@@ -421,6 +424,104 @@ const addWellnessApplicationService = async ({
   }
 };
 
+// ✅ NEW SERVICE: Follow Up Application
+const followUpWellnessApplicationService = async ({
+  userId,
+  applicationId,
+}) => {
+  if (
+    !mongoose.isValidObjectId(userId) ||
+    !mongoose.isValidObjectId(applicationId)
+  ) {
+    throw Object.assign(new Error("Invalid ID format."), { status: 400 });
+  }
+
+  // Fetch the application and populate the approvals to find the pending one
+  const app = await WellnessApplication.findById(applicationId)
+    .populate("employee", "firstName lastName")
+    .populate({
+      path: "approvals",
+      populate: {
+        path: "approver",
+        select: "firstName lastName email",
+      },
+      options: { sort: { level: 1 } },
+    });
+
+  if (!app) {
+    throw Object.assign(new Error("Application not found."), { status: 404 });
+  }
+
+  // Security: Ensure the user clicking "Follow Up" actually owns the application
+  if (String(app.employee._id) !== String(userId)) {
+    throw Object.assign(
+      new Error("Not authorized to follow up on this application."),
+      { status: 403 },
+    );
+  }
+
+  if (app.overallStatus !== "PENDING") {
+    throw Object.assign(
+      new Error("You can only follow up on PENDING applications."),
+      { status: 400 },
+    );
+  }
+
+  // Find the exact step that is currently waiting for approval
+  const currentStep = app.approvals.find((step) => step.status === "PENDING");
+
+  if (!currentStep || !currentStep.approver) {
+    throw Object.assign(
+      new Error("No pending approver found to follow up with."),
+      { status: 404 },
+    );
+  }
+
+  const approverUser = currentStep.approver;
+
+  if (!approverUser.email) {
+    throw Object.assign(
+      new Error("The current approver does not have an email address on file."),
+      { status: 400 },
+    );
+  }
+
+  // Send the follow-up email
+  const enabled = await canSend(EMAIL_KEYS.WELLNESS_APPROVAL);
+
+  if (enabled) {
+    const tpl = wellnessFollowUpEmail({
+      approverName: `${approverUser.firstName} ${approverUser.lastName}`,
+      employeeName: `${app.employee.firstName} ${app.employee.lastName}`,
+      requestedDays: app.totalDays,
+      level: currentStep.level,
+      link: `${process.env.FRONTEND_URL}/app/wellness-approvals/${app._id}`,
+    });
+
+    await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
+
+    // Log an in-app notification for the approver
+    await NotificationService.createNotification({
+      recipient: approverUser._id,
+      actor: app.employee._id,
+      type: "WELLNESS_FOLLOW_UP",
+      title: "Reminder: Wellness Leave Pending Approval",
+      message: `${app.employee.firstName} has requested a follow-up on their pending Wellness Leave application.`,
+      link: `/app/wellness-approvals/${app._id}`,
+      priority: "HIGH",
+    });
+  } else {
+    throw Object.assign(
+      new Error(
+        "Email notifications are currently disabled in the system settings.",
+      ),
+      { status: 400 },
+    );
+  }
+
+  return { message: "Follow-up notification sent successfully." };
+};
+
 const getAllWellnessApplicationsService = async (
   { status, from, to, search, employeeId },
   page = 1,
@@ -772,6 +873,7 @@ const cancelWellnessApplicationService = async ({
 
 module.exports = {
   addWellnessApplicationService,
+  followUpWellnessApplicationService,
   getAllWellnessApplicationsService,
   getWellnessApplicationsByEmployeeService,
   cancelWellnessApplicationService,

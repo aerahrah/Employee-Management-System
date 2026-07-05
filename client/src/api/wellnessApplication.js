@@ -83,6 +83,20 @@ export const cancelWellnessApplicationRequest = async (id) => {
   }
 };
 
+// ✅ NEW: Follow-up Request
+export const followUpWellnessApplicationRequest = async (applicationId) => {
+  try {
+    const res = await API.post(
+      `/wellness/applications/${applicationId}/follow-up`,
+      {},
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to send follow-up request");
+  }
+};
+
 /* =========================
    WELLNESS APPROVERS FLOW
 ========================= */

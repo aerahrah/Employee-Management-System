@@ -27,6 +27,7 @@ const {
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
   cancelWellnessApplicationRequest,
+  followUpWellnessApplicationRequest, // ✅ Added Import
 } = require("../controllers/wellnessApplicationController.js");
 
 const {
@@ -78,6 +79,13 @@ router.patch(
   "/applications/:id/cancel",
   ...requirePerm("wellness.manage"),
   cancelWellnessApplicationRequest,
+);
+
+// ✅ NEW: Follow-up Route
+router.post(
+  "/applications/:id/follow-up",
+  ...requirePerm("wellness.manage_self"),
+  followUpWellnessApplicationRequest,
 );
 
 /* =========================================

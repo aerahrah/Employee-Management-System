@@ -5,12 +5,14 @@ import { StatusBadge } from "../../statusUtils";
 import {
   fetchMyWellnessApplications,
   cancelWellnessApplicationRequest,
+  followUpWellnessApplicationRequest, // ✅ Added Import
 } from "../../../api/wellnessApplication";
 import Modal from "../../modal";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import Breadcrumbs from "../../breadCrumbs";
 import FilterSelect from "../../filterSelect";
 import "react-loading-skeleton/dist/skeleton.css";
+import { toast } from "react-toastify"; // ✅ Ensure toast is imported
 import {
   Search,
   ChevronLeft,
@@ -32,6 +34,7 @@ import {
   FileBadge,
   FileDown,
   ChevronDown,
+  Bell, // ✅ Added Bell icon for Follow-up
 } from "lucide-react";
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
@@ -121,6 +124,8 @@ const ApplicationActionMenu = ({
   onViewOrganicForm,
   onCancel,
   cancelling,
+  onFollowUp, // ✅ Added Props
+  followingUp,
   borderColor,
   isOrganicApp,
 }) => {
@@ -148,7 +153,7 @@ const ApplicationActionMenu = ({
     setIsOpen(false);
   };
 
-  const canCancel =
+  const isPending =
     String(app?.overallStatus || "").toUpperCase() === "PENDING";
 
   return (
@@ -240,8 +245,30 @@ const ApplicationActionMenu = ({
             </button>
           )}
 
+          {/* ✅ Follow Up Menu Item */}
+          {isPending && (
+            <button
+              disabled={followingUp}
+              onClick={() => handle(onFollowUp)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+              type="button"
+            >
+              <Bell size={14} /> {followingUp ? "Sending..." : "Send Follow-up"}
+            </button>
+          )}
+
           <button
-            disabled={!canCancel || cancelling}
+            disabled={!isPending || cancelling}
             onClick={() => handle(onCancel)}
             className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
             type="button"
@@ -284,18 +311,23 @@ const ApplicationCard = ({
   onViewOrganicForm,
   onCancel,
   cancelling,
+  onFollowUp, // ✅ Added Props
+  followingUp,
   borderColor,
   isOrganicApp,
 }) => {
-  const canCancel =
+  const isPending =
     String(app?.overallStatus || "").toUpperCase() === "PENDING";
 
   const coveredDatesLabel = formatCoveredDates(app?.inclusiveDates);
 
   let colCount = 2; // Default: Details + Gen PDF
-  if (canCancel) colCount++;
+  if (isPending) colCount += 2; // Follow-up + Cancel
   if (isOrganicApp) colCount++;
-  const actionCols = `grid-cols-${colCount}`;
+
+  // Cap at max 4 cols to prevent weird wrapping on very small screens,
+  // but let grid handle the wrapping gracefully
+  const actionCols = `grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4`;
 
   return (
     <div
@@ -444,11 +476,37 @@ const ApplicationCard = ({
               }}
             >
               <FileBadge className="w-4 h-4" />
-              CSC Form 6
+              Form 6
             </button>
           )}
 
-          {canCancel && (
+          {/* ✅ Follow Up Mobile Button */}
+          {isPending && (
+            <button
+              onClick={onFollowUp}
+              disabled={followingUp}
+              className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+              type="button"
+              title="Follow Up"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface)";
+              }}
+            >
+              <Bell className="w-4 h-4" />
+              {followingUp ? "..." : "Follow Up"}
+            </button>
+          )}
+
+          {isPending && (
             <button
               onClick={onCancel}
               disabled={cancelling}
@@ -731,6 +789,20 @@ const MyWellnessApplications = () => {
       refetch();
     },
     onError: (err) => toast.error(err?.message || "Failed to cancel request."),
+  });
+
+  // ✅ New Mutation for Follow-up request
+  const followUpMutation = useMutation({
+    mutationFn: (applicationId) =>
+      followUpWellnessApplicationRequest(applicationId),
+    onSuccess: (payload) => {
+      toast.success(
+        payload?.message || "Follow-up notification sent successfully.",
+      );
+    },
+    onError: (err) => {
+      toast.error(err?.message || "Failed to send follow-up.");
+    },
   });
 
   const applications = useMemo(
@@ -1178,6 +1250,10 @@ const MyWellnessApplications = () => {
                                 cancelMutation.isPending &&
                                 cancelMutation.variables === app._id;
 
+                              const followingUp =
+                                followUpMutation.isPending &&
+                                followUpMutation.variables === app._id;
+
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
                                 app?.category === "Organic";
@@ -1191,6 +1267,7 @@ const MyWellnessApplications = () => {
                                     app.overallStatus,
                                   )}
                                   cancelling={cancelling}
+                                  followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
@@ -1198,6 +1275,9 @@ const MyWellnessApplications = () => {
                                     setOrganicPdfApp(app)
                                   }
                                   onCancel={() => openCancelModal(app)}
+                                  onFollowUp={() =>
+                                    followUpMutation.mutate(app._id)
+                                  }
                                 />
                               );
                             })}
@@ -1250,6 +1330,10 @@ const MyWellnessApplications = () => {
                                 const cancelling =
                                   cancelMutation.isPending &&
                                   cancelMutation.variables === app._id;
+
+                                const followingUp =
+                                  followUpMutation.isPending &&
+                                  followUpMutation.variables === app._id;
 
                                 const isAppOrganic =
                                   app?.employeeType === "Organic" ||
@@ -1340,6 +1424,10 @@ const MyWellnessApplications = () => {
                                         }
                                         onCancel={() => openCancelModal(app)}
                                         cancelling={cancelling}
+                                        onFollowUp={() =>
+                                          followUpMutation.mutate(app._id)
+                                        }
+                                        followingUp={followingUp}
                                       />
                                     </td>
                                   </tr>
