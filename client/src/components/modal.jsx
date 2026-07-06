@@ -26,6 +26,12 @@ const actionTones = {
     hover: "#15803d",
     border: "rgba(22,163,74,0.22)",
   },
+  warning: {
+    bg: "#f59e0b", // amber-500
+    text: "#ffffff",
+    hover: "#d97706", // amber-600
+    border: "rgba(245,158,11,0.24)",
+  },
   default: {
     bg: "var(--app-surface-2, #e5e7eb)",
     text: "var(--app-text, #0f172a)",

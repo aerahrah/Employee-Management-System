@@ -1,5 +1,5 @@
 // utils/emailTemplates.js
-// Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit + Wellness)
+// Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit + Wellness + Leave Credits)
 
 const BRAND = {
   name: "DICT Wellness & CTO",
@@ -349,6 +349,37 @@ function ctoFollowUpEmail({
   };
 }
 
+function ctoStepApprovalEmail({
+  employeeName,
+  approverName,
+  level,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeApprover = escapeHtml(approverName || "an approver");
+  const safeLevel = escapeHtml(level ?? "—");
+
+  const details = `
+    ${detailRow("Status", "Partially Approved", false, BRAND.primary)}
+    ${detailRow("Approved By", safeApprover)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`, true)}
+  `;
+
+  return {
+    subject: `Update: CTO Application Approved (Level ${safeLevel})`,
+    html: emailLayout({
+      title: "CTO Application Update",
+      preheader: `Your CTO application has passed Level ${safeLevel} approval.`,
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro: `Your Compensatory Time-Off (CTO) application has been approved by <strong>${safeApprover}</strong> (Level ${safeLevel}). It has now been forwarded to the next step for further review.`,
+      detailsRowsHtml: details,
+      cta: null,
+      outro: "We will notify you once the final approval is completed.",
+      brandName,
+    }),
+  };
+}
+
 function ctoFinalApprovalEmail({
   employeeName,
   requestedHours,
@@ -480,6 +511,37 @@ function wellnessFollowUpEmail({
       cta: { label: "Review Application", url: link },
       outro:
         "Prompt action helps ensure smooth processing of employee leave records.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessStepApprovalEmail({
+  employeeName,
+  approverName,
+  level,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeApprover = escapeHtml(approverName || "an approver");
+  const safeLevel = escapeHtml(level ?? "—");
+
+  const details = `
+    ${detailRow("Status", "Partially Approved", false, BRAND.primary)}
+    ${detailRow("Approved By", safeApprover)}
+    ${detailRow("Approval Level", `Level ${safeLevel}`, true)}
+  `;
+
+  return {
+    subject: `Update: Wellness Leave Approved (Level ${safeLevel})`,
+    html: emailLayout({
+      title: "Wellness Leave Update",
+      preheader: `Your Wellness Leave application has passed Level ${safeLevel} approval.`,
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro: `Your Wellness Leave application has been approved by <strong>${safeApprover}</strong> (Level ${safeLevel}). It has now been forwarded to the next step for further review.`,
+      detailsRowsHtml: details,
+      cta: null,
+      outro: "We will notify you once the final approval is completed.",
       brandName,
     }),
   };
@@ -705,18 +767,107 @@ function wellnessCreditRolledBackEmail({
   };
 }
 
+// ───────────────────────────────────────────────────────────────
+// LEAVE CREDIT EMAILS (VL/SL)
+// ───────────────────────────────────────────────────────────────
+function leaveCreditAddedEmail({
+  employeeName,
+  leaveType,
+  creditedDays,
+  dateApproved,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const fullLeaveName =
+    leaveType === "VL"
+      ? "Vacation Leave"
+      : leaveType === "SL"
+        ? "Sick Leave"
+        : escapeHtml(leaveType || "Leave");
+  const safeDays = escapeHtml(String(creditedDays ?? 0));
+  const safeDate = escapeHtml(formatDateLikeHuman(dateApproved));
+
+  const details = `
+    ${detailRow("Status", "Credited", false, BRAND.primary)}
+    ${detailRow("Leave Type", fullLeaveName)}
+    ${detailRow("Date Approved", safeDate)}
+    ${detailRow("Credited Days", `+${safeDays} day(s)`, true, BRAND.success)}
+  `;
+
+  return {
+    subject: `Notice: New ${fullLeaveName} Credit Added`,
+    html: emailLayout({
+      title: "Leave Balance Updated",
+      preheader: `New ${fullLeaveName} days have been added to your account.`,
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro: `New ${fullLeaveName} days have been successfully credited to your balance.`,
+      detailsRowsHtml: details,
+      cta: null,
+      outro: "You can view your updated leave balance directly in the portal.",
+      brandName,
+    }),
+  };
+}
+
+function leaveCreditRolledBackEmail({
+  employeeName,
+  leaveType,
+  rolledBackDays,
+  dateRolledBack,
+  reason,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const fullLeaveName =
+    leaveType === "VL"
+      ? "Vacation Leave"
+      : leaveType === "SL"
+        ? "Sick Leave"
+        : escapeHtml(leaveType || "Leave");
+  const safeDays = escapeHtml(String(rolledBackDays ?? 0));
+  const safeDate = escapeHtml(formatDateLikeHuman(dateRolledBack));
+  const safeReason = escapeHtml(reason || "—");
+
+  const details = `
+    ${detailRow("Status", "Rolled Back", false, BRAND.warning)}
+    ${detailRow("Leave Type", fullLeaveName)}
+    ${detailRow("Date Reversed", safeDate)}
+    ${detailRow("Days Deducted", `-${safeDays} day(s)`, false, BRAND.danger)}
+    ${detailRow("Reason", safeReason, true)}
+  `;
+
+  return {
+    subject: `Notice: ${fullLeaveName} Credit Reversal`,
+    html: emailLayout({
+      title: "Leave Credit Reversed",
+      preheader: `A previous ${fullLeaveName} credit was rolled back from your account.`,
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro: `A previously applied ${fullLeaveName} credit has been rolled back, and your balance has been adjusted accordingly.`,
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "If you believe this adjustment was made in error, please contact HR/Administration immediately.",
+      brandName,
+    }),
+  };
+}
+
 module.exports = {
   employeeWelcomeEmail,
   ctoApprovalEmail,
   ctoFollowUpEmail,
+  ctoStepApprovalEmail,
   ctoFinalApprovalEmail,
   ctoRejectionEmail,
   ctoCreditAddedEmail,
   ctoCreditRolledBackEmail,
   wellnessApprovalEmail,
   wellnessFollowUpEmail,
+  wellnessStepApprovalEmail,
   wellnessFinalApprovalEmail,
   wellnessRejectionEmail,
   wellnessCreditAddedEmail,
   wellnessCreditRolledBackEmail,
+  leaveCreditAddedEmail,
+  leaveCreditRolledBackEmail,
 };

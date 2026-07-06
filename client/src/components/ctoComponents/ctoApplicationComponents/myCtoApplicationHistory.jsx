@@ -844,6 +844,15 @@ const MyCtoApplications = () => {
   const openCancelModal = (app) => setCancelModal({ isOpen: true, app });
   const closeCancelModal = () => setCancelModal({ isOpen: false, app: null });
 
+  // ✅ Added Follow Up Modal State
+  const [followUpModal, setFollowUpModal] = useState({
+    isOpen: false,
+    app: null,
+  });
+  const openFollowUpModal = (app) => setFollowUpModal({ isOpen: true, app });
+  const closeFollowUpModal = () =>
+    setFollowUpModal({ isOpen: false, app: null });
+
   const scrollRef = useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -947,6 +956,7 @@ const MyCtoApplications = () => {
       toast.success(
         payload?.message || "Follow-up notification sent successfully.",
       );
+      closeFollowUpModal(); // ✅ Close modal on success
     },
     onError: (err) => {
       toast.error(err?.message || "Failed to send follow-up.");
@@ -1459,9 +1469,7 @@ const MyCtoApplications = () => {
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
-                                  onFollowUp={() =>
-                                    followUpMutation.mutate(app._id)
-                                  }
+                                  onFollowUp={() => openFollowUpModal(app)} // ✅ Changed to open modal
                                 />
                               );
                             })}
@@ -1524,9 +1532,7 @@ const MyCtoApplications = () => {
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
-                                  onFollowUp={() =>
-                                    followUpMutation.mutate(app._id)
-                                  }
+                                  onFollowUp={() => openFollowUpModal(app)} // ✅ Changed to open modal
                                 />
                               );
                             })}
@@ -1689,8 +1695,8 @@ const MyCtoApplications = () => {
                                         onCancel={() => openCancelModal(app)}
                                         cancelling={cancelling}
                                         onFollowUp={() =>
-                                          followUpMutation.mutate(app._id)
-                                        }
+                                          openFollowUpModal(app)
+                                        } // ✅ Changed to open modal
                                         followingUp={followingUp}
                                       />
                                     </td>
@@ -1762,6 +1768,93 @@ const MyCtoApplications = () => {
               <CtoApplicationDetails app={selectedApp} loading={!selectedApp} />
             </Modal>
           )}
+
+          {/* ✅ Follow Up Confirm Modal */}
+          <Modal
+            isOpen={followUpModal.isOpen}
+            onClose={closeFollowUpModal}
+            title="Send Follow-up"
+            maxWidth="max-w-lg"
+            preventCloseWhenBusy={true}
+            isBusy={followUpMutation.isPending}
+            action={{
+              show: true,
+              variant: "warning",
+              label: followUpMutation.isPending
+                ? "Sending..."
+                : "Yes, Send Follow-up",
+              onClick: async () => {
+                const app = followUpModal.app;
+                if (!app?._id) return;
+                await followUpMutation.mutateAsync(app._id);
+              },
+              disabled: followUpMutation.isPending,
+            }}
+          >
+            <div className="p-2" style={{ color: "var(--app-text)" }}>
+              <div
+                className="mb-5 flex items-start gap-3 p-3 rounded-xl border"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div
+                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
+                >
+                  <Info size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    You are about to notify approvers
+                  </p>
+                  <p
+                    className="text-sm font-bold break-words"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    Ref:{" "}
+                    {followUpModal.app?._id
+                      ? `#${followUpModal.app._id.slice(-6).toUpperCase()}`
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center py-2">
+                <div
+                  className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner"
+                  style={{
+                    backgroundColor: "rgba(245, 158, 11, 0.12)",
+                    color: "#f59e0b",
+                    borderColor: "rgba(245, 158, 11, 0.25)",
+                  }}
+                >
+                  <Bell size={40} strokeWidth={3} />
+                </div>
+                <h2
+                  className="text-lg font-semibold"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  Are you sure you want to send a follow-up?
+                </h2>
+                <p
+                  className="text-sm mt-2"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  This will send a reminder to the pending approvers for this
+                  CTO application.
+                </p>
+              </div>
+            </div>
+          </Modal>
 
           {/* Cancel Confirm Modal */}
           <Modal

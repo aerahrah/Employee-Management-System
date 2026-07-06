@@ -21,6 +21,7 @@ const notificationSchema = new mongoose.Schema(
       enum: [
         // CTO Applications
         "CTO_APPLICATION_SUBMITTED",
+        "CTO_APPROVAL_REQUIRED",
         "CTO_APPLICATION_APPROVED",
         "CTO_APPLICATION_REJECTED",
         "CTO_APPLICATION_CANCELLED",
@@ -31,7 +32,6 @@ const notificationSchema = new mongoose.Schema(
         "CTO_ROLLEDBACK",
 
         // Wellness Applications
-        "WELLNESS_APPLICATION_SUBMITTED",
         "WELLNESS_APPROVAL_REQUIRED",
         "WELLNESS_APPLICATION_APPROVED",
         "WELLNESS_APPLICATION_REJECTED",
@@ -41,6 +41,10 @@ const notificationSchema = new mongoose.Schema(
         // Wellness Credits
         "WELLNESS_CREDITED",
         "WELLNESS_ROLLEDBACK",
+
+        // Regular Leave Credits (VL / SL)
+        "LEAVE_CREDITED",
+        "LEAVE_ROLLEDBACK",
 
         // Misc
         "GENERAL",
@@ -84,14 +88,10 @@ const notificationSchema = new mongoose.Schema(
     },
 
     metadata: {
+      // CTO Specific References
       ctoApplicationId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "CtoApplication",
-        default: null,
-      },
-      approvalStepId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "ApprovalStep",
         default: null,
       },
       ctoCreditId: {
@@ -99,14 +99,39 @@ const notificationSchema = new mongoose.Schema(
         ref: "CtoCredit",
         default: null,
       },
+
+      // Wellness Specific References
+      wellnessApplicationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "WellnessApplication",
+        default: null,
+      },
+      wellnessCreditId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "WellnessCredit",
+        default: null,
+      },
+
+      // Regular Leave (VL/SL) Specific References
+      leaveCreditId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "LeaveCredit",
+        default: null,
+      },
+
+      // Shared References
+      approvalStepId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "ApprovalStep",
+        default: null,
+      },
       employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Employee",
         default: null,
       },
-      // The "extra" mixed object will easily handle any Wellness IDs
-      // (like wellnessApplicationId or wellnessCreditId) without needing
-      // strictly defined schema paths.
+
+      // Generic catch-all for any other unstructured data
       extra: {
         type: mongoose.Schema.Types.Mixed,
         default: {},
@@ -116,6 +141,7 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Compound indexes for faster query performance when fetching user notifications
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 

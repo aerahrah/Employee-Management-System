@@ -13,6 +13,7 @@ const {
   ctoApprovalEmail,
   ctoRejectionEmail,
   ctoFinalApprovalEmail,
+  ctoStepApprovalEmail,
 } = require("../utils/emailTemplates");
 
 const buildAuditDetails = require("../utils/auditActionBuilder");
@@ -389,7 +390,7 @@ const approveCtoApplicationService = async ({
         400,
       );
 
-    // ✅ Update approval step securely via $set, injecting the full approverSnapshot
+    // Update approval step securely via $set, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
@@ -518,6 +519,7 @@ const approveCtoApplicationService = async ({
       timestamp: new Date(),
     });
 
+    // 1. IN-APP NOTIFICATION TO APPLICANT (Triggers for every approval step)
     try {
       await NotificationService.notifyEmployeeOnCtoApproval({
         employeeId: application.employee._id,
@@ -533,11 +535,26 @@ const approveCtoApplicationService = async ({
       console.error("Failed creating CTO approval notification:", e?.message);
     }
 
+    // 2. EMAIL NOTIFICATIONS & NEXT APPROVER NOTIFICATIONS
     if (!allApproved) {
+      // Find the next approver to alert them
       const nextStep = updatedSteps.find(
         (s) => s.level === currentStep.level + 1,
       );
       if (nextStep) {
+        try {
+          await NotificationService.notifyApproverOnCtoRequired({
+            approverId: nextStep.approver,
+            employee: application.employee,
+            ctoApplication: application,
+          });
+        } catch (e) {
+          console.error(
+            "Failed creating next step CTO notification:",
+            e?.message,
+          );
+        }
+
         const nextApprover = await Employee.findById(nextStep.approver)
           .select("email firstName lastName")
           .lean();
@@ -555,7 +572,25 @@ const approveCtoApplicationService = async ({
           await safeSendEmail(nextApprover.email, tpl.subject, tpl.html);
         }
       }
+
+      // ✅ Email the APPLICANT to notify them of intermediate step approval utilizing the new template
+      if (application.employee.email) {
+        const applicantEnabled = await canSend(EMAIL_KEYS.CTO_APPROVAL);
+        if (applicantEnabled) {
+          const tpl = ctoStepApprovalEmail({
+            employeeName: application.employee.firstName,
+            approverName: `${approver.firstName} ${approver.lastName}`,
+            level: currentStep.level,
+          });
+          await safeSendEmail(
+            application.employee.email,
+            tpl.subject,
+            tpl.html,
+          );
+        }
+      }
     } else if (application.employee.email) {
+      // Existing: Email the APPLICANT for FINAL approval
       const enabled = await canSend(EMAIL_KEYS.CTO_FINAL_APPROVAL);
       if (enabled) {
         const tpl = ctoFinalApprovalEmail({
@@ -674,7 +709,7 @@ const rejectCtoApplicationService = async ({
       }
     }
 
-    // ✅ Update current step to rejected securely via $set, injecting the full approverSnapshot
+    // Update current step to rejected securely via $set, injecting the full approverSnapshot
     await ApprovalStep.findByIdAndUpdate(
       currentStep._id,
       {
@@ -746,6 +781,7 @@ const rejectCtoApplicationService = async ({
       timestamp: new Date(),
     });
 
+    // 1. IN-APP NOTIFICATION TO APPLICANT
     try {
       await NotificationService.notifyEmployeeOnCtoRejection({
         employeeId: application.employee._id,
@@ -762,6 +798,7 @@ const rejectCtoApplicationService = async ({
       console.error("Failed creating CTO rejection notification:", e?.message);
     }
 
+    // 2. EMAIL NOTIFICATION TO APPLICANT
     if (application.employee.email) {
       const enabled = await canSend(EMAIL_KEYS.CTO_REJECTION);
       if (enabled) {

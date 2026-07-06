@@ -189,7 +189,7 @@ class NotificationService {
     const notifications = uniqueApproverIds.map((approverId) => ({
       recipient: approverId,
       actor: employee._id,
-      type: "CTO_APPLICATION_SUBMITTED",
+      type: "CTO_APPLICATION_REQUIRED",
       title: "New CTO Application",
       message: `${fullName} submitted a CTO application for approval.`,
       link: `/app/cto-approvals/${ctoApplication._id}`,
@@ -207,6 +207,30 @@ class NotificationService {
     return this.createManyNotifications(notifications);
   }
 
+  static async notifyApproverOnCtoRequired({
+    approverId,
+    employee,
+    ctoApplication,
+  }) {
+    const fullName = employee
+      ? `${employee.firstName} ${employee.lastName}`
+      : "An employee";
+
+    return this.createNotification({
+      recipient: approverId,
+      actor: employee?._id || null,
+      type: "CTO_APPLICATION_REQUIRED",
+      title: "CTO Application Needs Approval",
+      message: `${fullName} submitted a CTO application that needs your approval.`,
+      link: `/app/cto-approvals/${ctoApplication._id}`,
+      priority: "HIGH",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId: employee?._id,
+      },
+    });
+  }
+
   static async notifyEmployeeOnCtoSubmissionCreated({
     employee,
     ctoApplication,
@@ -214,7 +238,7 @@ class NotificationService {
     return this.createNotification({
       recipient: employee._id,
       actor: employee._id,
-      type: "CTO_APPLICATION_SUBMITTED",
+      type: "CTO_APPLICATION_REQUIRED",
       title: "CTO Application Submitted",
       message: "Your CTO application was submitted successfully.",
       link: `/app/cto-apply`,
@@ -293,6 +317,56 @@ class NotificationService {
     });
   }
 
+  static async notifyApproversOnCtoCancellation({
+    approverIds = [],
+    employee,
+    ctoApplication,
+  }) {
+    if (!approverIds.length) return [];
+
+    const fullName = `${employee.firstName} ${employee.lastName}`;
+
+    const uniqueApproverIds = [...new Set(approverIds.map(String))].filter(
+      (id) => mongoose.isValidObjectId(id),
+    );
+
+    const notifications = uniqueApproverIds.map((approverId) => ({
+      recipient: approverId,
+      actor: employee._id,
+      type: "CTO_APPLICATION_CANCELLED",
+      title: "CTO Application Cancelled",
+      message: `${fullName} cancelled a CTO application.`,
+      link: `/app/cto-approvals`,
+      priority: "MEDIUM",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId: employee._id,
+      },
+    }));
+
+    return this.createManyNotifications(notifications);
+  }
+
+  static async notifyApproverOnCtoFollowUp({
+    approverId,
+    employee,
+    ctoApplication,
+  }) {
+    return this.createNotification({
+      recipient: approverId,
+      actor: employee._id,
+      type: "CTO_FOLLOW_UP",
+      title: "Reminder: CTO Approval Pending",
+      message: `${employee.firstName} has requested a follow-up on their pending CTO application.`,
+      link: `/app/cto-approvals/${ctoApplication._id}`,
+      priority: "HIGH",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId: employee._id,
+      },
+    });
+  }
+
   static async notifyEmployeeOnCtoCredit({
     employeeId,
     hrEmployee,
@@ -349,6 +423,227 @@ class NotificationService {
         extra: {
           rolledBackHours,
           memoNo: ctoCredit.memoNo,
+        },
+      },
+    });
+  }
+
+  // =========================
+  // Wellness-specific helpers
+  // =========================
+
+  static async notifyApproverOnWellnessSubmission({
+    approverId,
+    employee,
+    wellnessApplication,
+    totalDays,
+  }) {
+    return this.createNotification({
+      recipient: approverId,
+      actor: employee._id,
+      type: "WELLNESS_APPROVAL_REQUIRED",
+      title: "New Wellness Leave Request",
+      message: `${employee.firstName} ${employee.lastName} submitted a Wellness Leave request for ${totalDays} day(s).`,
+      link: `/app/wellness-approvals/${wellnessApplication._id}`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId: employee._id,
+      },
+    });
+  }
+
+  static async notifyEmployeeOnWellnessApproval({
+    employeeId,
+    approver,
+    wellnessApplication,
+    allApproved = false,
+  }) {
+    const fullName = approver
+      ? `${approver.firstName} ${approver.lastName}`
+      : "Approver";
+
+    return this.createNotification({
+      recipient: employeeId,
+      actor: approver?._id || null,
+      type: "WELLNESS_APPLICATION_APPROVED",
+      title: allApproved
+        ? "Wellness Leave Fully Approved"
+        : "Wellness Leave Step Approved",
+      message: allApproved
+        ? `Your Wellness Leave request has been fully approved.`
+        : `${fullName} approved your Wellness Leave request.`,
+      link: `/app/wellness-apply`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId,
+        extra: {
+          overallStatus: wellnessApplication.overallStatus,
+        },
+      },
+    });
+  }
+
+  static async notifyApproverOnWellnessRequired({
+    approverId,
+    employee,
+    wellnessApplication,
+  }) {
+    const fullName = employee
+      ? `${employee.firstName} ${employee.lastName}`
+      : "An employee";
+
+    return this.createNotification({
+      recipient: approverId,
+      actor: employee?._id || null,
+      type: "WELLNESS_APPROVAL_REQUIRED",
+      title: "Wellness Leave Request Needs Approval",
+      message: `${fullName} submitted a Wellness Leave request that needs your approval.`,
+      link: `/app/wellness-approvals/${wellnessApplication._id}`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId: employee?._id,
+      },
+    });
+  }
+
+  static async notifyEmployeeOnWellnessRejection({
+    employeeId,
+    approver,
+    wellnessApplication,
+    remarks = "",
+  }) {
+    const fullName = approver
+      ? `${approver.firstName} ${approver.lastName}`
+      : "Approver";
+
+    return this.createNotification({
+      recipient: employeeId,
+      actor: approver?._id || null,
+      type: "WELLNESS_APPLICATION_REJECTED",
+      title: "Wellness Leave Rejected",
+      message: remarks
+        ? `${fullName} rejected your Wellness Leave request. Remarks: ${remarks}`
+        : `${fullName} rejected your Wellness Leave request.`,
+      link: `/app/wellness-apply`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId,
+        extra: {
+          overallStatus: wellnessApplication.overallStatus,
+          remarks,
+        },
+      },
+    });
+  }
+
+  static async notifyApproversOnWellnessCancellation({
+    approverIds = [],
+    employee,
+    wellnessApplication,
+  }) {
+    if (!approverIds.length) return [];
+
+    const fullName = `${employee.firstName} ${employee.lastName}`;
+
+    const uniqueApproverIds = [...new Set(approverIds.map(String))].filter(
+      (id) => mongoose.isValidObjectId(id),
+    );
+
+    const notifications = uniqueApproverIds.map((approverId) => ({
+      recipient: approverId,
+      actor: employee._id,
+      type: "WELLNESS_APPLICATION_CANCELLED",
+      title: "Wellness Leave Cancelled",
+      message: `${fullName} cancelled a Wellness Leave application.`,
+      link: `/app/wellness-approvals`,
+      priority: "MEDIUM",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId: employee._id,
+      },
+    }));
+
+    return this.createManyNotifications(notifications);
+  }
+
+  static async notifyApproverOnWellnessFollowUp({
+    approverId,
+    employee,
+    wellnessApplication,
+  }) {
+    return this.createNotification({
+      recipient: approverId,
+      actor: employee._id,
+      type: "WELLNESS_FOLLOW_UP",
+      title: "Reminder: Wellness Leave Pending Approval",
+      message: `${employee.firstName} has requested a follow-up on their pending Wellness Leave application.`,
+      link: `/app/wellness-approvals/${wellnessApplication._id}`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId: employee._id,
+      },
+    });
+  }
+
+  static async notifyEmployeeOnWellnessCredit({
+    employeeId,
+    hrEmployee,
+    wellnessCredit,
+    creditedDays,
+  }) {
+    const fullName = hrEmployee
+      ? `${hrEmployee.firstName} ${hrEmployee.lastName}`
+      : "HR";
+
+    return this.createNotification({
+      recipient: employeeId,
+      actor: hrEmployee?._id || null,
+      type: "WELLNESS_CREDITED",
+      title: "Wellness Leave Credited",
+      message: `${fullName} credited ${creditedDays} Wellness Leave day(s) to your balance.`,
+      link: `/app/wellness-apply`,
+      priority: "MEDIUM",
+      metadata: {
+        wellnessCreditId: wellnessCredit._id,
+        employeeId,
+        extra: {
+          creditedDays,
+        },
+      },
+    });
+  }
+
+  static async notifyEmployeeOnWellnessRollback({
+    employeeId,
+    hrEmployee,
+    wellnessCredit,
+    rolledBackDays = null,
+  }) {
+    const fullName = hrEmployee
+      ? `${hrEmployee.firstName} ${hrEmployee.lastName}`
+      : "HR";
+
+    return this.createNotification({
+      recipient: employeeId,
+      actor: hrEmployee?._id || null,
+      type: "WELLNESS_ROLLEDBACK",
+      title: "Wellness Leave Rolled Back",
+      message:
+        rolledBackDays !== null
+          ? `${fullName} rolled back ${rolledBackDays} Wellness Leave day(s) from your balance.`
+          : `${fullName} rolled back a Wellness Leave credit from your balance.`,
+      link: `/app/wellness-apply`,
+      priority: "HIGH",
+      metadata: {
+        wellnessCreditId: wellnessCredit._id,
+        employeeId,
+        extra: {
+          rolledBackDays,
         },
       },
     });

@@ -16,6 +16,7 @@ const {
   wellnessApprovalEmail,
   wellnessFinalApprovalEmail,
   wellnessRejectionEmail,
+  wellnessStepApprovalEmail,
 } = require("../utils/emailTemplates");
 
 /* =========================
@@ -415,19 +416,13 @@ const approveWellnessApplicationService = async ({
       timestamp: new Date(),
     });
 
+    // ✅ Replaced with centralized helper
     try {
-      await NotificationService.createNotification({
-        recipient: application.employee._id,
-        actor: approverId,
-        type: "WELLNESS_APPLICATION_APPROVED",
-        title: allApproved
-          ? "Wellness Leave Fully Approved"
-          : "Wellness Leave Step Approved",
-        message: allApproved
-          ? `Your Wellness Leave request has been fully approved.`
-          : `${approver.firstName} ${approver.lastName} approved your Wellness Leave request.`,
-        link: `/app/wellness-approvals/${application._id}`,
-        priority: "HIGH",
+      await NotificationService.notifyEmployeeOnWellnessApproval({
+        employeeId: application.employee._id,
+        approver,
+        wellnessApplication: application,
+        allApproved,
       });
     } catch (e) {
       console.error(
@@ -462,15 +457,12 @@ const approveWellnessApplicationService = async ({
         (s) => s.level === currentStep.level + 1,
       );
       if (nextStep) {
+        // ✅ Replaced with centralized helper
         try {
-          await NotificationService.createNotification({
-            recipient: nextStep.approver,
-            actor: application.employee._id,
-            type: "WELLNESS_APPROVAL_REQUIRED",
-            title: "Wellness Leave Request Needs Approval",
-            message: `${application.employee.firstName} ${application.employee.lastName} submitted a Wellness Leave request that needs your approval.`,
-            link: `/app/wellness-approvals/${application._id}`,
-            priority: "HIGH",
+          await NotificationService.notifyApproverOnWellnessRequired({
+            approverId: nextStep.approver,
+            employee: application.employee,
+            wellnessApplication: application,
           });
         } catch (e) {
           console.error(
@@ -503,6 +495,30 @@ const approveWellnessApplicationService = async ({
             err?.message,
           );
         }
+      }
+
+      // ✅ Email the APPLICANT to notify them of intermediate step approval
+      try {
+        if (application.employee.email) {
+          const applicantEnabled = await canSend(EMAIL_KEYS.WELLNESS_APPROVAL);
+          if (applicantEnabled) {
+            const tpl = wellnessStepApprovalEmail({
+              employeeName: application.employee.firstName,
+              approverName: `${approver.firstName} ${approver.lastName}`,
+              level: currentStep.level,
+            });
+            await safeSendEmail(
+              application.employee.email,
+              tpl.subject,
+              tpl.html,
+            );
+          }
+        }
+      } catch (err) {
+        console.error(
+          "Failed to send Wellness step approval email:",
+          err?.message,
+        );
       }
     }
 
@@ -661,15 +677,13 @@ const rejectWellnessApplicationService = async ({
       timestamp: new Date(),
     });
 
+    // ✅ Replaced with centralized helper
     try {
-      await NotificationService.createNotification({
-        recipient: application.employee._id,
-        actor: approverId,
-        type: "WELLNESS_APPLICATION_REJECTED",
-        title: "Wellness Leave Rejected",
-        message: `${approver.firstName} ${approver.lastName} rejected your Wellness Leave request.`,
-        link: `/app/wellness-approvals/${application._id}`,
-        priority: "HIGH",
+      await NotificationService.notifyEmployeeOnWellnessRejection({
+        employeeId: application.employee._id,
+        approver,
+        wellnessApplication: application,
+        remarks,
       });
     } catch (e) {
       console.error(

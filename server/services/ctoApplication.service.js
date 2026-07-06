@@ -1,3 +1,4 @@
+// services/ctoApplication.service.js
 const mongoose = require("mongoose");
 const CtoApplication = require("../models/ctoApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
@@ -9,7 +10,6 @@ const NotificationService = require("./notificationService");
 
 const EMAIL_KEYS = require("../utils/emailNotificationKeys");
 const { isEmailEnabled } = require("../utils/emailNotificationSettings");
-// ✅ Added ctoFollowUpEmail to the imports here
 const {
   ctoApprovalEmail,
   ctoFollowUpEmail,
@@ -174,37 +174,18 @@ async function notifyApproversOfCancellation({
 
   if (!approverIds.length) return;
 
-  const fullName = [
-    employee.prefixTitle,
-    employee.firstName,
-    employee.middleName,
-    employee.lastName,
-    employee.nameExtension,
-    employee.postfixTitle,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  await NotificationService.createManyNotifications(
-    approverIds.map((approverId) => ({
-      recipient: approverId,
-      actor: employee._id,
-      type: "CTO_APPLICATION_CANCELLED",
-      title: "CTO Application Cancelled",
-      message: `${fullName} cancelled a CTO application.`,
-      link: `/app/cto-approvals`,
-      priority: "MEDIUM",
-      metadata: {
-        ctoApplicationId: application._id,
-        employeeId: employee._id,
-        extra: {
-          requestedHours: application.requestedHours,
-          inclusiveDates: application.inclusiveDates,
-          overallStatus: application.overallStatus,
-        },
-      },
-    })),
-  );
+  try {
+    await NotificationService.notifyApproversOnCtoCancellation({
+      approverIds,
+      employee,
+      ctoApplication: application,
+    });
+  } catch (e) {
+    console.error(
+      "Failed creating CTO cancellation notifications:",
+      e?.message || e,
+    );
+  }
 }
 
 /* =========================
@@ -778,7 +759,6 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
   assertObjectId(userId, "User ID");
   assertObjectId(applicationId, "Application ID");
 
-  // Fetch the application and populate the approvals to find the pending one
   const app = await CtoApplication.findById(applicationId)
     .populate("employee", "firstName lastName")
     .populate({
@@ -794,7 +774,6 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
     throw createServiceError("Application not found.", 404);
   }
 
-  // Security: Ensure the user clicking "Follow Up" actually owns the application
   if (String(app.employee._id) !== String(userId)) {
     throw createServiceError(
       "Not authorized to follow up on this application.",
@@ -809,7 +788,6 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
     );
   }
 
-  // Find the exact step that is currently waiting for approval
   const currentStep = app.approvals.find((step) => step.status === "PENDING");
 
   if (!currentStep || !currentStep.approver) {
@@ -828,8 +806,6 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
     );
   }
 
-  // Send the follow-up email
-  // Note: Reusing the CTO_APPROVAL key, or create a specific CTO_FOLLOW_UP key in your settings
   const enabled = await canSend(EMAIL_KEYS.CTO_APPROVAL);
 
   if (enabled) {
@@ -843,16 +819,18 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
 
     await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
 
-    // Log an in-app notification for the approver too
-    await NotificationService.createNotification({
-      recipient: approverUser._id,
-      actor: app.employee._id,
-      type: "CTO_FOLLOW_UP",
-      title: "Reminder: CTO Approval Pending",
-      message: `${app.employee.firstName} has requested a follow-up on their pending CTO application.`,
-      link: `/app/cto-approvals/${app._id}`,
-      priority: "HIGH",
-    });
+    try {
+      await NotificationService.notifyApproverOnCtoFollowUp({
+        approverId: approverUser._id,
+        employee: app.employee,
+        ctoApplication: app,
+      });
+    } catch (e) {
+      console.error(
+        "Failed creating CTO follow-up notification:",
+        e?.message || e,
+      );
+    }
   } else {
     throw createServiceError(
       "Email notifications are currently disabled in the system settings.",
@@ -1214,5 +1192,5 @@ module.exports = {
   cancelCtoApplicationService,
   getAllCtoApplicationsService,
   getCtoApplicationsByEmployeeService,
-  followUpCtoApplicationService, // ✅ Added export here
+  followUpCtoApplicationService,
 };

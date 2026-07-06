@@ -366,6 +366,11 @@ const GROUPS = [
         hint: "Sent to the next approver when an approval step is pending.",
       },
       {
+        key: "cto_follow_up",
+        label: "Follow-up reminder",
+        hint: "Sent to pending approvers when an employee requests a follow-up.",
+      },
+      {
         key: "cto_final_approval",
         label: "Final approval",
         hint: "Sent to the employee after the final approval is completed.",
@@ -405,6 +410,11 @@ const GROUPS = [
         key: "wellness_approval",
         label: "Approval request",
         hint: "Sent to the next approver when a wellness approval step is pending.",
+      },
+      {
+        key: "wellness_follow_up",
+        label: "Follow-up reminder",
+        hint: "Sent to pending approvers when an employee requests a follow-up.",
       },
       {
         key: "wellness_final_approval",

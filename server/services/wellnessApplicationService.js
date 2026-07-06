@@ -102,23 +102,19 @@ const notifyApproversOfCancellation = async ({
 
   if (!approverIds.length) return;
 
-  const fullName = `${employee.firstName} ${employee.lastName}`;
-
-  await NotificationService.createManyNotifications(
-    approverIds.map((approverId) => ({
-      recipient: approverId,
-      actor: employee._id,
-      type: "WELLNESS_APPLICATION_CANCELLED",
-      title: "Wellness Leave Cancelled",
-      message: `${fullName} cancelled a Wellness Leave application.`,
-      link: `/app/wellness-approvals`,
-      priority: "MEDIUM",
-      metadata: {
-        wellnessApplicationId: application._id,
-        employeeId: employee._id,
-      },
-    })),
-  );
+  // ✅ Replaced with centralized NotificationService helper
+  try {
+    await NotificationService.notifyApproversOnWellnessCancellation({
+      approverIds,
+      employee,
+      wellnessApplication: application,
+    });
+  } catch (e) {
+    console.error(
+      "Failed creating Wellness cancellation notifications:",
+      e?.message || e,
+    );
+  }
 };
 
 /* =========================
@@ -380,15 +376,20 @@ const addWellnessApplicationService = async ({
     // Notify first approver (In-App)
     const firstStep = approvalSteps.find((s) => s.level === 1);
     if (firstStep) {
-      await NotificationService.createNotification({
-        recipient: firstStep.approver,
-        actor: employee._id,
-        type: "WELLNESS_APPROVAL_REQUIRED",
-        title: "New Wellness Leave Request",
-        message: `${employee.firstName} ${employee.lastName} submitted a Wellness Leave request for ${totalDays} day(s).`,
-        link: `/app/wellness-approvals/${populatedApp._id}`,
-        priority: "HIGH",
-      });
+      // ✅ Replaced with centralized NotificationService helper
+      try {
+        await NotificationService.notifyApproverOnWellnessSubmission({
+          approverId: firstStep.approver,
+          employee,
+          wellnessApplication: populatedApp,
+          totalDays,
+        });
+      } catch (e) {
+        console.error(
+          "Failed creating Wellness submission notification:",
+          e?.message || e,
+        );
+      }
 
       // ✅ Notify first approver (Email)
       try {
@@ -500,16 +501,19 @@ const followUpWellnessApplicationService = async ({
 
     await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
 
-    // Log an in-app notification for the approver
-    await NotificationService.createNotification({
-      recipient: approverUser._id,
-      actor: app.employee._id,
-      type: "WELLNESS_FOLLOW_UP",
-      title: "Reminder: Wellness Leave Pending Approval",
-      message: `${app.employee.firstName} has requested a follow-up on their pending Wellness Leave application.`,
-      link: `/app/wellness-approvals/${app._id}`,
-      priority: "HIGH",
-    });
+    // ✅ Replaced with centralized NotificationService helper
+    try {
+      await NotificationService.notifyApproverOnWellnessFollowUp({
+        approverId: approverUser._id,
+        employee: app.employee,
+        wellnessApplication: app,
+      });
+    } catch (e) {
+      console.error(
+        "Failed creating Wellness follow-up notification:",
+        e?.message || e,
+      );
+    }
   } else {
     throw Object.assign(
       new Error(
