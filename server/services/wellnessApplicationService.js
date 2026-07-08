@@ -12,7 +12,7 @@ const EMAIL_KEYS = require("../utils/emailNotificationKeys");
 const { isEmailEnabled } = require("../utils/emailNotificationSettings");
 const {
   wellnessApprovalEmail,
-  wellnessFollowUpEmail, // ✅ Added Follow-up template import
+  wellnessFollowUpEmail,
 } = require("../utils/emailTemplates");
 
 /* =========================
@@ -36,33 +36,27 @@ async function canSend(key) {
 }
 
 const populateApplicationById = async (applicationId, session = null) => {
-  return (
-    WellnessApplication.findById(applicationId)
-      // ✅ Include middleName, prefix/postfix, extension, and signature for the PDF Generator
-      .populate(
-        "employee",
-        "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
-      )
-      .populate({
-        path: "approvals",
-        populate: {
-          path: "approver",
-          // ✅ Added extended name fields for the approver
-          select:
-            "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
-        },
-        options: { sort: { level: 1 } },
-      })
-      .session(session)
-  );
+  return WellnessApplication.findById(applicationId)
+    .populate(
+      "employee",
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
+    )
+    .populate({
+      path: "approvals",
+      populate: {
+        path: "approver",
+        select:
+          "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
+      },
+      options: { sort: { level: 1 } },
+    })
+    .session(session);
 };
 
 const cancelApprovalSteps = async (
   { applicationId, approvalIds, reason, afterLevel = 0 },
   session = null,
 ) => {
-  // ✅ Explicitly targets ONLY "PENDING" steps.
-  // This protects any "APPROVED" or "REJECTED" steps so the approver keeps their credit!
   await ApprovalStep.updateMany(
     {
       _id: { $in: approvalIds },
@@ -102,7 +96,6 @@ const notifyApproversOfCancellation = async ({
 
   if (!approverIds.length) return;
 
-  // ✅ Replaced with centralized NotificationService helper
   try {
     await NotificationService.notifyApproversOnWellnessCancellation({
       approverIds,
@@ -117,6 +110,13 @@ const notifyApproversOfCancellation = async ({
   }
 };
 
+function sanitizeText(str, limit = 1000) {
+  return String(str || "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, limit);
+}
+
 /* =========================
    Services
 ========================= */
@@ -127,13 +127,12 @@ const addWellnessApplicationService = async ({
   reason,
   routeId,
   approvers,
-  employeeType, // Dynamic: "Organic" or "Job Order"
+  employeeType,
   commutation,
   certificationOfLeaveCredits,
   actionDetails,
-  req, // Passed for future Audit Logging
+  req,
 }) => {
-  // ✅ Add default fallback for reason to prevent 400 errors if left blank on frontend
   const finalReason = String(reason || "Availment of Wellness Leave").trim();
 
   if (
@@ -148,15 +147,11 @@ const addWellnessApplicationService = async ({
 
   const totalDays = inclusiveDates.length;
 
-  // ✅ Populate salary so we can capture the salary grade & amount for the snapshot
   const employee = await Employee.findById(userId).populate("salary").lean();
   if (!employee) {
     throw Object.assign(new Error("Employee not found."), { status: 404 });
   }
 
-  // ==========================================
-  // NEW CHECK: PREVENT DUPLICATE DATES
-  // ==========================================
   const existingApplications = await WellnessApplication.find({
     employee: userId,
     overallStatus: { $in: ["PENDING", "APPROVED"] },
@@ -171,13 +166,10 @@ const addWellnessApplicationService = async ({
       { status: 400 },
     );
   }
-  // ==========================================
 
-  // ✅ Determine final employee type (fallback to DB value if not provided in payload)
   const finalEmployeeType = employeeType || employee.employeeType || "Organic";
   const isOrganic = finalEmployeeType === "Organic";
 
-  // ✅ ENFORCE CSC FORM 6 RULES ONLY FOR ORGANIC EMPLOYEES
   if (isOrganic) {
     if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
       throw Object.assign(
@@ -197,7 +189,6 @@ const addWellnessApplicationService = async ({
       );
     }
 
-    // ✅ Ensure salary amount exists for the snapshot so PDF accurately prints it
     if (!employee.salary || typeof employee.salary.amount !== "number") {
       throw Object.assign(
         new Error(
@@ -212,13 +203,12 @@ const addWellnessApplicationService = async ({
   if (routeId) {
     finalApprovers = await resolveApproversFromRoute(routeId);
   } else if (approvers && Array.isArray(approvers)) {
-    // ✅ Safely parse the incoming custom approvers for ID and Role
     finalApprovers = approvers
       .map((a) => {
         if (a && a.approver && mongoose.isValidObjectId(a.approver)) {
           return { approver: a.approver, role: a.role };
         }
-        return { approver: a, role: undefined }; // Fallback caught by validation below
+        return { approver: a, role: undefined };
       })
       .filter((a) => mongoose.isValidObjectId(a.approver));
   }
@@ -232,7 +222,6 @@ const addWellnessApplicationService = async ({
     );
   }
 
-  // ✅ Validate Roles strictly before proceeding
   for (const fa of finalApprovers) {
     if (!fa.role || !APPROVAL_ROLE_VALUES.includes(fa.role)) {
       throw Object.assign(
@@ -244,12 +233,10 @@ const addWellnessApplicationService = async ({
     }
   }
 
-  // ✅ Wrap in transaction to prevent balance desyncs
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    // Deduct from wellnessDays directly
     const currentWellnessBalance = employee.balances?.wellnessDays || 0;
     if (currentWellnessBalance < totalDays) {
       throw Object.assign(
@@ -260,7 +247,6 @@ const addWellnessApplicationService = async ({
       );
     }
 
-    // Atomically deduct
     const updatedEmployee = await Employee.findOneAndUpdate(
       { _id: userId, "balances.wellnessDays": { $gte: totalDays } },
       { $inc: { "balances.wellnessDays": -totalDays } },
@@ -276,7 +262,6 @@ const addWellnessApplicationService = async ({
       );
     }
 
-    // ✅ Base Application Payload with Snapshot
     const applicationPayload = {
       employee: employee._id,
       employeeType: finalEmployeeType,
@@ -289,20 +274,18 @@ const addWellnessApplicationService = async ({
         postfixTitle: employee.postfixTitle || "",
         position: employee.position || "",
         division: employee.division || "",
-        wellnessBalance: currentWellnessBalance, // ✅ Snapshots the balance BEFORE the deduction
+        wellnessBalance: currentWellnessBalance,
       },
       inclusiveDates,
       totalDays,
-      reason: finalReason, // ✅ Injected safe fallback reason
+      reason: finalReason,
       overallStatus: "PENDING",
     };
 
-    // ✅ Append CSC Form 6 specific data ONLY if Organic
     if (isOrganic) {
       applicationPayload.commutation = commutation || "Not Requested";
       applicationPayload.applicantSignatureUrl = employee.signature;
 
-      // ✅ Save BOTH Grade and Amount in the historical snapshot
       applicationPayload.applicantSnapshot.salaryGrade = employee.salary?.grade;
       applicationPayload.applicantSnapshot.salaryAmount =
         employee.salary?.amount;
@@ -319,7 +302,6 @@ const addWellnessApplicationService = async ({
     const newApplication = new WellnessApplication(applicationPayload);
     await newApplication.save({ session });
 
-    // ✅ Inject the role into the ApprovalStep
     const approverProfiles = await Employee.find({
       _id: { $in: finalApprovers.map((a) => a.approver) },
     })
@@ -354,7 +336,6 @@ const addWellnessApplicationService = async ({
                 postfixTitle: approverProfile?.postfixTitle || "",
                 position: approverProfile?.position || "",
 
-                // intentionally blank until approval
                 signatureUrl: null,
                 signedAt: null,
               },
@@ -373,10 +354,8 @@ const addWellnessApplicationService = async ({
 
     const populatedApp = await populateApplicationById(newApplication._id);
 
-    // Notify first approver (In-App)
     const firstStep = approvalSteps.find((s) => s.level === 1);
     if (firstStep) {
-      // ✅ Replaced with centralized NotificationService helper
       try {
         await NotificationService.notifyApproverOnWellnessSubmission({
           approverId: firstStep.approver,
@@ -391,7 +370,6 @@ const addWellnessApplicationService = async ({
         );
       }
 
-      // ✅ Notify first approver (Email)
       try {
         const approverUser = await Employee.findById(firstStep.approver)
           .select("firstName lastName email")
@@ -425,7 +403,6 @@ const addWellnessApplicationService = async ({
   }
 };
 
-// ✅ NEW SERVICE: Follow Up Application
 const followUpWellnessApplicationService = async ({
   userId,
   applicationId,
@@ -437,7 +414,6 @@ const followUpWellnessApplicationService = async ({
     throw Object.assign(new Error("Invalid ID format."), { status: 400 });
   }
 
-  // Fetch the application and populate the approvals to find the pending one
   const app = await WellnessApplication.findById(applicationId)
     .populate("employee", "firstName lastName")
     .populate({
@@ -453,7 +429,6 @@ const followUpWellnessApplicationService = async ({
     throw Object.assign(new Error("Application not found."), { status: 404 });
   }
 
-  // Security: Ensure the user clicking "Follow Up" actually owns the application
   if (String(app.employee._id) !== String(userId)) {
     throw Object.assign(
       new Error("Not authorized to follow up on this application."),
@@ -468,7 +443,6 @@ const followUpWellnessApplicationService = async ({
     );
   }
 
-  // Find the exact step that is currently waiting for approval
   const currentStep = app.approvals.find((step) => step.status === "PENDING");
 
   if (!currentStep || !currentStep.approver) {
@@ -487,7 +461,6 @@ const followUpWellnessApplicationService = async ({
     );
   }
 
-  // Send the follow-up email
   const enabled = await canSend(EMAIL_KEYS.WELLNESS_APPROVAL);
 
   if (enabled) {
@@ -501,7 +474,6 @@ const followUpWellnessApplicationService = async ({
 
     await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
 
-    // ✅ Replaced with centralized NotificationService helper
     try {
       await NotificationService.notifyApproverOnWellnessFollowUp({
         approverId: approverUser._id,
@@ -559,9 +531,7 @@ const getAllWellnessApplicationsService = async (
   const limitNum = Math.max(1, parseInt(limit));
   const skip = (pageNum - 1) * limitNum;
 
-  // ✅ Fetch applications with deep populated approvals mapping to frontend requirements
   const applications = await WellnessApplication.find(query)
-    // ✅ Ensure name extensions, middleName, and signature are returned if present
     .populate(
       "employee",
       "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
@@ -570,7 +540,6 @@ const getAllWellnessApplicationsService = async (
       path: "approvals",
       populate: {
         path: "approver",
-        // ✅ Added extended name fields for the approver
         select:
           "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
       },
@@ -583,11 +552,9 @@ const getAllWellnessApplicationsService = async (
 
   const total = await WellnessApplication.countDocuments(query);
 
-  // ✅ Extract base query without status to calculate overall counts for tabs
   const baseQuery = { ...query };
   delete baseQuery.overallStatus;
 
-  // Execute Status Counts aggregation
   const statusCountsAgg = await WellnessApplication.aggregate([
     { $match: baseQuery },
     {
@@ -605,6 +572,8 @@ const getAllWellnessApplicationsService = async (
     APPROVED: 0,
     REJECTED: 0,
     CANCELLED: 0,
+    REVOCATION_REQUESTED: 0,
+    REVOKED: 0,
     total: totalAll,
   };
 
@@ -643,14 +612,12 @@ const getWellnessApplicationsByEmployeeService = async (
 
   const pipeline = [{ $match: { employee: employeeObjectId } }];
 
-  // 1. Status Filter
   if (filters.status) {
     pipeline.push({
       $match: { overallStatus: String(filters.status).toUpperCase() },
     });
   }
 
-  // 2. Date Range Filter
   if (filters.from && filters.to) {
     pipeline.push({
       $match: {
@@ -662,7 +629,6 @@ const getWellnessApplicationsByEmployeeService = async (
     });
   }
 
-  // 3. Search Filter
   if (filters.search) {
     pipeline.push({
       $match: {
@@ -671,7 +637,6 @@ const getWellnessApplicationsByEmployeeService = async (
     });
   }
 
-  // 4. Lookup Approvals
   pipeline.push({
     $lookup: {
       from: "approvalsteps",
@@ -695,7 +660,7 @@ const getWellnessApplicationsByEmployeeService = async (
             remarks: 1,
             role: 1,
             approverSignature: 1,
-            approverSnapshot: 1, // ✅ ADDED THIS: prevents dropping snapshot data
+            approverSnapshot: 1,
             approver: {
               _id: "$approver._id",
               prefixTitle: "$approver.prefixTitle",
@@ -705,7 +670,7 @@ const getWellnessApplicationsByEmployeeService = async (
               nameExtension: "$approver.nameExtension",
               postfixTitle: "$approver.postfixTitle",
               position: "$approver.position",
-              email: "$approver.email", // ✅ Added email to match getAll
+              email: "$approver.email",
             },
           },
         },
@@ -715,7 +680,6 @@ const getWellnessApplicationsByEmployeeService = async (
     },
   });
 
-  // 5. Lookup Employee Details
   pipeline.push({
     $lookup: {
       from: "employees",
@@ -740,7 +704,7 @@ const getWellnessApplicationsByEmployeeService = async (
         nameExtension: "$employeeDoc.nameExtension",
         postfixTitle: "$employeeDoc.postfixTitle",
         position: "$employeeDoc.position",
-        email: "$employeeDoc.email", // ✅ Added email to match getAll
+        email: "$employeeDoc.email",
         signature: "$employeeDoc.signature",
       },
     },
@@ -748,15 +712,12 @@ const getWellnessApplicationsByEmployeeService = async (
 
   pipeline.push({ $project: { employeeDoc: 0 } });
 
-  // 6. Sort, Skip, Limit
   pipeline.push({ $sort: { createdAt: -1 } });
   pipeline.push({ $skip: skip });
   pipeline.push({ $limit: limit });
 
-  // Execute main query
   let applications = await WellnessApplication.aggregate(pipeline);
 
-  // Execute Total Count query
   const countPipeline = [
     { $match: { employee: employeeObjectId } },
     ...pipeline.filter(
@@ -769,7 +730,6 @@ const getWellnessApplicationsByEmployeeService = async (
   const totalResult = await WellnessApplication.aggregate(countPipeline);
   const total = totalResult[0]?.total || 0;
 
-  // Execute Status Counts aggregation
   const statusCountsAgg = await WellnessApplication.aggregate([
     { $match: { employee: employeeObjectId } },
     {
@@ -789,6 +749,8 @@ const getWellnessApplicationsByEmployeeService = async (
     APPROVED: 0,
     REJECTED: 0,
     CANCELLED: 0,
+    REVOCATION_REQUESTED: 0,
+    REVOKED: 0,
     total: totalAll,
   };
 
@@ -811,9 +773,8 @@ const getWellnessApplicationsByEmployeeService = async (
 const cancelWellnessApplicationService = async ({
   userId,
   applicationId,
-  req, // Passed for future Audit Logging
+  req,
 }) => {
-  // ✅ Wrap in transaction to prevent balance desyncs
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -836,7 +797,6 @@ const cancelWellnessApplicationService = async ({
       );
     }
 
-    // Restore balance safely within the session
     await Employee.updateOne(
       { _id: userId },
       { $inc: { "balances.wellnessDays": application.totalDays } },
@@ -846,7 +806,6 @@ const cancelWellnessApplicationService = async ({
     application.overallStatus = "CANCELLED";
     await application.save({ session });
 
-    // Ensure only PENDING steps are cancelled
     await cancelApprovalSteps(
       {
         applicationId,
@@ -875,6 +834,150 @@ const cancelWellnessApplicationService = async ({
   }
 };
 
+// ✅ NEW: STEP 1 - Employee requests revocation
+const requestRevocationWellnessApplicationService = async ({
+  userId,
+  applicationId,
+  reason,
+  attachmentUrl,
+}) => {
+  if (
+    !mongoose.isValidObjectId(userId) ||
+    !mongoose.isValidObjectId(applicationId)
+  ) {
+    throw Object.assign(new Error("Invalid ID format."), { status: 400 });
+  }
+
+  const safeReason = sanitizeText(reason, 1000);
+  if (!safeReason) {
+    throw Object.assign(
+      new Error("A reason must be provided to request revocation."),
+      { status: 400 },
+    );
+  }
+
+  const app = await WellnessApplication.findById(applicationId);
+  if (!app) {
+    throw Object.assign(new Error("Application not found."), { status: 404 });
+  }
+
+  if (String(app.employee) !== String(userId)) {
+    throw Object.assign(
+      new Error("Not authorized to modify this application."),
+      { status: 403 },
+    );
+  }
+
+  if (app.overallStatus !== "APPROVED") {
+    throw Object.assign(
+      new Error("Only APPROVED applications can be requested for revocation."),
+      { status: 400 },
+    );
+  }
+
+  app.overallStatus = "REVOCATION_REQUESTED";
+  app.revocationRequest = {
+    reason: safeReason,
+    attachmentUrl: sanitizeText(attachmentUrl, 500) || null,
+    requestedAt: new Date(),
+  };
+
+  await app.save();
+
+  return populateApplicationById(app._id);
+};
+
+// ✅ NEW: STEP 2 - HR processes the revocation
+const processRevocationWellnessRequestService = async ({
+  adminId,
+  applicationId,
+  action,
+  remarks,
+}) => {
+  if (
+    !mongoose.isValidObjectId(adminId) ||
+    !mongoose.isValidObjectId(applicationId)
+  ) {
+    throw Object.assign(new Error("Invalid ID format."), { status: 400 });
+  }
+
+  const safeAction = String(action).toUpperCase();
+  const safeRemarks =
+    sanitizeText(remarks, 1000) ||
+    (safeAction === "APPROVE"
+      ? "Revocation approved by HR."
+      : "Revocation rejected by HR.");
+
+  if (!["APPROVE", "REJECT"].includes(safeAction)) {
+    throw Object.assign(new Error("Action must be either APPROVE or REJECT."), {
+      status: 400,
+    });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const application = await WellnessApplication.findById(applicationId)
+      .populate("employee", "_id firstName lastName email balances")
+      .session(session);
+
+    if (!application) {
+      throw Object.assign(new Error("Application not found."), { status: 404 });
+    }
+
+    if (application.overallStatus !== "REVOCATION_REQUESTED") {
+      throw Object.assign(
+        new Error(
+          "This application does not have a pending revocation request.",
+        ),
+        { status: 400 },
+      );
+    }
+
+    if (safeAction === "APPROVE") {
+      // ✅ Restore Employee Balance
+      const employeeId = application.employee._id;
+      const totalDays = application.totalDays;
+
+      const updatedEmployee = await Employee.findOneAndUpdate(
+        { _id: employeeId },
+        { $inc: { "balances.wellnessDays": totalDays } },
+        { session, new: true },
+      );
+
+      if (!updatedEmployee) {
+        throw Object.assign(
+          new Error("Employee record not found for balance restoration."),
+          { status: 400 },
+        );
+      }
+
+      application.overallStatus = "REVOKED";
+      application.revokedBy = adminId;
+      application.revokeReason = safeRemarks;
+      application.revokedAt = new Date();
+    } else if (safeAction === "REJECT") {
+      // ✅ Keep as approved, log the HR remarks
+      application.overallStatus = "APPROVED";
+      application.revokedBy = adminId;
+      application.revokeReason = safeRemarks;
+      application.revokedAt = new Date();
+    }
+
+    await application.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return application;
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    throw err;
+  }
+};
+
 module.exports = {
   addWellnessApplicationService,
   followUpWellnessApplicationService,
@@ -882,4 +985,6 @@ module.exports = {
   getWellnessApplicationsByEmployeeService,
   cancelWellnessApplicationService,
   populateApplicationById,
+  requestRevocationWellnessApplicationService,
+  processRevocationWellnessRequestService,
 };

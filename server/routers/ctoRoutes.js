@@ -34,6 +34,8 @@ const {
   getCtoApplicationsByEmployeeRequest,
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest, // ✅ Added follow-up controller import
+  requestRevocationController, // ✅ Added employee request revocation controller
+  processRevocationController, // ✅ Added HR process revocation controller
 } = require("../controllers/ctoApplicationController.js");
 
 // Organic Leaves Controllers
@@ -135,6 +137,20 @@ router.post(
   "/applications/:applicationId/follow-up",
   ...requirePerm("cto.view_self"),
   followUpCtoApplicationRequest,
+);
+
+// ✅ NEW: Employee requests revocation of an approved leave
+router.post(
+  "/applications/:applicationId/revoke-request",
+  ...requirePerm("cto.view_self"),
+  requestRevocationController,
+);
+
+// ✅ NEW: HR processes (approves/rejects) the revocation request
+router.patch(
+  "/applications/:applicationId/revoke-process",
+  ...requirePerm("cto.manage_application"),
+  processRevocationController,
 );
 
 /* =========================================

@@ -3,7 +3,9 @@ const {
   getAllWellnessApplicationsService,
   getWellnessApplicationsByEmployeeService,
   cancelWellnessApplicationService,
-  followUpWellnessApplicationService, // ✅ Added import
+  followUpWellnessApplicationService,
+  requestRevocationWellnessApplicationService, // ✅ Imported new service
+  processRevocationWellnessRequestService, // ✅ Imported new service
 } = require("../services/wellnessApplicationService"); // Adjust path if necessary
 
 /* =========================
@@ -95,7 +97,6 @@ const cancelWellnessApplicationRequest = async (req, res, next) => {
   }
 };
 
-// ✅ NEW: Follow-up Controller
 const followUpWellnessApplicationRequest = async (req, res, next) => {
   try {
     const applicationId = req.params.id;
@@ -115,10 +116,66 @@ const followUpWellnessApplicationRequest = async (req, res, next) => {
   }
 };
 
+// ✅ NEW: Step 1 - Employee requests revocation
+const requestRevocationWellnessController = async (req, res, next) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const applicationId = req.params.id;
+    const { reason, attachmentUrl } = req.body;
+
+    const application = await requestRevocationWellnessApplicationService({
+      userId,
+      applicationId,
+      reason,
+      attachmentUrl,
+    });
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Revocation request submitted successfully. Awaiting HR approval.",
+      data: application,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ✅ NEW: Step 2 - HR approves or rejects the revocation request
+const processRevocationWellnessController = async (req, res, next) => {
+  try {
+    const adminId = req.user.id || req.user._id;
+    const applicationId = req.params.id;
+    const { action, remarks } = req.body; // action = "APPROVE" or "REJECT"
+
+    const application = await processRevocationWellnessRequestService({
+      adminId,
+      applicationId,
+      action,
+      remarks,
+    });
+
+    const msg =
+      action === "APPROVE"
+        ? "Revocation approved. Credits restored."
+        : "Revocation rejected. Leave remains approved.";
+
+    res.status(200).json({
+      success: true,
+      message: msg,
+      data: application,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   addWellnessApplicationRequest,
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
   cancelWellnessApplicationRequest,
-  followUpWellnessApplicationRequest, // ✅ Exported
+  followUpWellnessApplicationRequest,
+  requestRevocationWellnessController,
+  processRevocationWellnessController,
 };

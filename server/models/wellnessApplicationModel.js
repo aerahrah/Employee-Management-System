@@ -20,9 +20,6 @@ const wellnessApplicationSchema = new mongoose.Schema(
     // =========================================
     // HISTORICAL SNAPSHOT (Immutability)
     // =========================================
-    // Captures the exact details of the employee at the time of submission
-    // preventing past forms (like CSC Form 6) from retroactively changing
-    // if the employee is promoted, gets a raise, or changes their name.
     applicantSnapshot: {
       prefixTitle: { type: String, trim: true, default: "" },
       firstName: { type: String, required: true, trim: true },
@@ -79,7 +76,15 @@ const wellnessApplicationSchema = new mongoose.Schema(
     ],
     overallStatus: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+      // ✅ ADDED: "REVOCATION_REQUESTED" and "REVOKED"
+      enum: [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "CANCELLED",
+        "REVOCATION_REQUESTED",
+        "REVOKED",
+      ],
       default: "PENDING",
     },
     attachment: {
@@ -108,7 +113,6 @@ const wellnessApplicationSchema = new mongoose.Schema(
     // ORGANIC-SPECIFIC FIELDS (CSC Form 6)
     // =========================================
 
-    // Snapshot of the applicant's digital signature at the time of submission
     applicantSignatureUrl: {
       type: String,
       required: function () {
@@ -116,7 +120,6 @@ const wellnessApplicationSchema = new mongoose.Schema(
       },
     },
 
-    // Derived from Section 6.D
     commutation: {
       type: String,
       enum: ["Requested", "Not Requested"],
@@ -126,7 +129,6 @@ const wellnessApplicationSchema = new mongoose.Schema(
       },
     },
 
-    // Derived from Section 7.A (Usually populated by HR later)
     certificationOfLeaveCredits: {
       asOfDate: { type: Date },
       vacationLeave: {
@@ -145,13 +147,30 @@ const wellnessApplicationSchema = new mongoose.Schema(
       },
     },
 
-    // Derived from Section 7.C & 7.D
     actionDetails: {
       approvedDaysWithPay: { type: Number },
       approvedDaysWithoutPay: { type: Number },
       approvedOthersSpecify: { type: String, trim: true },
       disapprovedDueTo: { type: String, trim: true },
     },
+
+    // =========================================
+    // 2-STEP REVOCATION WORKFLOW
+    // =========================================
+    // 1. Employee Request Details
+    revocationRequest: {
+      reason: { type: String, trim: true, maxlength: 1000 },
+      attachmentUrl: { type: String, trim: true, maxlength: 500 }, // Optional attachment
+      requestedAt: { type: Date },
+    },
+
+    // 2. HR Action Details
+    revokedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+    },
+    revokeReason: { type: String, trim: true },
+    revokedAt: { type: Date },
   },
   {
     timestamps: true,

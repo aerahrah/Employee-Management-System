@@ -27,7 +27,9 @@ const {
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
   cancelWellnessApplicationRequest,
-  followUpWellnessApplicationRequest, // ✅ Added Import
+  followUpWellnessApplicationRequest,
+  requestRevocationWellnessController, // ✅ Imported Controller
+  processRevocationWellnessController, // ✅ Imported Controller
 } = require("../controllers/wellnessApplicationController.js");
 
 const {
@@ -81,11 +83,25 @@ router.patch(
   cancelWellnessApplicationRequest,
 );
 
-// ✅ NEW: Follow-up Route
+// Follow-up Route
 router.post(
   "/applications/:id/follow-up",
   ...requirePerm("wellness.manage_self"),
   followUpWellnessApplicationRequest,
+);
+
+// ✅ NEW: Employee requests revocation of an approved leave
+router.post(
+  "/applications/:id/revoke-request",
+  ...requirePerm("wellness.manage_self"),
+  requestRevocationWellnessController,
+);
+
+// ✅ NEW: HR processes (approves/rejects) the revocation request
+router.patch(
+  "/applications/:id/revoke-process",
+  ...requirePerm("wellness.manage"),
+  processRevocationWellnessController,
 );
 
 /* =========================================

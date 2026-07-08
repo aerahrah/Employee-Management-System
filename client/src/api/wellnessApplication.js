@@ -83,7 +83,7 @@ export const cancelWellnessApplicationRequest = async (id) => {
   }
 };
 
-// ✅ NEW: Follow-up Request
+// ✅ Follow-up Request
 export const followUpWellnessApplicationRequest = async (applicationId) => {
   try {
     const res = await API.post(
@@ -94,6 +94,37 @@ export const followUpWellnessApplicationRequest = async (applicationId) => {
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to send follow-up request");
+  }
+};
+
+// ✅ NEW: Step 1 - Employee requests revocation
+export const requestRevocationWellness = async (applicationId, payload) => {
+  try {
+    const res = await API.post(
+      `/wellness/applications/${applicationId}/revoke-request`,
+      payload, // expects { reason, attachmentUrl }
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to request revocation");
+  }
+};
+
+// ✅ NEW: Step 2 - HR approves or rejects revocation request
+export const processRevocationWellnessRequest = async (
+  applicationId,
+  payload,
+) => {
+  try {
+    const res = await API.patch(
+      `/wellness/applications/${applicationId}/revoke-process`,
+      payload, // expects { action: "APPROVE" | "REJECT", remarks }
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to process revocation request");
   }
 };
 

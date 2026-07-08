@@ -4,12 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { StatusBadge } from "../../statusUtils";
 import FullHeightCardContainer from "../../pageContainer";
 
-// Consolidated API Imports - Unified for both Organic and JO CTO
+// Consolidated API Imports
 import {
   fetchMyCtoApplications,
   fetchMyCreditRequests,
   cancelCtoApplicationRequest,
-  followUpCtoApplicationRequest, // ✅ Added Follow Up API Import
+  followUpCtoApplicationRequest,
+  requestRevocation, // ✅ Imported new Revocation API
 } from "../../../api/cto";
 
 import Modal from "../../modal";
@@ -38,7 +39,8 @@ import {
   ArrowUp,
   FileBadge,
   ChevronDown,
-  Bell, // ✅ Added Bell icon for Follow-up
+  Bell,
+  Undo, // ✅ Imported Undo icon for Revocation
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
@@ -122,6 +124,11 @@ function getIconChip(kind, borderColor) {
       fg: "#d97706",
       br: "rgba(245,158,11,0.26)",
     },
+    purple: {
+      bg: "rgba(168,85,247,0.16)",
+      fg: "#9333ea",
+      br: "rgba(168,85,247,0.26)",
+    },
     slate: {
       bg: "rgba(148,163,184,0.18)",
       fg: "var(--app-text)",
@@ -190,8 +197,9 @@ const ApplicationActionMenu = ({
   onViewCscForm6,
   onCancel,
   cancelling,
-  onFollowUp, // ✅ Added Props for Follow Up
+  onFollowUp,
   followingUp,
+  onRequestRevoke, // ✅ Revocation Prop
   isOrganicApp,
   borderColor,
 }) => {
@@ -219,8 +227,9 @@ const ApplicationActionMenu = ({
     setIsOpen(false);
   };
 
-  const isPending =
-    String(app?.overallStatus || "").toUpperCase() === "PENDING";
+  const status = String(app?.overallStatus || "").toUpperCase();
+  const isPending = status === "PENDING";
+  const isApproved = status === "APPROVED";
   const hasMemos = Array.isArray(app?.memo) && app.memo.length > 0;
 
   return (
@@ -331,7 +340,6 @@ const ApplicationActionMenu = ({
             <FileText size={14} /> View Memos
           </button>
 
-          {/* ✅ Follow Up Menu Item */}
           {isPending && (
             <button
               disabled={followingUp}
@@ -353,25 +361,45 @@ const ApplicationActionMenu = ({
             </button>
           )}
 
-          <button
-            disabled={!isPending || cancelling}
-            onClick={() => handle(onCancel)}
-            className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
-            type="button"
-            title={
-              !isPending ? "Only PENDING applications can be cancelled" : ""
-            }
-            style={{ color: "#ef4444" }}
-            onMouseEnter={(e) => {
-              if (e.currentTarget.disabled) return;
-              e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
-          >
-            <Ban size={14} /> {cancelling ? "Cancelling..." : "Cancel Request"}
-          </button>
+          {/* ✅ Follow Up Menu Item */}
+          {isApproved && (
+            <button
+              onClick={() => handle(onRequestRevoke)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+              style={{ color: "var(--app-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--app-muted)";
+              }}
+              type="button"
+            >
+              <Undo size={14} /> Request Revocation
+            </button>
+          )}
+
+          {isPending && (
+            <button
+              disabled={!isPending || cancelling}
+              onClick={() => handle(onCancel)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+              type="button"
+              style={{ color: "#ef4444" }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.12)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <Ban size={14} />{" "}
+              {cancelling ? "Cancelling..." : "Cancel Request"}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -387,13 +415,15 @@ const ApplicationCard = ({
   onViewMemos,
   onCancel,
   cancelling,
-  onFollowUp, // ✅ Added Props for Follow Up
+  onFollowUp,
   followingUp,
+  onRequestRevoke, // ✅ Revocation Prop
   isOrganicApp,
   borderColor,
 }) => {
-  const isPending =
-    String(app?.overallStatus || "").toUpperCase() === "PENDING";
+  const status = String(app?.overallStatus || "").toUpperCase();
+  const isPending = status === "PENDING";
+  const isApproved = status === "APPROVED";
 
   const memoLabel =
     Array.isArray(app?.memo) && app.memo.length
@@ -508,22 +538,6 @@ const ApplicationCard = ({
       >
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={onViewMemos}
-            disabled={!app?.memo || app.memo.length === 0}
-            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
-            type="button"
-            title="View Memos"
-            style={{
-              backgroundColor: "var(--app-surface-2)",
-              borderColor: borderColor,
-              color: "var(--app-text)",
-            }}
-          >
-            <FileText className="w-4 h-4" />
-            Memos
-          </button>
-
-          <button
             onClick={onViewDetails}
             className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
             type="button"
@@ -584,11 +598,10 @@ const ApplicationCard = ({
               }}
             >
               <FileBadge className="w-4 h-4" />
-              CSC Form 6
+              Form 6
             </button>
           )}
 
-          {/* ✅ Follow Up Mobile Button */}
           {isPending && (
             <button
               onClick={onFollowUp}
@@ -611,6 +624,30 @@ const ApplicationCard = ({
             >
               <Bell className="w-4 h-4" />
               {followingUp ? "..." : "Follow Up"}
+            </button>
+          )}
+
+          {/* ✅ Request Revocation Button */}
+          {isApproved && (
+            <button
+              onClick={onRequestRevoke}
+              className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+              type="button"
+              title="Request Revocation"
+              style={{
+                backgroundColor: "var(--app-surface)",
+                borderColor: borderColor,
+                color: "var(--app-text)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--app-surface)";
+              }}
+            >
+              <Undo className="w-4 h-4" />
+              Revoke Req.
             </button>
           )}
 
@@ -791,6 +828,11 @@ const tabTone = {
     text: "#ef4444",
     br: "rgba(239,68,68,0.22)",
   },
+  purple: {
+    bg: "rgba(168,85,247,0.16)",
+    text: "#9333ea",
+    br: "rgba(168,85,247,0.26)",
+  },
   slate: {
     bg: "rgba(148,163,184,0.18)",
     text: "var(--app-text)",
@@ -844,7 +886,6 @@ const MyCtoApplications = () => {
   const openCancelModal = (app) => setCancelModal({ isOpen: true, app });
   const closeCancelModal = () => setCancelModal({ isOpen: false, app: null });
 
-  // ✅ Added Follow Up Modal State
   const [followUpModal, setFollowUpModal] = useState({
     isOpen: false,
     app: null,
@@ -852,6 +893,17 @@ const MyCtoApplications = () => {
   const openFollowUpModal = (app) => setFollowUpModal({ isOpen: true, app });
   const closeFollowUpModal = () =>
     setFollowUpModal({ isOpen: false, app: null });
+
+  // ✅ Added Revoke Modal State
+  const [revokeModal, setRevokeModal] = useState({
+    isOpen: false,
+    app: null,
+    reason: "",
+  });
+  const openRevokeModal = (app) =>
+    setRevokeModal({ isOpen: true, app, reason: "" });
+  const closeRevokeModal = () =>
+    setRevokeModal({ isOpen: false, app: null, reason: "" });
 
   const scrollRef = useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -883,6 +935,10 @@ const MyCtoApplications = () => {
         return "border-l-4 border-l-amber-500";
       case "CANCELLED":
         return "border-l-4 border-l-slate-400";
+      case "REVOCATION_REQUESTED":
+        return "border-l-4 border-l-purple-500";
+      case "REVOKED":
+        return "border-l-4 border-l-slate-500";
       default:
         return "border-l-4 border-l-slate-300";
     }
@@ -939,27 +995,41 @@ const MyCtoApplications = () => {
 
       queryClient.invalidateQueries({ queryKey: [appQueryKey] });
       queryClient.invalidateQueries({ queryKey: [balanceQueryKey] });
-
-      queryClient.refetchQueries({ queryKey: [appQueryKey] });
-      queryClient.refetchQueries({ queryKey: [balanceQueryKey] });
-
-      refetch();
-      refetchBalance();
     },
     onError: (err) => toast.error(err?.message || "Failed to cancel request."),
   });
 
-  // ✅ New Mutation for Follow-up request
   const followUpMutation = useMutation({
     mutationFn: (applicationId) => followUpCtoApplicationRequest(applicationId),
     onSuccess: (payload) => {
       toast.success(
         payload?.message || "Follow-up notification sent successfully.",
       );
-      closeFollowUpModal(); // ✅ Close modal on success
+      closeFollowUpModal();
     },
     onError: (err) => {
       toast.error(err?.message || "Failed to send follow-up.");
+    },
+  });
+
+  // ✅ New Mutation for Requesting Revocation
+  const revokeRequestMutation = useMutation({
+    mutationFn: ({ id, payload }) => requestRevocation(id, payload),
+    onSuccess: (payload) => {
+      toast.success(
+        payload?.message || "Revocation request submitted successfully.",
+      );
+
+      const updatedApp = payload?.application ?? payload?.data ?? payload;
+      if (updatedApp?._id && selectedApp?._id === updatedApp._id) {
+        setSelectedApp(updatedApp);
+      }
+
+      closeRevokeModal();
+      queryClient.invalidateQueries({ queryKey: [appQueryKey] });
+    },
+    onError: (err) => {
+      toast.error(err?.message || "Failed to request revocation.");
     },
   });
 
@@ -1008,7 +1078,9 @@ const MyCtoApplications = () => {
       : (statusCounts.PENDING || 0) +
         (statusCounts.APPROVED || 0) +
         (statusCounts.REJECTED || 0) +
-        (statusCounts.CANCELLED || 0);
+        (statusCounts.CANCELLED || 0) +
+        (statusCounts.REVOCATION_REQUESTED || 0) +
+        (statusCounts.REVOKED || 0);
 
   const tabs = [
     {
@@ -1032,6 +1104,14 @@ const MyCtoApplications = () => {
       count: statusCounts.APPROVED || 0,
       tone: "green",
     },
+    // ✅ Added Revoke Request Tab
+    {
+      id: "REVOCATION_REQUESTED",
+      label: "Revoke Req.",
+      icon: Undo,
+      count: statusCounts.REVOCATION_REQUESTED || 0,
+      tone: "purple",
+    },
     {
       id: "REJECTED",
       label: "Rejected",
@@ -1044,6 +1124,13 @@ const MyCtoApplications = () => {
       label: "Cancelled",
       icon: Ban,
       count: statusCounts.CANCELLED || 0,
+      tone: "slate",
+    },
+    {
+      id: "REVOKED",
+      label: "Revoked",
+      icon: RotateCcw,
+      count: statusCounts.REVOKED || 0,
       tone: "slate",
     },
   ];
@@ -1469,7 +1556,8 @@ const MyCtoApplications = () => {
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
-                                  onFollowUp={() => openFollowUpModal(app)} // ✅ Changed to open modal
+                                  onFollowUp={() => openFollowUpModal(app)}
+                                  onRequestRevoke={() => openRevokeModal(app)} // ✅ Handle Request Revoke
                                 />
                               );
                             })}
@@ -1532,7 +1620,8 @@ const MyCtoApplications = () => {
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
-                                  onFollowUp={() => openFollowUpModal(app)} // ✅ Changed to open modal
+                                  onFollowUp={() => openFollowUpModal(app)}
+                                  onRequestRevoke={() => openRevokeModal(app)} // ✅ Handle Request Revoke
                                 />
                               );
                             })}
@@ -1696,8 +1785,11 @@ const MyCtoApplications = () => {
                                         cancelling={cancelling}
                                         onFollowUp={() =>
                                           openFollowUpModal(app)
-                                        } // ✅ Changed to open modal
+                                        }
                                         followingUp={followingUp}
+                                        onRequestRevoke={() =>
+                                          openRevokeModal(app)
+                                        } // ✅ Handle Request Revoke
                                       />
                                     </td>
                                   </tr>
@@ -1750,7 +1842,7 @@ const MyCtoApplications = () => {
             onClose={() => setPdfApp(null)}
           />
 
-          {/* ✅ Organic CSC Form 6 Modal */}
+          {/* Organic CSC Form 6 Modal */}
           <OrganicApplicationPdfModal
             app={organicPdfApp}
             isOpen={!!organicPdfApp}
@@ -1769,7 +1861,7 @@ const MyCtoApplications = () => {
             </Modal>
           )}
 
-          {/* ✅ Follow Up Confirm Modal */}
+          {/* Follow Up Confirm Modal */}
           <Modal
             isOpen={followUpModal.isOpen}
             onClose={closeFollowUpModal}
@@ -1851,6 +1943,113 @@ const MyCtoApplications = () => {
                 >
                   This will send a reminder to the pending approvers for this
                   CTO application.
+                </p>
+              </div>
+            </div>
+          </Modal>
+
+          {/* ✅ Request Revocation Modal */}
+          <Modal
+            isOpen={revokeModal.isOpen}
+            onClose={closeRevokeModal}
+            title="Request Revocation"
+            maxWidth="max-w-lg"
+            preventCloseWhenBusy={true}
+            isBusy={revokeRequestMutation.isPending}
+            action={{
+              show: true,
+              variant: "primary",
+              label: revokeRequestMutation.isPending
+                ? "Submitting..."
+                : "Submit Request",
+              onClick: async () => {
+                if (!revokeModal.reason.trim()) {
+                  toast.error("Please provide a reason for the revocation.");
+                  return;
+                }
+                const app = revokeModal.app;
+                if (!app?._id) return;
+                await revokeRequestMutation.mutateAsync({
+                  id: app._id,
+                  payload: { reason: revokeModal.reason },
+                });
+              },
+              disabled:
+                revokeRequestMutation.isPending || !revokeModal.reason.trim(),
+            }}
+          >
+            <div className="p-2" style={{ color: "var(--app-text)" }}>
+              <div
+                className="mb-5 flex items-start gap-3 p-3 rounded-xl border"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div
+                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
+                >
+                  <Info size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Revoking Approved Request
+                  </p>
+                  <p
+                    className="text-sm font-bold break-words"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    Ref:{" "}
+                    {revokeModal.app?._id
+                      ? `#${revokeModal.app._id.slice(-6).toUpperCase()}`
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="py-2">
+                <label
+                  className="block text-sm font-semibold mb-2"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  Reason for Revocation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  className="w-full rounded-lg border p-3 text-sm outline-none transition-colors duration-200"
+                  rows={4}
+                  placeholder="e.g., Work suspended due to typhoon, event cancelled..."
+                  value={revokeModal.reason}
+                  onChange={(e) =>
+                    setRevokeModal((prev) => ({
+                      ...prev,
+                      reason: e.target.value,
+                    }))
+                  }
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-text)",
+                  }}
+                  onFocus={(e) =>
+                    (e.target.style.borderColor = "var(--accent)")
+                  }
+                  onBlur={(e) => (e.target.style.borderColor = borderColor)}
+                />
+                <p
+                  className="text-xs mt-2"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  Submitting this will change the status to "Revocation
+                  Requested". HR will review your request before returning your
+                  credits.
                 </p>
               </div>
             </div>

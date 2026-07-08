@@ -20,9 +20,6 @@ const CtoApplicationSchema = new mongoose.Schema(
     // =========================================
     // HISTORICAL SNAPSHOT (Immutability)
     // =========================================
-    // Captures the exact details of the employee at the time of submission
-    // preventing past forms (like CSC Form 6) from retroactively changing
-    // if the employee is promoted, gets a raise, or changes their name.
     applicantSnapshot: {
       prefixTitle: { type: String, trim: true, default: "" },
       firstName: { type: String, required: true, trim: true },
@@ -33,7 +30,6 @@ const CtoApplicationSchema = new mongoose.Schema(
       division: { type: String, required: true, trim: true },
       position: { type: String, required: true, trim: true },
 
-      // Salary details are only mandated for Organic employees (CSC Form 6 requirement)
       salaryGrade: {
         type: Number,
         required: function () {
@@ -98,44 +94,37 @@ const CtoApplicationSchema = new mongoose.Schema(
     ],
     overallStatus: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+      // ✅ ADDED: "REVOCATION_REQUESTED"
+      enum: [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "CANCELLED",
+        "REVOCATION_REQUESTED",
+        "REVOKED",
+      ],
       default: "PENDING",
     },
     attachment: {
-      fileName: {
-        type: String,
-        trim: true,
-        maxlength: [255, "Filename too long"],
-      },
-      fileUrl: {
-        type: String,
-        trim: true,
-        maxlength: [500, "URL too long"],
-      },
+      fileName: { type: String, trim: true, maxlength: 255 },
+      fileUrl: { type: String, trim: true, maxlength: 500 },
       fileType: {
         type: String,
         trim: true,
-        enum: {
-          values: ["application/pdf", "image/jpeg", "image/png"],
-          message: "{VALUE} is not an allowed file type",
-        },
+        enum: ["application/pdf", "image/jpeg", "image/png"],
       },
       uploadedAt: { type: Date, default: Date.now },
     },
 
     // =========================================
-    // ORGANIC-SPECIFIC FIELDS (Conditionally Required)
+    // ORGANIC-SPECIFIC FIELDS
     // =========================================
-
-    // Snapshot of the applicant's digital signature at the time of submission
     applicantSignatureUrl: {
       type: String,
       required: function () {
         return this.employeeType === "Organic";
       },
     },
-
-    // Derived from Section 6.D
     commutation: {
       type: String,
       enum: ["Requested", "Not Requested"],
@@ -144,8 +133,6 @@ const CtoApplicationSchema = new mongoose.Schema(
         return this.employeeType === "Organic";
       },
     },
-
-    // Derived from Section 7.A (Usually populated by HR later)
     certificationOfLeaveCredits: {
       asOfDate: { type: Date },
       vacationLeave: {
@@ -163,14 +150,30 @@ const CtoApplicationSchema = new mongoose.Schema(
         ref: "Employee",
       },
     },
-
-    // Derived from Section 7.C & 7.D
     actionDetails: {
       approvedDaysWithPay: { type: Number },
       approvedDaysWithoutPay: { type: Number },
       approvedOthersSpecify: { type: String, trim: true },
       disapprovedDueTo: { type: String, trim: true },
     },
+
+    // =========================================
+    // 2-STEP REVOCATION WORKFLOW
+    // =========================================
+    // 1. Employee Request Details
+    revocationRequest: {
+      reason: { type: String, trim: true, maxlength: 1000 },
+      attachmentUrl: { type: String, trim: true, maxlength: 500 }, // Optional attachment
+      requestedAt: { type: Date },
+    },
+
+    // 2. HR Action Details
+    revokedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+    },
+    revokeRemarks: { type: String, trim: true }, // HR's reasoning for approval/rejection
+    revokedAt: { type: Date },
   },
   {
     timestamps: true,

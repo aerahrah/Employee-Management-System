@@ -1,4 +1,3 @@
-// services/ctoApplication.service.js
 const mongoose = require("mongoose");
 const CtoApplication = require("../models/ctoApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
@@ -754,7 +753,6 @@ const cancelCtoApplicationService = async ({ userId, applicationId }) => {
   return populateApplicationById(app._id);
 };
 
-// ✅ NEW SERVICE: Follow Up Application
 const followUpCtoApplicationService = async ({ userId, applicationId }) => {
   assertObjectId(userId, "User ID");
   assertObjectId(applicationId, "Application ID");
@@ -841,6 +839,169 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
   return { message: "Follow-up notification sent successfully." };
 };
 
+// ✅ Step 1: Employee requests revocation
+const requestRevocationCtoApplicationService = async ({
+  userId,
+  applicationId,
+  reason,
+  attachmentUrl,
+}) => {
+  assertObjectId(userId, "User ID");
+  assertObjectId(applicationId, "Application ID");
+
+  const safeReason = sanitizeText(reason, 1000);
+  if (!safeReason) {
+    throw createServiceError(
+      "A reason must be provided to request revocation.",
+      400,
+    );
+  }
+
+  const app = await CtoApplication.findById(applicationId);
+  if (!app) {
+    throw createServiceError("Application not found.", 404);
+  }
+
+  if (String(app.employee) !== String(userId)) {
+    throw createServiceError("Not authorized to modify this application.", 403);
+  }
+
+  if (app.overallStatus !== "APPROVED") {
+    throw createServiceError(
+      "Only APPROVED applications can be requested for revocation.",
+      400,
+    );
+  }
+
+  app.overallStatus = "REVOCATION_REQUESTED";
+  app.revocationRequest = {
+    reason: safeReason,
+    attachmentUrl: sanitizeText(attachmentUrl, 500) || null,
+    requestedAt: new Date(),
+  };
+
+  await app.save();
+
+  return populateApplicationById(app._id);
+};
+
+// ✅ Step 2: HR approves or rejects the revocation request
+const processRevocationRequestService = async ({
+  adminId,
+  applicationId,
+  action,
+  remarks,
+  req,
+}) => {
+  assertObjectId(adminId, "Admin ID");
+  assertObjectId(applicationId, "Application ID");
+
+  const safeAction = String(action).toUpperCase();
+  const safeRemarks =
+    sanitizeText(remarks, 1000) ||
+    (safeAction === "APPROVE"
+      ? "Revocation approved by HR."
+      : "Revocation rejected by HR.");
+
+  if (!["APPROVE", "REJECT"].includes(safeAction)) {
+    throw createServiceError("Action must be either APPROVE or REJECT.", 400);
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const application = await CtoApplication.findById(applicationId)
+      .populate("employee", "_id firstName lastName email balances")
+      .session(session);
+
+    if (!application) {
+      throw createServiceError("Application not found.", 404);
+    }
+
+    if (application.overallStatus !== "REVOCATION_REQUESTED") {
+      throw createServiceError(
+        "This application does not have a pending revocation request.",
+        400,
+      );
+    }
+
+    if (safeAction === "APPROVE") {
+      const employeeId = application.employee._id;
+      const requestedHours = strictNumber(application.requestedHours);
+
+      // Refund Memo Hours
+      for (const memoItem of application.memo || []) {
+        const memoId = memoItem.memoId?._id || memoItem.memoId;
+        const appliedHours = strictNumber(memoItem.appliedHours);
+
+        if (!memoId || appliedHours <= 0) continue;
+
+        const creditResult = await CtoCredit.findOneAndUpdate(
+          {
+            _id: memoId,
+            "employees.employee": employeeId,
+            "employees.usedHours": { $gte: appliedHours },
+          },
+          {
+            $inc: {
+              "employees.$.usedHours": -appliedHours,
+              "employees.$.remainingHours": appliedHours,
+            },
+            $set: {
+              "employees.$.status": "ACTIVE",
+            },
+          },
+          { session, new: true },
+        );
+
+        if (!creditResult) {
+          throw createServiceError(
+            `Failed to restore credit hours for memo ${memoId}. Data mismatch or insufficient used hours.`,
+            400,
+          );
+        }
+      }
+
+      // Restore Employee Balance
+      const updatedEmployee = await Employee.findOneAndUpdate(
+        { _id: employeeId },
+        { $inc: { "balances.ctoHours": requestedHours } },
+        { session, new: true },
+      );
+
+      if (!updatedEmployee) {
+        throw createServiceError(
+          "Employee record not found for balance restoration.",
+          400,
+        );
+      }
+
+      application.overallStatus = "REVOKED";
+      application.revokedBy = adminId;
+      application.revokeReason = safeRemarks;
+      application.revokedAt = new Date();
+    } else if (safeAction === "REJECT") {
+      // Revert status to APPROVED. Keep request details for audit, but set HR remarks.
+      application.overallStatus = "APPROVED";
+      application.revokedBy = adminId;
+      application.revokeReason = safeRemarks;
+      application.revokedAt = new Date();
+    }
+
+    await application.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return application;
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    throw err;
+  }
+};
+
 const getAllCtoApplicationsService = async (
   filters = {},
   page = 1,
@@ -884,7 +1045,7 @@ const getAllCtoApplicationsService = async (
   const [applications, total] = await Promise.all([
     CtoApplication.find(query)
       .select(
-        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl applicantSnapshot certificationOfLeaveCredits",
+        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl applicantSnapshot certificationOfLeaveCredits revokedBy revokeReason revokedAt revocationRequest",
       )
       .populate({
         path: "approvals",
@@ -935,6 +1096,8 @@ const getAllCtoApplicationsService = async (
     APPROVED: 0,
     REJECTED: 0,
     CANCELLED: 0,
+    REVOCATION_REQUESTED: 0,
+    REVOKED: 0,
     total: totalAll,
   };
 
@@ -1168,6 +1331,8 @@ const getCtoApplicationsByEmployeeService = async (
     APPROVED: 0,
     REJECTED: 0,
     CANCELLED: 0,
+    REVOCATION_REQUESTED: 0,
+    REVOKED: 0,
     total: totalAll,
   };
 
@@ -1193,4 +1358,6 @@ module.exports = {
   getAllCtoApplicationsService,
   getCtoApplicationsByEmployeeService,
   followUpCtoApplicationService,
+  requestRevocationCtoApplicationService,
+  processRevocationRequestService,
 };

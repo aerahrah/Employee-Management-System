@@ -3,7 +3,9 @@ const {
   getAllCtoApplicationsService,
   getCtoApplicationsByEmployeeService,
   cancelCtoApplicationService,
-  followUpCtoApplicationService, // ✅ Imported new service
+  followUpCtoApplicationService,
+  requestRevocationCtoApplicationService, // ✅ Employee requests revocation
+  processRevocationRequestService, // ✅ HR approves/rejects revocation
 } = require("../services/ctoApplication.service");
 
 const addCtoApplicationRequest = async (req, res) => {
@@ -12,10 +14,9 @@ const addCtoApplicationRequest = async (req, res) => {
       requestedHours,
       reason,
       routeId,
-      approvers, // Ensure frontend sends [{ approver: id, role: "string" }] if custom
+      approvers,
       inclusiveDates,
       memos,
-      // Merged schema fields
       employeeType,
       commutation,
       certificationOfLeaveCredits,
@@ -23,7 +24,6 @@ const addCtoApplicationRequest = async (req, res) => {
     } = req.body;
 
     const userId = req.user.id;
-
     const application = await addCtoApplicationService({
       userId,
       requestedHours,
@@ -92,10 +92,6 @@ const getCtoApplicationsByEmployeeRequest = async (req, res) => {
   }
 };
 
-/**
- * Cancel CTO application (employee-initiated)
- * Route suggestion: PATCH /cto/applications/:applicationId/cancel
- */
 const cancelCtoApplicationRequest = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -117,10 +113,6 @@ const cancelCtoApplicationRequest = async (req, res) => {
   }
 };
 
-/**
- * Follow-up on a pending CTO application (employee-initiated)
- * Route suggestion: POST /cto/applications/:applicationId/follow-up
- */
 const followUpCtoApplicationRequest = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -141,10 +133,70 @@ const followUpCtoApplicationRequest = async (req, res) => {
   }
 };
 
+// ✅ NEW: Step 1 - Employee requests revocation
+const requestRevocationController = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const applicationId = req.params.applicationId;
+    const { reason, attachmentUrl } = req.body;
+
+    const application = await requestRevocationCtoApplicationService({
+      userId,
+      applicationId,
+      reason,
+      attachmentUrl,
+    });
+
+    res.status(200).json({
+      message:
+        "Revocation request submitted successfully. Awaiting HR approval.",
+      application,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Server error while requesting revocation",
+    });
+  }
+};
+
+// ✅ NEW: Step 2 - HR approves or rejects the revocation request
+const processRevocationController = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const applicationId = req.params.applicationId;
+    const { action, remarks } = req.body; // action = "APPROVE" or "REJECT"
+
+    const application = await processRevocationRequestService({
+      adminId,
+      applicationId,
+      action,
+      remarks,
+      req,
+    });
+
+    const msg =
+      action === "APPROVE"
+        ? "Revocation approved. Credits restored."
+        : "Revocation rejected. Leave remains approved.";
+
+    res.status(200).json({
+      message: msg,
+      application,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error:
+        error.message || "Server error while processing revocation request",
+    });
+  }
+};
+
 module.exports = {
   addCtoApplicationRequest,
   getAllCtoApplicationsRequest,
   getCtoApplicationsByEmployeeRequest,
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest,
+  requestRevocationController,
+  processRevocationController,
 };
