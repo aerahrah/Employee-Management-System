@@ -36,6 +36,11 @@ import EmployeePlaceholder from "./components/ctoComponents/ctoApplicationApprov
 import EmployeeRecordsPlaceholder from "./components/ctoComponents/ctoCreditHistory/ctoEmployeeRecordPlaceholder";
 import AddCtoApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addCtoApplicationForm";
 
+/* ✅ Revocation Components */
+import RevocationApprovals from "./components/revocationComponents/revocationApprovals";
+import RevocationDetails from "./components/revocationComponents/revocationDetails";
+import RevocationPlaceholder from "./components/revocationComponents/revocationPlaceholder";
+
 /* Wellness Components */
 import WellnessDashboard from "./components/wellnessComponents/wellnessDashboard";
 import MyWellnessApplications from "./components/wellnessComponents/wellnessApplicationComponents/myWellnessApplicationHistory";
@@ -410,6 +415,9 @@ function App() {
             <Route path="salary-grades" element={<SalaryGradesSettings />} />
           </Route>
 
+          {/* ===================== */}
+          {/* APPROVALS             */}
+          {/* ===================== */}
           <Route
             element={
               <ProtectedRoute requiredPermission="cto.view_application" />
@@ -450,6 +458,32 @@ function App() {
                 }
               />
               <Route path=":id" element={<WellnessApplicationDetails />} />
+            </Route>
+          </Route>
+
+          {/* ===================== */}
+          {/* REVOCATIONS (HR ONLY) */}
+          {/* ===================== */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="cto.manage_application" />
+            }
+          >
+            <Route path="cto-revocations" element={<RevocationApprovals />}>
+              <Route index element={<RevocationPlaceholder />} />
+              <Route path=":id" element={<RevocationDetails />} />
+            </Route>
+          </Route>
+
+          <Route
+            element={<ProtectedRoute requiredPermission="wellness.manage" />}
+          >
+            <Route
+              path="wellness-revocations"
+              element={<RevocationApprovals />}
+            >
+              <Route index element={<RevocationPlaceholder />} />
+              <Route path=":id" element={<RevocationDetails />} />
             </Route>
           </Route>
         </Route>

@@ -17,12 +17,10 @@ import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
 // ✅ Import both CTO and Wellness fetch functions using the updated API names
-import {
-  fetchAllCtoApplications,
-  fetchAllWellnessApplications,
-} from "../../../api/cto";
-import { useAuth } from "../../../store/authStore";
-import { StatusBadge } from "../../statusUtils";
+import { fetchAllCtoApplications } from "../../api/cto";
+import { fetchAllWellnessApplications } from "../../api/wellnessApplication";
+import { useAuth } from "../../store/authStore";
+import { StatusBadge } from "../statusUtils";
 
 /* ================================
    HOOK: DEBOUNCE

@@ -30,14 +30,15 @@ import {
   MapPin,
   FolderKanban,
   HardDrive,
-  Calendar, // ✅ Added for main Calendar menu
+  Calendar,
   CalendarDays,
-  Users, // ✅ Added for Company Calendar icon
+  Users,
   Mail,
   Route,
   Activity,
   Banknote,
   BriefcaseMedical,
+  Undo, // ✅ Imported Undo for Revocation requests
 } from "lucide-react";
 
 /* =========================
@@ -135,7 +136,7 @@ const Sidebar = ({
     "CTO Service": true,
     "Wellness Service": true,
     "Leave Service": true,
-    "Calendar & Schedule": true, // ✅ Added Calendar to default open
+    "Calendar & Schedule": true,
   });
 
   const safeNavigate = (path) => {
@@ -187,6 +188,13 @@ const Sidebar = ({
             badge: ctoPendingCount > 0 ? ctoPendingCount : null,
             requiredPermission: "cto.view_application",
           },
+          // ✅ Added CTO Revocations
+          {
+            name: "Revocation Requests",
+            path: "/app/cto-revocations",
+            icon: <Undo size={14} />,
+            requiredPermission: "cto.manage_application",
+          },
           {
             name: "All CTO Records",
             path: "/app/cto-records",
@@ -230,6 +238,13 @@ const Sidebar = ({
             badge: wellnessPendingCount > 0 ? wellnessPendingCount : null,
             requiredPermission: "wellness.view_application",
           },
+          // ✅ Added Wellness Revocations
+          {
+            name: "Revocation Requests",
+            path: "/app/wellness-revocations",
+            icon: <Undo size={14} />,
+            requiredPermission: "wellness.manage",
+          },
         ],
       },
       {
@@ -244,7 +259,6 @@ const Sidebar = ({
           },
         ],
       },
-      // ✅ Added Calendar Service Section
       {
         name: "Calendar & Schedule",
         icon: <Calendar size={18} />,

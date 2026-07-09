@@ -1,8 +1,11 @@
+// services/ctoApplication.service.js
 const mongoose = require("mongoose");
 const CtoApplication = require("../models/ctoApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
 const CtoCredit = require("../models/ctoCreditModel");
+const RevocationSetting = require("../models/revocationSettingModel"); // ✅ Imported Revocation Setting
+
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const sendEmail = require("../utils/sendEmail");
 const NotificationService = require("./notificationService");
@@ -839,7 +842,7 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
   return { message: "Follow-up notification sent successfully." };
 };
 
-// ✅ Step 1: Employee requests revocation
+// ✅ STEP 1: EMPLOYEE REQUESTS REVOCATION
 const requestRevocationCtoApplicationService = async ({
   userId,
   applicationId,
@@ -885,7 +888,7 @@ const requestRevocationCtoApplicationService = async ({
   return populateApplicationById(app._id);
 };
 
-// ✅ Step 2: HR approves or rejects the revocation request
+// ✅ STEP 2: HR APPROVES OR REJECTS THE REVOCATION REQUEST
 const processRevocationRequestService = async ({
   adminId,
   applicationId,
@@ -895,6 +898,22 @@ const processRevocationRequestService = async ({
 }) => {
   assertObjectId(adminId, "Admin ID");
   assertObjectId(applicationId, "Application ID");
+
+  // ✅ VISIBILITY SHIELD / RBAC: Enforce Global Revocation Approver
+  const setting = await RevocationSetting.findOne();
+  if (setting && setting.globalApprover) {
+    if (String(setting.globalApprover) !== String(adminId)) {
+      throw createServiceError(
+        "Access Denied: You are not the designated Global Revocation Approver.",
+        403,
+      );
+    }
+  } else {
+    throw createServiceError(
+      "No Global Revocation Approver is configured in the system settings.",
+      400,
+    );
+  }
 
   const safeAction = String(action).toUpperCase();
   const safeRemarks =
@@ -930,7 +949,7 @@ const processRevocationRequestService = async ({
       const employeeId = application.employee._id;
       const requestedHours = strictNumber(application.requestedHours);
 
-      // Refund Memo Hours
+      // Refund Memo Hours Safely Using $elemMatch
       for (const memoItem of application.memo || []) {
         const memoId = memoItem.memoId?._id || memoItem.memoId;
         const appliedHours = strictNumber(memoItem.appliedHours);
@@ -940,8 +959,12 @@ const processRevocationRequestService = async ({
         const creditResult = await CtoCredit.findOneAndUpdate(
           {
             _id: memoId,
-            "employees.employee": employeeId,
-            "employees.usedHours": { $gte: appliedHours },
+            employees: {
+              $elemMatch: {
+                employee: employeeId,
+                usedHours: { $gte: appliedHours }, // Concurrency protection
+              },
+            },
           },
           {
             $inc: {
