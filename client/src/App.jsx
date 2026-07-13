@@ -75,6 +75,7 @@ import DesignationSettings from "./components/generalSettingsComponents/designat
 import BackupSettings from "./components/generalSettingsComponents/backupSettings/backupSettings";
 import GeneralSettings from "./components/generalSettingsComponents/generalSettings";
 import WorkingDaysSettings from "./components/generalSettingsComponents/workingDaysSettings";
+import RevocationSettings from "./components/generalSettingsComponents/revocationSetting";
 
 // Role Settings Components
 import RolesSettings from "./components/generalSettingsComponents/rolesSettings/rolesSettings";
@@ -394,6 +395,18 @@ function App() {
             <Route path="general-settings" element={<WorkingDaysSettings />} />
           </Route>
 
+          {/* ✅ Added Revocation Settings Route */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="settings.revocation_workflow" />
+            }
+          >
+            <Route
+              path="revocation-settings"
+              element={<RevocationSettings />}
+            />
+          </Route>
+
           <Route
             element={<ProtectedRoute requiredPermission="settings.sessions" />}
           >
@@ -466,22 +479,10 @@ function App() {
           {/* ===================== */}
           <Route
             element={
-              <ProtectedRoute requiredPermission="cto.manage_application" />
+              <ProtectedRoute requiredPermission="revocation.manage_application" />
             }
           >
-            <Route path="cto-revocations" element={<RevocationApprovals />}>
-              <Route index element={<RevocationPlaceholder />} />
-              <Route path=":id" element={<RevocationDetails />} />
-            </Route>
-          </Route>
-
-          <Route
-            element={<ProtectedRoute requiredPermission="wellness.manage" />}
-          >
-            <Route
-              path="wellness-revocations"
-              element={<RevocationApprovals />}
-            >
+            <Route path="leave-revocations" element={<RevocationApprovals />}>
               <Route index element={<RevocationPlaceholder />} />
               <Route path=":id" element={<RevocationDetails />} />
             </Route>

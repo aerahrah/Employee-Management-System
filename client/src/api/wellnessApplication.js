@@ -70,6 +70,19 @@ export const fetchEmployeeWellnessApplications = async (
   }
 };
 
+// ✅ NEW: Fetch a specific Wellness application by ID (Admin/HR View)
+export const fetchWellnessApplicationById = async (applicationId) => {
+  try {
+    const res = await API.get(
+      `/wellness/applications/${applicationId}`,
+      withCreds(),
+    );
+    return unwrap(res)?.data ?? unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch Wellness Leave application details");
+  }
+};
+
 export const cancelWellnessApplicationRequest = async (id) => {
   try {
     const res = await API.patch(
@@ -94,6 +107,19 @@ export const followUpWellnessApplicationRequest = async (applicationId) => {
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to send follow-up request");
+  }
+};
+
+// ✅ NEW: Fetch Revocation Requests for HR Dashboard
+export const fetchWellnessRevocationRequests = async (params = {}) => {
+  try {
+    const res = await API.get(
+      "/wellness/applications/revocations",
+      withCreds(params),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch wellness revocation requests");
   }
 };
 
@@ -158,10 +184,8 @@ export const fetchMyWellnessApplicationsApprovals = async (params = {}) => {
 
 export const getWellnessApplicationById = async (id) => {
   try {
-    const res = await API.get(
-      `/wellness/applications/approvers/my-approvals/${id}`,
-      withCreds(),
-    );
+    console.log(id);
+    const res = await API.get(`/wellness/applications/${id}`, withCreds());
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave application details");
