@@ -12,14 +12,18 @@ import {
   Undo,
   RotateCcw,
   CalendarDays,
+  ShieldAlert,
+  ShieldX,
 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
-// ✅ Import both CTO and Wellness fetch functions using the updated API names
-import { fetchAllCtoApplications } from "../../api/cto";
-import { fetchAllWellnessApplications } from "../../api/wellnessApplication";
+// ✅ Import APIs and Hooks
+import { fetchRevocationRequests } from "../../api/cto";
+import { fetchWellnessRevocationRequests } from "../../api/wellnessApplication";
+import { fetchRevocationSettings } from "../../api/revocationApprover";
 import { useAuth } from "../../store/authStore";
+import { usePermissions } from "../../hooks/usePermissions"; // ✅ Added permissions hook
 import { StatusBadge } from "../statusUtils";
 
 /* ================================
@@ -263,6 +267,9 @@ const RevocationsList = () => {
   const { id: selectedId } = useParams();
   const isXlUp = useIsXlUp();
 
+  const { can } = usePermissions(); // ✅ Check User Permissions
+  const canViewRevocations = can("revocation.view_application");
+
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
@@ -296,50 +303,62 @@ const RevocationsList = () => {
 
   const debouncedSearch = useDebounce(searchTerm, 450);
 
-  // ✅ Fetch CTO Applications
+  // ✅ Fetch Global Revocation Settings to check if workflow is enabled
+  const { data: settingsData, isLoading: isSettingsLoading } = useQuery({
+    queryKey: ["revocationSettings"],
+    queryFn: fetchRevocationSettings,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Default to true if settings aren't loaded yet to avoid flashing the block screen
+  const isRevocationEnabled = settingsData?.isEnabled ?? true;
+
+  // ✅ Fetch CTO Revocation Applications (Only if enabled AND user has permission)
   const {
     data: ctoData,
     isLoading: isCtoLoading,
     isError: isCtoError,
   } = useQuery({
     queryKey: [
-      "allCtoApplicationsRevocationView",
+      "ctoRevocationRequestsList",
       debouncedSearch,
       page,
       limit,
       statusFilter,
     ],
     queryFn: () =>
-      fetchAllCtoApplications({
+      fetchRevocationRequests({
         search: debouncedSearch,
         page,
         limit,
         status: statusFilter || undefined,
       }),
     placeholderData: keepPreviousData,
+    enabled: canViewRevocations && isRevocationEnabled, // Prevent unnecessary calls
   });
 
-  // ✅ Fetch Wellness Applications (Updated function call)
+  // ✅ Fetch Wellness Revocation Applications (Only if enabled AND user has permission)
   const {
     data: wellnessData,
     isLoading: isWellnessLoading,
     isError: isWellnessError,
   } = useQuery({
     queryKey: [
-      "allWellnessApplicationsRevocationView",
+      "wellnessRevocationRequestsList",
       debouncedSearch,
       page,
       limit,
       statusFilter,
     ],
     queryFn: () =>
-      fetchAllWellnessApplications({
+      fetchWellnessRevocationRequests({
         search: debouncedSearch,
         page,
         limit,
         status: statusFilter || undefined,
       }),
     placeholderData: keepPreviousData,
+    enabled: canViewRevocations && isRevocationEnabled, // Prevent unnecessary calls
   });
 
   const isLoading = isCtoLoading || isWellnessLoading;
@@ -393,22 +412,80 @@ const RevocationsList = () => {
   };
 
   const hasNavigatedRef = useRef(false);
+
+  // ✅ Navigate to the unified route with the type parameter appended
   useEffect(() => {
-    if (!isXlUp) return;
+    if (!isXlUp || !canViewRevocations || !isRevocationEnabled) return;
     if (!hasNavigatedRef.current && unifiedApps.length > 0 && !selectedId) {
       const firstApp = unifiedApps[0];
-      const basePath =
-        firstApp._appType === "CTO"
-          ? "/app/cto-revocations"
-          : "/app/wellness-revocations";
-      navigate(`${basePath}/${firstApp._id}`, { replace: true });
+      navigate(
+        `/app/leave-revocations/${firstApp._id}?type=${firstApp._appType}`,
+        { replace: true },
+      );
       hasNavigatedRef.current = true;
     }
-  }, [unifiedApps, selectedId, navigate, isXlUp]);
+  }, [
+    unifiedApps,
+    selectedId,
+    navigate,
+    isXlUp,
+    canViewRevocations,
+    isRevocationEnabled,
+  ]);
 
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, statusFilter, limit]);
+
+  /* ================================
+     ACCESS CONTROL BLOCKS
+  ================================ */
+
+  // 1. Check Permissions
+  if (!canViewRevocations) {
+    return (
+      <div
+        className="flex flex-col h-full min-h-0 items-center justify-center p-6 text-center rounded-xl shadow-sm border transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-surface)",
+          borderColor: borderColor,
+          color: "var(--app-text)",
+        }}
+      >
+        <ShieldX className="w-14 h-14 mb-4 text-red-500 opacity-90" />
+        <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+        <p className="text-sm max-w-sm" style={{ color: "var(--app-muted)" }}>
+          You do not have the required permissions to view the revocation
+          requests list.
+        </p>
+      </div>
+    );
+  }
+
+  // 2. Check Feature Enablement Status
+  if (!isSettingsLoading && !isRevocationEnabled) {
+    return (
+      <div
+        className="flex flex-col h-full min-h-0 items-center justify-center p-6 text-center rounded-xl shadow-sm border transition-colors duration-300 ease-out"
+        style={{
+          backgroundColor: "var(--app-surface)",
+          borderColor: borderColor,
+          color: "var(--app-text)",
+        }}
+      >
+        <ShieldAlert className="w-14 h-14 mb-4 text-amber-500 opacity-90" />
+        <h2 className="text-xl font-bold mb-2">Feature Disabled</h2>
+        <p className="text-sm max-w-sm" style={{ color: "var(--app-muted)" }}>
+          The revocation workflow is currently disabled in the system settings.
+          Data cannot be accessed at this time.
+        </p>
+      </div>
+    );
+  }
+
+  /* ================================
+     MAIN COMPONENT RENDER
+  ================================ */
 
   const startItem = unifiedStats.total === 0 ? 0 : (page - 1) * limit + 1;
   const endItem =
@@ -481,7 +558,11 @@ const RevocationsList = () => {
                 className="text-sm font-extrabold"
                 style={{ color: "var(--app-text)" }}
               >
-                {isLoading ? <Skeleton width={40} /> : unifiedStats.total}
+                {isLoading || isSettingsLoading ? (
+                  <Skeleton width={40} />
+                ) : (
+                  unifiedStats.total
+                )}
               </div>
             </div>
           </div>
@@ -619,7 +700,7 @@ const RevocationsList = () => {
           style={{ backgroundColor: "var(--app-surface)" }}
         >
           <ul className="flex flex-col gap-1">
-            {isLoading ? (
+            {isLoading || isSettingsLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <li key={i} className="p-3">
                   <Skeleton height={60} borderRadius={12} />
@@ -649,11 +730,11 @@ const RevocationsList = () => {
                 return (
                   <li
                     key={app._id}
+                    // ✅ Click navigation uses the shared route with the type parameter appended
                     onClick={() => {
-                      const basePath = isCto
-                        ? "/app/cto-revocations"
-                        : "/app/wellness-revocations";
-                      navigate(`${basePath}/${app._id}`);
+                      navigate(
+                        `/app/leave-revocations/${app._id}?type=${app._appType}`,
+                      );
                     }}
                     className="group flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors duration-200"
                     style={{

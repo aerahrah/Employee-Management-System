@@ -4,9 +4,14 @@ const {
   getWellnessApplicationsByEmployeeService,
   cancelWellnessApplicationService,
   followUpWellnessApplicationService,
-  requestRevocationWellnessApplicationService, // ✅ Imported new service
-  processRevocationWellnessRequestService, // ✅ Imported new service
+  requestRevocationWellnessApplicationService,
+  processRevocationWellnessRequestService,
+  getRevocationRequestsService, // ✅ Newly Imported Service
+  getWellnessRevocationByIdService, // ✅ Imported the new ID fetcher service
 } = require("../services/wellnessApplicationService"); // Adjust path if necessary
+
+// ✅ Import the Revocation Setting model to enforce RBAC visibility
+const RevocationSetting = require("../models/revocationSettingModel");
 
 /* =========================
    Controllers
@@ -14,7 +19,6 @@ const {
 
 const addWellnessApplicationRequest = async (req, res, next) => {
   try {
-    // Assuming authenticateToken middleware attaches user info to req.user
     const userId = req.user.id || req.user._id;
     const payload = { ...req.body, userId };
 
@@ -26,14 +30,60 @@ const addWellnessApplicationRequest = async (req, res, next) => {
       data: application,
     });
   } catch (error) {
-    next(error); // Passes to your global error handler in server.js
+    next(error);
   }
 };
 
 const getAllWellnessApplicationsRequest = async (req, res, next) => {
   try {
-    // Extract query parameters for the advanced aggregation filtering
-    const { status, from, to, search, employeeId, page, limit } = req.query;
+    const {
+      status,
+      from,
+      to,
+      search,
+      employeeId,
+      page,
+      limit,
+      isRevocationInbox,
+    } = req.query;
+    const userId = req.user.id || req.user._id;
+
+    // ✅ VISIBILITY SHIELD: If this is querying the revocation inbox data, check the global approver
+    if (
+      status === "REVOCATION_REQUESTED" ||
+      status === "REVOKED" ||
+      isRevocationInbox === "true"
+    ) {
+      const setting = await RevocationSetting.findOne();
+
+      // If no setting exists, or the current user is NOT the designated global approver
+      if (
+        !setting ||
+        !setting.globalApprover ||
+        String(setting.globalApprover) !== String(userId)
+      ) {
+        return res.status(200).json({
+          success: true,
+          message: "Fetched Wellness applications successfully",
+          data: [],
+          pagination: {
+            page: Number(page) || 1,
+            limit: Number(limit) || 20,
+            total: 0,
+            totalPages: 0,
+          },
+          statusCounts: {
+            PENDING: 0,
+            APPROVED: 0,
+            REJECTED: 0,
+            CANCELLED: 0,
+            REVOCATION_REQUESTED: 0,
+            REVOKED: 0,
+            total: 0,
+          },
+        });
+      }
+    }
 
     const result = await getAllWellnessApplicationsService(
       { status, from, to, search, employeeId },
@@ -43,7 +93,7 @@ const getAllWellnessApplicationsRequest = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      ...result, // Spreads data, pagination, and statusCounts from the service
+      ...result,
     });
   } catch (error) {
     next(error);
@@ -52,7 +102,7 @@ const getAllWellnessApplicationsRequest = async (req, res, next) => {
 
 const getWellnessApplicationsByEmployeeRequest = async (req, res, next) => {
   try {
-    const employeeId = req.params.employeeId || req.user.id;
+    const employeeId = req.params.employeeId || req.user.id || req.user._id;
 
     const { page = 1, limit = 20, status, search, from, to } = req.query;
 
@@ -77,10 +127,26 @@ const getWellnessApplicationsByEmployeeRequest = async (req, res, next) => {
   }
 };
 
+// ✅ NEW: Controller to fetch specific wellness application by ID (Admin/HR)
+const getWellnessRevocationByIdRequest = async (req, res, next) => {
+  try {
+    const applicationId = req.params.id; // Using .id to match your route parameter
+    const application = await getWellnessRevocationByIdService(applicationId);
+
+    res.status(200).json({
+      success: true,
+      message: "Fetched Wellness revocation application successfully",
+      data: application,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const cancelWellnessApplicationRequest = async (req, res, next) => {
   try {
     const applicationId = req.params.id;
-    const userId = req.user.id || req.user._id; // Ensure only the owner can cancel
+    const userId = req.user.id || req.user._id;
 
     const application = await cancelWellnessApplicationService({
       userId,
@@ -116,7 +182,6 @@ const followUpWellnessApplicationRequest = async (req, res, next) => {
   }
 };
 
-// ✅ NEW: Step 1 - Employee requests revocation
 const requestRevocationWellnessController = async (req, res, next) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -141,12 +206,11 @@ const requestRevocationWellnessController = async (req, res, next) => {
   }
 };
 
-// ✅ NEW: Step 2 - HR approves or rejects the revocation request
 const processRevocationWellnessController = async (req, res, next) => {
   try {
     const adminId = req.user.id || req.user._id;
     const applicationId = req.params.id;
-    const { action, remarks } = req.body; // action = "APPROVE" or "REJECT"
+    const { action, remarks } = req.body;
 
     const application = await processRevocationWellnessRequestService({
       adminId,
@@ -170,12 +234,60 @@ const processRevocationWellnessController = async (req, res, next) => {
   }
 };
 
+// ✅ NEW: Controller for the Revocation Dashboard
+const getRevocationRequestsController = async (req, res, next) => {
+  try {
+    const { status, from, to, search, employeeId, page, limit } = req.query;
+    const userId = req.user.id || req.user._id;
+
+    // ✅ VISIBILITY SHIELD: Enforce that only the designated global approver can access the dashboard
+    const setting = await RevocationSetting.findOne();
+    if (
+      !setting ||
+      !setting.globalApprover ||
+      String(setting.globalApprover) !== String(userId)
+    ) {
+      return res.status(200).json({
+        success: true,
+        message: "Fetched Revocation requests successfully",
+        data: [],
+        pagination: {
+          page: Number(page) || 1,
+          limit: Number(limit) || 20,
+          total: 0,
+          totalPages: 0,
+        },
+        statusCounts: {
+          REVOCATION_REQUESTED: 0,
+          REVOKED: 0,
+          total: 0,
+        },
+      });
+    }
+
+    const result = await getRevocationRequestsService(
+      { status, from, to, search, employeeId },
+      page,
+      limit,
+    );
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   addWellnessApplicationRequest,
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
+  getWellnessRevocationByIdRequest,
   cancelWellnessApplicationRequest,
   followUpWellnessApplicationRequest,
   requestRevocationWellnessController,
   processRevocationWellnessController,
+  getRevocationRequestsController,
 };

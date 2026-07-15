@@ -26,10 +26,12 @@ const {
   addWellnessApplicationRequest,
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
+  getWellnessRevocationByIdRequest, // ✅ Imported Controller
   cancelWellnessApplicationRequest,
   followUpWellnessApplicationRequest,
-  requestRevocationWellnessController, // ✅ Imported Controller
-  processRevocationWellnessController, // ✅ Imported Controller
+  requestRevocationWellnessController,
+  processRevocationWellnessController,
+  getRevocationRequestsController,
 } = require("../controllers/wellnessApplicationController.js");
 
 const {
@@ -46,15 +48,9 @@ const requirePerm = (perm) => [authenticateToken, authorize(perm)];
 const authOnly = [authenticateToken];
 
 /* =========================================
-   WELLNESS APPLICATIONS (EMPLOYEE / ADMIN VIEW)
+   WELLNESS APPLICATIONS - STATIC GET ROUTES 
+   (These MUST come before any dynamic /:id routes)
 ========================================= */
-
-// Apply for Wellness Leave
-router.post(
-  "/applications/apply",
-  ...requirePerm("wellness.manage_self"),
-  addWellnessApplicationRequest,
-);
 
 // Admin View All Wellness Applications
 router.get(
@@ -63,11 +59,11 @@ router.get(
   getAllWellnessApplicationsRequest,
 );
 
-// Admin View Specific Employee Applications
+// Admin View All Revocation Requests
 router.get(
-  "/applications/employee/:employeeId",
-  ...requirePerm("wellness.view_all"),
-  getWellnessApplicationsByEmployeeRequest,
+  "/applications/revocations",
+  ...requirePerm("revocation.view_application"),
+  getRevocationRequestsController,
 );
 
 // Self-service application views & actions
@@ -77,6 +73,60 @@ router.get(
   getWellnessApplicationsByEmployeeRequest,
 );
 
+// Approver pending count
+router.get(
+  "/applications/pending-count",
+  ...authOnly,
+  getPendingCountForWellnessApproverController,
+);
+
+// Approver list of approvals
+router.get(
+  "/applications/approvers/my-approvals",
+  ...requirePerm("wellness.view_application"),
+  getWellnessApplicationsForApprover,
+);
+
+/* =========================================
+   WELLNESS APPLICATIONS - DYNAMIC GET ROUTES 
+   (These catch parameters like IDs)
+========================================= */
+
+// Approver specific approval details
+router.get(
+  "/applications/approvers/my-approvals/:id",
+  ...requirePerm("wellness.view_application"),
+  getWellnessApplicationById,
+);
+
+// Admin View Specific Employee Applications
+router.get(
+  "/applications/employee/:employeeId",
+  ...requirePerm("wellness.view_all"),
+  getWellnessApplicationsByEmployeeRequest,
+);
+
+// ✅ NEW: Admin View Specific Application By ID
+// Placed DEAD LAST among the GET /applications/... routes
+router.get(
+  "/applications/:id",
+  ...requirePerm("revocation.manage_application"),
+  getWellnessRevocationByIdRequest,
+);
+
+/* =========================================
+   WELLNESS APPLICATIONS - POST / PATCH / PUT
+   (Method-specific, order is less strict here)
+========================================= */
+
+// Apply for Wellness Leave
+router.post(
+  "/applications/apply",
+  ...requirePerm("wellness.manage_self"),
+  addWellnessApplicationRequest,
+);
+
+// Cancel Application
 router.patch(
   "/applications/:id/cancel",
   ...requirePerm("wellness.manage"),
@@ -90,50 +140,28 @@ router.post(
   followUpWellnessApplicationRequest,
 );
 
-// ✅ NEW: Employee requests revocation of an approved leave
+// Employee requests revocation of an approved leave
 router.post(
   "/applications/:id/revoke-request",
-  ...requirePerm("wellness.manage_self"),
+  ...requirePerm("revocation.manage_self"),
   requestRevocationWellnessController,
 );
 
-// ✅ NEW: HR processes (approves/rejects) the revocation request
+// HR processes (approves/rejects) the revocation request
 router.patch(
   "/applications/:id/revoke-process",
-  ...requirePerm("wellness.manage"),
+  ...requirePerm("revocation.manage_application"),
   processRevocationWellnessController,
 );
 
-/* =========================================
-   APPROVER FLOW
-========================================= */
-// Kept as authOnly because these rely on the controller verifying
-// if req.user._id matches the application's assigned approver.
-
-router.get(
-  "/applications/pending-count",
-  ...authOnly,
-  getPendingCountForWellnessApproverController,
-);
-
-router.get(
-  "/applications/approvers/my-approvals",
-  ...requirePerm("wellness.view_application"),
-  getWellnessApplicationsForApprover,
-);
-
-router.get(
-  "/applications/approvers/my-approvals/:id",
-  ...requirePerm("wellness.view_application"),
-  getWellnessApplicationById,
-);
-
+// Approver Approves
 router.post(
   "/applications/approver/:applicationId/approve",
   ...requirePerm("wellness.manage_application"),
   approveWellnessApplication,
 );
 
+// Approver Rejects
 router.put(
   "/applications/approver/:applicationId/reject",
   ...requirePerm("wellness.manage_application"),

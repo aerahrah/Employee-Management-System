@@ -3,8 +3,8 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Breadcrumbs from "../breadCrumbs";
 import {
-  fetchRevocationApprover,
-  setRevocationApprover,
+  fetchRevocationSettings,
+  updateRevocationSettings,
 } from "../../api/revocationApprover";
 import {
   RotateCcw,
@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ShieldAlert,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -347,35 +348,36 @@ export default function RevocationSettings() {
   const [inlineError, setInlineError] = useState("");
 
   // form state
-  const [isRevocationEnabled, setIsRevocationEnabled] = useState(true);
+  const [isEnabled, setIsEnabled] = useState(true);
 
   // initial snapshot for dirty detection
   const [initial, setInitial] = useState(null);
 
   const settingsQuery = useQuery({
     queryKey: QK_SETTINGS,
-    queryFn: fetchRevocationApprover,
+    queryFn: fetchRevocationSettings,
     staleTime: 1000 * 60 * 5,
   });
 
   const doc = settingsQuery.data;
+  const approvers = useMemo(() => doc?.approvers || [], [doc]);
 
   useEffect(() => {
     if (doc === undefined) return;
 
-    const enabled = doc?.isRevocationEnabled ?? true;
+    const enabledStatus = doc?.isEnabled ?? true;
 
-    setIsRevocationEnabled(enabled);
+    setIsEnabled(enabledStatus);
     setInitial({
-      isRevocationEnabled: enabled,
+      isEnabled: enabledStatus,
     });
   }, [doc]);
 
   const isDirty = useMemo(() => {
     if (!initial) return false;
-    if (initial.isRevocationEnabled !== isRevocationEnabled) return true;
+    if (initial.isEnabled !== isEnabled) return true;
     return false;
-  }, [initial, isRevocationEnabled]);
+  }, [initial, isEnabled]);
 
   const refetch = useCallback(async () => {
     setInlineError("");
@@ -384,13 +386,13 @@ export default function RevocationSettings() {
   }, [settingsQuery]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload) => setRevocationApprover(payload),
+    mutationFn: (payload) => updateRevocationSettings(payload),
     onSuccess: async () => {
       setInlineError("");
       toast.success("Revocation settings saved");
       await queryClient.invalidateQueries({ queryKey: QK_SETTINGS });
       setInitial({
-        isRevocationEnabled,
+        isEnabled,
       });
     },
     onError: (err) => {
@@ -404,14 +406,14 @@ export default function RevocationSettings() {
     setInlineError("");
 
     saveMutation.mutate({
-      isRevocationEnabled,
+      isEnabled,
     });
   };
 
   const onResetToDefault = () => {
     if (!initial) return;
     setInlineError("");
-    setIsRevocationEnabled(initial.isRevocationEnabled);
+    setIsEnabled(initial.isEnabled);
   };
 
   const isRefreshing = settingsQuery.isRefetching;
@@ -517,9 +519,9 @@ export default function RevocationSettings() {
                 <div className="p-4 space-y-6">
                   <div className="space-y-4">
                     <Toggle
-                      checked={isRevocationEnabled}
+                      checked={isEnabled}
                       disabled={isSaving}
-                      onChange={(v) => setIsRevocationEnabled(v)}
+                      onChange={(v) => setIsEnabled(v)}
                       label="Enable Revocation Requests"
                       hint="Allow employees to submit requests to cancel previously approved leaves."
                       borderColor={borderColor}
@@ -528,12 +530,12 @@ export default function RevocationSettings() {
                   </div>
 
                   <SoftNotice
-                    icon={isRevocationEnabled ? Info : ShieldAlert}
-                    tone={isRevocationEnabled ? "blue" : "amber"}
+                    icon={isEnabled ? Info : ShieldAlert}
+                    tone={isEnabled ? "blue" : "amber"}
                     title="System Behavior"
                     theme={resolvedTheme}
                   >
-                    {isRevocationEnabled
+                    {isEnabled
                       ? "When an employee revokes an active leave, the request will immediately route to authorized HR staff for final processing."
                       : "Employees cannot currently submit revocation requests for approved leaves."}
                   </SoftNotice>
@@ -607,7 +609,7 @@ export default function RevocationSettings() {
                 </div>
               </div>
 
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-4">
                 {/* Status Summary */}
                 <div
                   className="rounded-xl p-4 transition-colors duration-300 ease-out"
@@ -623,7 +625,7 @@ export default function RevocationSettings() {
                     <ShieldCheck className="w-3 h-3" /> Feature Status
                   </div>
                   <div className="mt-2 flex items-center gap-2">
-                    {isRevocationEnabled ? (
+                    {isEnabled ? (
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                     ) : (
                       <ShieldAlert className="w-4 h-4 text-amber-500" />
@@ -632,9 +634,77 @@ export default function RevocationSettings() {
                       className="text-sm font-semibold transition-colors duration-300 ease-out"
                       style={{ color: "var(--app-text)" }}
                     >
-                      {isRevocationEnabled ? "Active" : "Disabled"}
+                      {isEnabled ? "Active" : "Disabled"}
                     </div>
                   </div>
+                </div>
+
+                {/* Authorized Approvers List */}
+                <div
+                  className="rounded-xl p-4 transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    border: `1px solid ${borderColor}`,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out flex items-center gap-1 mb-3"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    <Users className="w-3 h-3" /> Authorized Approvers
+                  </div>
+
+                  {approvers.length > 0 ? (
+                    <div className="space-y-2">
+                      {approvers.map((appr) => {
+                        const initials = `${appr.firstName?.charAt(0) || ""}${appr.lastName?.charAt(0) || ""}`;
+                        const prefix = appr.prefixTitle
+                          ? `${appr.prefixTitle} `
+                          : "";
+                        const extension = appr.nameExtension
+                          ? ` ${appr.nameExtension}`
+                          : "";
+
+                        return (
+                          <div
+                            key={appr._id}
+                            className="flex items-center gap-3 p-2 rounded-lg border transition-colors duration-300 ease-out"
+                            style={{
+                              backgroundColor: subtleBg,
+                              borderColor: borderColor,
+                            }}
+                          >
+                            <div className="h-8 w-8 rounded bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div
+                                className="text-xs font-bold truncate transition-colors duration-300 ease-out"
+                                style={{ color: "var(--app-text)" }}
+                              >
+                                {prefix}
+                                {appr.firstName} {appr.lastName}
+                                {extension}
+                              </div>
+                              <div
+                                className="text-[10px] truncate transition-colors duration-300 ease-out"
+                                style={{ color: "var(--app-muted)" }}
+                              >
+                                {appr.position}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div
+                      className="text-xs italic py-2"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      No authorized approvers configured.
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>

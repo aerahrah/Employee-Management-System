@@ -1,11 +1,12 @@
 // Sidebar.jsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getEmployees } from "../api/employee";
 import { fetchDashboard, fetchPendingCtoCount } from "../api/cto";
 import { fetchPendingWellnessCount } from "../api/wellnessApplication";
+import { fetchRevocationSettings } from "../api/revocationApprover"; // ✅ Imported settings API
 import { useAuth } from "../store/authStore";
 import { usePermissions } from "../hooks/usePermissions";
 import ScrollbarsSync from "./scrollbarSync";
@@ -38,7 +39,7 @@ import {
   Activity,
   Banknote,
   BriefcaseMedical,
-  Undo, // ✅ Imported Undo for Revocation requests
+  Undo,
 } from "lucide-react";
 
 /* =========================
@@ -125,18 +126,26 @@ const Sidebar = ({
     staleTime: 1000 * 60,
   });
 
+  // ✅ Fetch Revocation Settings for Sidebar Visibility
+  const { data: revocationSettingsData } = useQuery({
+    queryKey: ["revocationSettings"],
+    queryFn: fetchRevocationSettings,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const ctoPendingCount = Number(ctoPendingData || 0);
   const wellnessPendingCount = Number(wellnessPendingData?.pending || 0);
+  const isRevocationEnabled = revocationSettingsData?.isEnabled ?? true; // Defaults to true if not loaded
 
   const [hoveredItem, setHoveredItem] = useState(null);
   const [popupCoords, setPopupCoords] = useState({ top: 0, left: 0 });
 
   // Default open menus
   const [openMenus, setOpenMenus] = useState({
+    "Calendar & Schedule": true,
     "CTO Service": true,
     "Wellness Service": true,
     "Leave Service": true,
-    "Calendar & Schedule": true,
   });
 
   const safeNavigate = (path) => {
@@ -147,6 +156,24 @@ const Sidebar = ({
 
   const menuItems = useMemo(
     () => [
+      {
+        name: "Calendar & Schedule",
+        icon: <Calendar size={18} />,
+        subItems: [
+          {
+            name: "My Calendar",
+            path: "/app/my-calendar",
+            icon: <CalendarDays size={14} />,
+            requiredPermission: "calendar.view_self",
+          },
+          {
+            name: "Company Calendar",
+            path: "/app/company-calendar",
+            icon: <Users size={14} />,
+            requiredPermission: "calendar.view_all",
+          },
+        ],
+      },
       {
         name: "CTO Service",
         icon: <Timer size={18} />,
@@ -187,13 +214,6 @@ const Sidebar = ({
             icon: <UserCheck size={14} />,
             badge: ctoPendingCount > 0 ? ctoPendingCount : null,
             requiredPermission: "cto.view_application",
-          },
-          // ✅ Added CTO Revocations
-          {
-            name: "Revocation Requests",
-            path: "/app/cto-revocations",
-            icon: <Undo size={14} />,
-            requiredPermission: "cto.manage_application",
           },
           {
             name: "All CTO Records",
@@ -238,13 +258,6 @@ const Sidebar = ({
             badge: wellnessPendingCount > 0 ? wellnessPendingCount : null,
             requiredPermission: "wellness.view_application",
           },
-          // ✅ Added Wellness Revocations
-          {
-            name: "Revocation Requests",
-            path: "/app/wellness-revocations",
-            icon: <Undo size={14} />,
-            requiredPermission: "wellness.manage",
-          },
         ],
       },
       {
@@ -260,22 +273,11 @@ const Sidebar = ({
         ],
       },
       {
-        name: "Calendar & Schedule",
-        icon: <Calendar size={18} />,
-        subItems: [
-          {
-            name: "My Calendar",
-            path: "/app/my-calendar",
-            icon: <CalendarDays size={14} />,
-            requiredPermission: "calendar.view_self",
-          },
-          {
-            name: "Company Calendar",
-            path: "/app/company-calendar",
-            icon: <Users size={14} />,
-            requiredPermission: "calendar.view_all",
-          },
-        ],
+        name: "Revocation Management",
+        icon: <Undo size={18} />,
+        path: "/app/leave-revocations",
+        requiredPermission: "revocation.manage_application",
+        hidden: !isRevocationEnabled, // ✅ Conditionally hide based on toggle
       },
       {
         name: "Employee Management",
@@ -298,6 +300,12 @@ const Sidebar = ({
             path: "/app/approval-routes",
             icon: <Route size={14} />,
             requiredPermission: "settings.cto_workflow",
+          },
+          {
+            name: "Revocation Settings",
+            path: "/app/revocation-settings",
+            icon: <Undo size={14} />,
+            requiredPermission: "settings.revocation_workflow",
           },
           {
             name: "Designations Settings",
@@ -350,7 +358,7 @@ const Sidebar = ({
         ],
       },
     ],
-    [ctoPendingCount, wellnessPendingCount, can],
+    [ctoPendingCount, wellnessPendingCount, can, isRevocationEnabled],
   );
 
   const { mutateAsync } = useMutation({
@@ -398,6 +406,7 @@ const Sidebar = ({
   const filteredItems = menuItems
     .map((item) => {
       const filteredSubItems = item.subItems?.filter((sub) => {
+        if (sub.hidden) return false; // ✅ Hide sub-items if flagged
         if (sub.requiredPermission) return can(sub.requiredPermission);
         if (sub.roles) return sub.roles.includes(role);
         return true;
@@ -409,6 +418,7 @@ const Sidebar = ({
       };
     })
     .filter((item) => {
+      if (item.hidden) return false; // ✅ Hide main items if flagged
       if (item.requiredPermission && !can(item.requiredPermission))
         return false;
       if (item.subItems && item.subItems.length === 0) return false;

@@ -1,49 +1,39 @@
-const RevocationSetting = require("../models/revocationSettingModel");
+// controllers/revocationSettingController.js
+const revocationSettingService = require("../services/revocationSettingService");
 
-const getRevocationApprover = async (req, res, next) => {
+/**
+ * GET /api/settings/revocation
+ * Retrieves the global revocation settings and dynamic list of approvers.
+ */
+const getRevocationSettings = async (req, res, next) => {
   try {
-    const setting = await RevocationSetting.findOne().populate(
-      "globalApprover",
-      "prefixTitle firstName lastName nameExtension postfixTitle position email",
-    );
+    const data = await revocationSettingService.getSettingsService();
+
     res.status(200).json({
       success: true,
-      data: setting || null,
+      data: data,
     });
   } catch (error) {
     next(error);
   }
 };
 
-const setRevocationApprover = async (req, res, next) => {
+/**
+ * PUT or PATCH /api/settings/revocation
+ * Updates the global revocation settings (enable/disable).
+ */
+const updateRevocationSettings = async (req, res, next) => {
   try {
-    const { approverId } = req.body;
+    // Expecting payload: { isEnabled: boolean }
+    const { isEnabled } = req.body;
 
-    if (!approverId) {
-      return res.status(400).json({ error: "Employee ID is required." });
-    }
-
-    let setting = await RevocationSetting.findOne();
-
-    if (!setting) {
-      setting = new RevocationSetting({ globalApprover: approverId });
-    } else {
-      setting.globalApprover = approverId;
-    }
-
-    await setting.save();
-
-    const populatedSetting = await RevocationSetting.findById(
-      setting._id,
-    ).populate(
-      "globalApprover",
-      "prefixTitle firstName lastName nameExtension postfixTitle position email",
-    );
+    const data =
+      await revocationSettingService.updateSettingsService(isEnabled);
 
     res.status(200).json({
       success: true,
-      message: "Global Revocation Approver updated successfully.",
-      data: populatedSetting,
+      message: "Global Revocation Settings updated successfully.",
+      data: data,
     });
   } catch (error) {
     next(error);
@@ -51,6 +41,6 @@ const setRevocationApprover = async (req, res, next) => {
 };
 
 module.exports = {
-  getRevocationApprover,
-  setRevocationApprover,
+  getRevocationSettings,
+  updateRevocationSettings,
 };

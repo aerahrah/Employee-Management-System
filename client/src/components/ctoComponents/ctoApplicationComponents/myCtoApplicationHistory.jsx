@@ -10,8 +10,11 @@ import {
   fetchMyCreditRequests,
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest,
-  requestRevocation, // ✅ Imported new Revocation API
+  requestRevocation,
 } from "../../../api/cto";
+
+// ✅ Import settings API
+import { fetchRevocationSettings } from "../../../api/revocationApprover";
 
 import Modal from "../../modal";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
@@ -40,7 +43,7 @@ import {
   FileBadge,
   ChevronDown,
   Bell,
-  Undo, // ✅ Imported Undo icon for Revocation
+  Undo,
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
@@ -50,7 +53,7 @@ import CtoApplicationPdfModal from "./ctoApplicationPDFModal";
 import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 
 import { useAuth } from "../../../store/authStore";
-
+import { usePermissions } from "../../../hooks/usePermissions";
 const pageSizeOptions = [20, 50, 100];
 
 const fmtHours = (h) => {
@@ -199,8 +202,9 @@ const ApplicationActionMenu = ({
   cancelling,
   onFollowUp,
   followingUp,
-  onRequestRevoke, // ✅ Revocation Prop
+  onRequestRevoke,
   isOrganicApp,
+  canRequestRevocation, // ✅ Added check prop
   borderColor,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -361,8 +365,8 @@ const ApplicationActionMenu = ({
             </button>
           )}
 
-          {/* ✅ Follow Up Menu Item */}
-          {isApproved && (
+          {/* ✅ Conditionally render based on permissions and settings */}
+          {isApproved && canRequestRevocation && (
             <button
               onClick={() => handle(onRequestRevoke)}
               className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
@@ -417,8 +421,9 @@ const ApplicationCard = ({
   cancelling,
   onFollowUp,
   followingUp,
-  onRequestRevoke, // ✅ Revocation Prop
+  onRequestRevoke,
   isOrganicApp,
+  canRequestRevocation, // ✅ Added check prop
   borderColor,
 }) => {
   const status = String(app?.overallStatus || "").toUpperCase();
@@ -627,8 +632,8 @@ const ApplicationCard = ({
             </button>
           )}
 
-          {/* ✅ Request Revocation Button */}
-          {isApproved && (
+          {/* ✅ Conditionally render based on permissions and settings */}
+          {isApproved && canRequestRevocation && (
             <button
               onClick={onRequestRevoke}
               className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
@@ -847,8 +852,19 @@ const MyCtoApplications = () => {
   const user = useAuth((s) => s.admin);
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
+  const { can } = usePermissions();
 
   const isUserOrganic = user?.employeeType === "Organic";
+
+  // ✅ Evaluate Permissions and Settings for Revocation Requests
+  const canRevokeSelf = can("revocation.manage_self");
+  const { data: settingsData } = useQuery({
+    queryKey: ["revocationSettings"],
+    queryFn: fetchRevocationSettings,
+    staleTime: 1000 * 60 * 5,
+  });
+  const isRevocationEnabled = settingsData?.isEnabled ?? true;
+  const canRequestRevocation = canRevokeSelf && isRevocationEnabled;
 
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
@@ -1551,13 +1567,14 @@ const MyCtoApplications = () => {
                                   cancelling={cancelling}
                                   followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
+                                  canRequestRevocation={canRequestRevocation} // ✅ Passed prop
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
                                   onFollowUp={() => openFollowUpModal(app)}
-                                  onRequestRevoke={() => openRevokeModal(app)} // ✅ Handle Request Revoke
+                                  onRequestRevoke={() => openRevokeModal(app)}
                                 />
                               );
                             })}
@@ -1615,13 +1632,14 @@ const MyCtoApplications = () => {
                                   cancelling={cancelling}
                                   followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
+                                  canRequestRevocation={canRequestRevocation} // ✅ Passed prop
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
                                   onFollowUp={() => openFollowUpModal(app)}
-                                  onRequestRevoke={() => openRevokeModal(app)} // ✅ Handle Request Revoke
+                                  onRequestRevoke={() => openRevokeModal(app)}
                                 />
                               );
                             })}
@@ -1771,6 +1789,9 @@ const MyCtoApplications = () => {
                                         app={app}
                                         borderColor={borderColor}
                                         isOrganicApp={isAppOrganic}
+                                        canRequestRevocation={
+                                          canRequestRevocation
+                                        } // ✅ Passed prop
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
@@ -1789,7 +1810,7 @@ const MyCtoApplications = () => {
                                         followingUp={followingUp}
                                         onRequestRevoke={() =>
                                           openRevokeModal(app)
-                                        } // ✅ Handle Request Revoke
+                                        }
                                       />
                                     </td>
                                   </tr>

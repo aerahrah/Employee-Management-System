@@ -48,6 +48,14 @@ const validPermissions = [
   "wellness.view_application", // View specific wellness applications assigned for approval
   "wellness.manage_application", // Approve or reject assigned wellness applications
   "wellness.dashboard.self_view",
+
+  // -------------------------
+  // WELLNESS LEAVES
+  // -------------------------
+
+  "revocation.manage_application",
+  "revocation.manage_self",
+  "revocation.view_application",
   // -------------------------
   // SYSTEM & ADMIN HUBS
   // -------------------------
@@ -63,7 +71,7 @@ const validPermissions = [
   "settings.sessions", // Session timeouts
   "settings.email", // Email notification config
   "settings.cto_workflow", // CTO Approval routes/approver setup
-
+  "settings.revocation_workflow",
   // -------------------------
   // CALENDAR & SCHEDULING
   // -------------------------

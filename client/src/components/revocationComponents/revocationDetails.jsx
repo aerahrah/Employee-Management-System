@@ -21,6 +21,8 @@ import {
   PenTool,
   Undo,
   Paperclip,
+  ShieldX,
+  ShieldAlert,
 } from "lucide-react";
 import { StatusIcon, StatusBadge } from "../statusUtils";
 import { useAuth } from "../../store/authStore";
@@ -34,16 +36,18 @@ import { buildApiUrl } from "../../config/env";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { getMyProfile } from "../../api/employee";
-// ✅ Import both CTO and Wellness APIs
-// Adjust the import paths according to your actual file structure
+
 import {
-  getCtoApplicationById,
+  fetchCtoApplicationById,
   processRevocationRequest as processCtoRevocation,
 } from "../../api/cto";
 import {
-  getWellnessApplicationById,
+  fetchWellnessApplicationById,
   processRevocationWellnessRequest as processWellnessRevocation,
 } from "../../api/wellnessApplication";
+
+// ✅ Import settings API
+import { fetchRevocationSettings } from "../../api/revocationApprover";
 
 import CtoApplicationPdfModal from "../ctoComponents/ctoApplicationComponents/ctoApplicationPDFModal";
 import OrganicApplicationPdfModal from "../ctoComponents/ctoApplicationComponents/organicApplicationPDFModal";
@@ -592,8 +596,9 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
 const RevocationDetails = () => {
   const { admin } = useAuth();
   const { can } = usePermissions();
-  const canManageApplication =
-    can("cto.manage_application") || can("wellness.manage");
+
+  const canManageApplication = can("revocation.manage_application");
+
   const { id } = useParams();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -602,8 +607,10 @@ const RevocationDetails = () => {
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
 
-  // ✅ Determine application type based on the URL path
-  const isCtoRoute = location.pathname.includes("cto-revocations");
+  // ✅ Parse the application type strictly from the URL query params
+  const searchParams = new URLSearchParams(location.search);
+  const appType = searchParams.get("type");
+  const isCtoRoute = appType === "CTO";
 
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
@@ -629,7 +636,16 @@ const RevocationDetails = () => {
 
   const hasSignature = Boolean(profileData?.signature || admin?.signature);
 
-  // ✅ Dynamically Fetch Application Data
+  // ✅ Fetch Global Revocation Settings to check if workflow is enabled
+  const { data: settingsData, isLoading: isSettingsLoading } = useQuery({
+    queryKey: ["revocationSettings"],
+    queryFn: fetchRevocationSettings,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const isRevocationEnabled = settingsData?.isEnabled ?? true;
+
+  // ✅ Dynamically Fetch Application Data (Only if authorized and enabled)
   const {
     data: application,
     isPending,
@@ -643,8 +659,11 @@ const RevocationDetails = () => {
       id,
     ],
     queryFn: () =>
-      isCtoRoute ? getCtoApplicationById(id) : getWellnessApplicationById(id),
-    enabled: !!currentUserId && !!id,
+      isCtoRoute
+        ? fetchCtoApplicationById(id)
+        : fetchWellnessApplicationById(id),
+    enabled:
+      !!currentUserId && !!id && canManageApplication && isRevocationEnabled,
   });
 
   const isOrganicApp =
@@ -690,8 +709,8 @@ const RevocationDetails = () => {
         isCtoRoute ? "ctoApplication" : "wellnessApplication",
         id,
       ]);
-      queryClient.invalidateQueries(["allCtoApplicationsRevocationView"]);
-      queryClient.invalidateQueries(["allWellnessApplicationsRevocationView"]);
+      queryClient.invalidateQueries(["ctoRevocationRequestsList"]);
+      queryClient.invalidateQueries(["wellnessRevocationRequestsList"]);
     },
     onError: (err) =>
       toast.error(err.message || "Failed to approve revocation."),
@@ -714,8 +733,8 @@ const RevocationDetails = () => {
         isCtoRoute ? "ctoApplication" : "wellnessApplication",
         id,
       ]);
-      queryClient.invalidateQueries(["allCtoApplicationsRevocationView"]);
-      queryClient.invalidateQueries(["allWellnessApplicationsRevocationView"]);
+      queryClient.invalidateQueries(["ctoRevocationRequestsList"]);
+      queryClient.invalidateQueries(["wellnessRevocationRequestsList"]);
     },
     onError: (err) =>
       toast.error(err.message || "Failed to reject revocation."),
@@ -743,7 +762,77 @@ const RevocationDetails = () => {
     setIsOrganicPdfOpen(false);
   }, [application]);
 
-  if (isPending || (isFetching && !application))
+  /* ================================
+     ACCESS CONTROL BLOCKS
+  ================================ */
+
+  if (!canManageApplication) {
+    return (
+      <div
+        className="flex flex-col h-full min-h-0 items-center justify-center p-6 text-center rounded-xl shadow-sm border transition-colors duration-300 ease-out m-4 sm:m-6"
+        style={{
+          backgroundColor: "var(--app-surface)",
+          borderColor: borderColor,
+          color: "var(--app-text)",
+        }}
+      >
+        <ShieldX className="w-14 h-14 mb-4 text-red-500 opacity-90" />
+        <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+        <p className="text-sm max-w-sm" style={{ color: "var(--app-muted)" }}>
+          You do not have the required permissions to manage revocation
+          requests.
+        </p>
+        <button
+          onClick={() => navigate("/app/revocations")}
+          className="mt-6 px-4 py-2 rounded-lg text-sm font-bold border transition-colors hover:opacity-80"
+          style={{
+            backgroundColor: "var(--app-surface-2)",
+            borderColor: borderColor,
+            color: "var(--app-text)",
+          }}
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  if (!isSettingsLoading && !isRevocationEnabled) {
+    return (
+      <div
+        className="flex flex-col h-full min-h-0 items-center justify-center p-6 text-center rounded-xl shadow-sm border transition-colors duration-300 ease-out m-4 sm:m-6"
+        style={{
+          backgroundColor: "var(--app-surface)",
+          borderColor: borderColor,
+          color: "var(--app-text)",
+        }}
+      >
+        <ShieldAlert className="w-14 h-14 mb-4 text-amber-500 opacity-90" />
+        <h2 className="text-xl font-bold mb-2">Feature Disabled</h2>
+        <p className="text-sm max-w-sm" style={{ color: "var(--app-muted)" }}>
+          The revocation workflow is currently disabled in the system settings.
+          Actions cannot be performed at this time.
+        </p>
+        <button
+          onClick={() => navigate("/app/revocations")}
+          className="mt-6 px-4 py-2 rounded-lg text-sm font-bold border transition-colors hover:opacity-80"
+          style={{
+            backgroundColor: "var(--app-surface-2)",
+            borderColor: borderColor,
+            color: "var(--app-text)",
+          }}
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  /* ================================
+     MAIN RENDER LOGIC
+  ================================ */
+
+  if (isPending || (isFetching && !application) || isSettingsLoading)
     return (
       <RevocationDetailsSkeleton
         borderColor={borderColor}
@@ -752,7 +841,11 @@ const RevocationDetails = () => {
     );
 
   if (isError)
-    return <p style={{ color: "var(--app-muted)" }}>Error: {error?.message}</p>;
+    return (
+      <p style={{ color: "var(--app-muted)", margin: "20px" }}>
+        Error: {error?.message}
+      </p>
+    );
 
   if (!application)
     return (
@@ -775,7 +868,6 @@ const RevocationDetails = () => {
     application.employee?.lastName?.[0] || ""
   }`;
 
-  // ✅ Show actions ONLY if the status is exactly REVOCATION_REQUESTED
   const canApproveOrReject =
     application.overallStatus === "REVOCATION_REQUESTED" && !isProcessed;
 
@@ -808,17 +900,6 @@ const RevocationDetails = () => {
         }}
       >
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0">
-          <button
-            onClick={() => navigate("/app/revocations")}
-            className="mr-2 p-2 rounded-xl border shadow-sm transition hover:scale-105"
-            style={{
-              backgroundColor: "var(--app-surface)",
-              borderColor: borderColor,
-            }}
-          >
-            <ChevronLeft size={18} style={{ color: "var(--app-text)" }} />
-          </button>
-
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <div
               className="h-12 w-12 rounded-xl text-white flex items-center justify-center font-bold text-lg flex-none"

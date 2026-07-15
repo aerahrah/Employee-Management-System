@@ -4,7 +4,7 @@ const CtoApplication = require("../models/ctoApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
 const CtoCredit = require("../models/ctoCreditModel");
-const RevocationSetting = require("../models/revocationSettingModel"); // ✅ Imported Revocation Setting
+const RevocationSetting = require("../models/revocationSettingModel");
 
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const sendEmail = require("../utils/sendEmail");
@@ -852,6 +852,14 @@ const requestRevocationCtoApplicationService = async ({
   assertObjectId(userId, "User ID");
   assertObjectId(applicationId, "Application ID");
 
+  const setting = await RevocationSetting.findOne();
+  if (setting && setting.isRevocationEnabled === false) {
+    throw createServiceError(
+      "Revocation requests are currently disabled by HR settings.",
+      403,
+    );
+  }
+
   const safeReason = sanitizeText(reason, 1000);
   if (!safeReason) {
     throw createServiceError(
@@ -894,24 +902,15 @@ const processRevocationRequestService = async ({
   applicationId,
   action,
   remarks,
-  req,
 }) => {
   assertObjectId(adminId, "Admin ID");
   assertObjectId(applicationId, "Application ID");
 
-  // ✅ VISIBILITY SHIELD / RBAC: Enforce Global Revocation Approver
   const setting = await RevocationSetting.findOne();
-  if (setting && setting.globalApprover) {
-    if (String(setting.globalApprover) !== String(adminId)) {
-      throw createServiceError(
-        "Access Denied: You are not the designated Global Revocation Approver.",
-        403,
-      );
-    }
-  } else {
+  if (setting && setting.isRevocationEnabled === false) {
     throw createServiceError(
-      "No Global Revocation Approver is configured in the system settings.",
-      400,
+      "Revocation requests are currently disabled by HR settings.",
+      403,
     );
   }
 
@@ -1023,6 +1022,122 @@ const processRevocationRequestService = async ({
     session.endSession();
     throw err;
   }
+};
+
+// ✅ NEW: SEPARATE API FOR REVOCATION DASHBOARD
+const getRevocationRequestsService = async (
+  filters = {},
+  page = 1,
+  limit = 20,
+) => {
+  page = Math.max(parseInt(page) || 1, 1);
+  limit = Math.min(parseInt(limit) || 20, 100);
+  const skip = (page - 1) * limit;
+
+  const baseQuery = {};
+
+  // Default to showing both pending and processed revocations
+  if (filters.status) {
+    baseQuery.overallStatus = String(filters.status).toUpperCase();
+  } else {
+    baseQuery.overallStatus = { $in: ["REVOCATION_REQUESTED", "REVOKED"] };
+  }
+
+  if (filters.employeeId) {
+    assertObjectId(filters.employeeId, "Employee ID");
+    baseQuery.employee = filters.employeeId;
+  }
+
+  if (filters.employeeType) {
+    baseQuery.employeeType = filters.employeeType;
+  }
+
+  if (filters.from && filters.to) {
+    baseQuery["revocationRequest.requestedAt"] = {
+      $gte: new Date(filters.from),
+      $lte: new Date(filters.to),
+    };
+  }
+
+  if (filters.search) {
+    const safeSearch = sanitizeSearch(filters.search, 100);
+    baseQuery["memo.memoId.memoNo"] = {
+      $regex: safeSearch,
+      $options: "i",
+    };
+  }
+
+  const [applications, total] = await Promise.all([
+    CtoApplication.find(baseQuery)
+      .select(
+        "requestedHours reason overallStatus approvals employee inclusiveDates memo createdAt employeeType commutation applicantSignatureUrl applicantSnapshot certificationOfLeaveCredits revokedBy revokeReason revokedAt revocationRequest",
+      )
+      .populate({
+        path: "approvals",
+        options: { sort: { level: 1 } },
+        populate: {
+          path: "approver",
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id",
+        },
+      })
+      .populate(
+        "employee",
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id signature",
+      )
+      .populate("memo.memoId", "memoNo uploadedMemo totalHours appliedHours")
+      // Sort primarily by when the revocation was requested
+      .sort({ "revocationRequest.requestedAt": -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    CtoApplication.countDocuments(baseQuery),
+  ]);
+
+  const transformed = applications.map((app) => {
+    const approvals = app.approvals || [];
+    return {
+      ...app,
+      category: app.employeeType,
+      approver1: approvals[0]?.approver || null,
+      approver2: approvals[1]?.approver || null,
+      approver3: approvals[2]?.approver || null,
+    };
+  });
+
+  const statusAgg = await CtoApplication.aggregate([
+    { $match: { overallStatus: { $in: ["REVOCATION_REQUESTED", "REVOKED"] } } },
+    {
+      $group: {
+        _id: "$overallStatus",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const statusCounts = {
+    REVOCATION_REQUESTED: 0,
+    REVOKED: 0,
+    total: 0,
+  };
+
+  statusAgg.forEach((s) => {
+    if (s._id) {
+      statusCounts[s._id] = s.count;
+      statusCounts.total += s.count;
+    }
+  });
+
+  return {
+    data: transformed,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    statusCounts,
+  };
 };
 
 const getAllCtoApplicationsService = async (
@@ -1375,6 +1490,16 @@ const getCtoApplicationsByEmployeeService = async (
   };
 };
 
+// ✅ NEW: GET APPLICATION BY ID SERVICE
+const getCtoRevocationByIdService = async (applicationId) => {
+  assertObjectId(applicationId, "Application ID");
+  const app = await populateApplicationById(applicationId);
+  if (!app) {
+    throw createServiceError("Application not found.", 404);
+  }
+  return app;
+};
+
 module.exports = {
   addCtoApplicationService,
   cancelCtoApplicationService,
@@ -1383,4 +1508,6 @@ module.exports = {
   followUpCtoApplicationService,
   requestRevocationCtoApplicationService,
   processRevocationRequestService,
+  getRevocationRequestsService,
+  getCtoRevocationByIdService,
 };

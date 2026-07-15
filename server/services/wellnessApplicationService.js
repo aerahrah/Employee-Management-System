@@ -1,3 +1,4 @@
+// services/ctoApplication.service.js
 const mongoose = require("mongoose");
 const WellnessApplication = require("../models/wellnessApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
@@ -978,6 +979,125 @@ const processRevocationWellnessRequestService = async ({
   }
 };
 
+// ✅ NEW: SEPARATE API FOR REVOCATION DASHBOARD
+const getRevocationRequestsService = async (
+  filters = {},
+  page = 1,
+  limit = 20,
+) => {
+  page = Math.max(parseInt(page) || 1, 1);
+  limit = Math.min(parseInt(limit) || 20, 100);
+  const skip = (page - 1) * limit;
+
+  const baseQuery = {};
+
+  if (filters.status) {
+    baseQuery.overallStatus = String(filters.status).toUpperCase();
+  } else {
+    baseQuery.overallStatus = { $in: ["REVOCATION_REQUESTED", "REVOKED"] };
+  }
+
+  if (filters.employeeId) {
+    if (!mongoose.isValidObjectId(filters.employeeId)) {
+      throw Object.assign(new Error("Invalid Employee ID format."), {
+        status: 400,
+      });
+    }
+    baseQuery.employee = filters.employeeId;
+  }
+
+  if (filters.from && filters.to) {
+    baseQuery["revocationRequest.requestedAt"] = {
+      $gte: new Date(filters.from),
+      $lte: new Date(filters.to),
+    };
+  }
+
+  if (filters.search) {
+    const safeSearch = sanitizeText(filters.search, 100);
+    const employeeIds = await Employee.find({
+      $or: [
+        { firstName: { $regex: safeSearch, $options: "i" } },
+        { lastName: { $regex: safeSearch, $options: "i" } },
+        { employeeId: { $regex: safeSearch, $options: "i" } },
+      ],
+    })
+      .select("_id")
+      .lean();
+
+    baseQuery.employee = { $in: employeeIds.map((e) => e._id) };
+  }
+
+  const [applications, total] = await Promise.all([
+    WellnessApplication.find(baseQuery)
+      .populate(
+        "employee",
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
+      )
+      .populate({
+        path: "approvals",
+        populate: {
+          path: "approver",
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
+        },
+        options: { sort: { level: 1 } },
+      })
+      .sort({ "revocationRequest.requestedAt": -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    WellnessApplication.countDocuments(baseQuery),
+  ]);
+
+  const statusAgg = await WellnessApplication.aggregate([
+    { $match: { overallStatus: { $in: ["REVOCATION_REQUESTED", "REVOKED"] } } },
+    {
+      $group: {
+        _id: "$overallStatus",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const statusCounts = {
+    REVOCATION_REQUESTED: 0,
+    REVOKED: 0,
+    total: 0,
+  };
+
+  statusAgg.forEach((s) => {
+    if (s._id) {
+      statusCounts[s._id] = s.count;
+      statusCounts.total += s.count;
+    }
+  });
+
+  return {
+    data: applications,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    statusCounts,
+  };
+};
+
+const getWellnessRevocationByIdService = async (applicationId) => {
+  if (!mongoose.isValidObjectId(applicationId)) {
+    throw Object.assign(new Error("Invalid Application ID format."), {
+      status: 400,
+    });
+  }
+  const app = await populateApplicationById(applicationId);
+  if (!app) {
+    throw Object.assign(new Error("Application not found."), { status: 404 });
+  }
+  return app;
+};
+
 module.exports = {
   addWellnessApplicationService,
   followUpWellnessApplicationService,
@@ -987,4 +1107,6 @@ module.exports = {
   populateApplicationById,
   requestRevocationWellnessApplicationService,
   processRevocationWellnessRequestService,
+  getRevocationRequestsService,
+  getWellnessRevocationByIdService,
 };

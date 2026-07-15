@@ -106,6 +106,16 @@ export const PERMISSION_GROUPS = [
         label: "Dashboard: Personal",
         hint: "Access the personal CTO dashboard.",
       },
+      {
+        id: "cto.dashboard.hr_view",
+        label: "Dashboard: HR",
+        hint: "Access the HR CTO dashboard (credits & records summary).",
+      },
+      {
+        id: "cto.dashboard.admin_view",
+        label: "Dashboard: Admin",
+        hint: "Access the Admin CTO dashboard (global requests summary).",
+      },
     ],
   },
   {
@@ -118,8 +128,8 @@ export const PERMISSION_GROUPS = [
       },
       {
         id: "wellness.manage",
-        label: "Add Credited Wellness Leave",
-        hint: "View all Credited Wellness Leave",
+        label: "Manage Wellness Credits",
+        hint: "Add or manage credited wellness leave.",
       },
       {
         id: "wellness.manage_self",
@@ -144,7 +154,27 @@ export const PERMISSION_GROUPS = [
       {
         id: "wellness.dashboard.self_view",
         label: "Dashboard: Personal",
-        hint: "Access the personal wellness dashboard:",
+        hint: "Access the personal wellness dashboard.",
+      },
+    ],
+  },
+  {
+    name: "Revocation Management",
+    permissions: [
+      {
+        id: "revocation.manage_self",
+        label: "Request Revocation",
+        hint: "Allow employees to submit requests to cancel previously approved leaves.",
+      },
+      {
+        id: "revocation.view_application",
+        label: "View all Revocations",
+        hint: "View all  revocation requests.",
+      },
+      {
+        id: "revocation.manage_application",
+        label: "Manage Revocations",
+        hint: "Review, approve, or reject employee revocation requests.",
       },
     ],
   },
@@ -171,11 +201,11 @@ export const PERMISSION_GROUPS = [
         label: "View Company Calendar",
         hint: "View leave dates for all employees.",
       },
-      // {
-      //   id: "calendar.view_department",
-      //   label: "View Department Calendar",
-      //   hint: "View leave dates specifically for the user's department.",
-      // },
+      {
+        id: "calendar.view_department",
+        label: "View Department Calendar",
+        hint: "View leave dates specifically for the user's department.",
+      },
     ],
   },
   {
@@ -197,6 +227,16 @@ export const PERMISSION_GROUPS = [
     name: "Settings & Configuration",
     permissions: [
       {
+        id: "settings.view",
+        label: "View Settings Hub",
+        hint: "General access to the system settings hub.",
+      },
+      {
+        id: "settings.edit",
+        label: "Edit General Settings",
+        hint: "Legacy edit access for general system settings.",
+      },
+      {
         id: "settings.general",
         label: "Core Settings",
         hint: "Edit working days and core settings.",
@@ -215,6 +255,11 @@ export const PERMISSION_GROUPS = [
         id: "settings.cto_workflow",
         label: "Workflow Routes",
         hint: "Manage approval route templates.",
+      },
+      {
+        id: "settings.revocation_workflow",
+        label: "Revocation Setup",
+        hint: "Enable or disable global revocation features.",
       },
     ],
   },

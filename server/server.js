@@ -1,5 +1,3 @@
-// server.js (or app.js)
-
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
@@ -44,6 +42,9 @@ const wellnessDashboardRoutes = require("./routers/wellnessDashboardRoute");
 
 // ✅ NEW: Import the calendar router
 const calendarRoutes = require("./routers/calendarRoute");
+
+// ✅ NEW: Import the revocation settings router
+const revocationSettingRoutes = require("./routers/revocationSettingRoute");
 
 const auditLogger = require("./middlewares/auditLogMiddleware");
 const initWellnessCron = require("./cron/wellnessCron");
@@ -275,6 +276,9 @@ app.use("/api/wellness", wellnessDashboardRoutes); // Mounts the dashboard on /a
 
 // ✅ CALENDAR ROUTES
 app.use("/api/calendar", calendarRoutes);
+
+// ✅ REVOCATION SETTINGS ROUTE
+app.use("/api/settings/revocation", revocationSettingRoutes);
 
 /* ======================================================
    404 HANDLER
