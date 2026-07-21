@@ -40,6 +40,7 @@ import AddCtoApplicationForm from "./components/ctoComponents/ctoApplicationComp
 import RevocationApprovals from "./components/revocationComponents/revocationApprovals";
 import RevocationDetails from "./components/revocationComponents/revocationDetails";
 import RevocationPlaceholder from "./components/revocationComponents/revocationPlaceholder";
+import AllRevocationApplicationHistory from "./components/revocationComponents/allRevocationApplicationHistory";
 
 /* Wellness Components */
 import WellnessDashboard from "./components/wellnessComponents/wellnessDashboard";
@@ -477,6 +478,17 @@ function App() {
           {/* ===================== */}
           {/* REVOCATIONS (HR ONLY) */}
           {/* ===================== */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="revocation.view_application" />
+            }
+          >
+            <Route
+              path="all-revocations"
+              element={<AllRevocationApplicationHistory />}
+            />
+          </Route>
+
           <Route
             element={
               <ProtectedRoute requiredPermission="revocation.manage_application" />

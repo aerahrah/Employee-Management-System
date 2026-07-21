@@ -76,7 +76,6 @@ const wellnessApplicationSchema = new mongoose.Schema(
     ],
     overallStatus: {
       type: String,
-      // ✅ ADDED: "REVOCATION_REQUESTED" and "REVOKED"
       enum: [
         "PENDING",
         "APPROVED",
@@ -160,7 +159,19 @@ const wellnessApplicationSchema = new mongoose.Schema(
     // 1. Employee Request Details
     revocationRequest: {
       reason: { type: String, trim: true, maxlength: 1000 },
-      attachmentUrl: { type: String, trim: true, maxlength: 500 }, // Optional attachment
+
+      // ✅ UPDATED: Added structured attachment object here
+      attachment: {
+        fileName: { type: String, trim: true, maxlength: 255 },
+        fileUrl: { type: String, trim: true, maxlength: 500 },
+        fileType: {
+          type: String,
+          trim: true,
+          enum: ["application/pdf", "image/jpeg", "image/png"],
+        },
+        uploadedAt: { type: Date },
+      },
+
       requestedAt: { type: Date },
     },
 

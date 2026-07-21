@@ -142,7 +142,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Helvetica",
     lineHeight: 1.25,
+    position: "relative", // Needed for absolute positioning of watermark
   },
+
+  /* --- Watermark Styles --- */
+  watermarkContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999999,
+  },
+  watermarkText: {
+    color: "rgba(220, 38, 38, 0.25)", // Translucent Red
+    fontSize: 100,
+    fontFamily: "Helvetica-Bold",
+    transform: "rotate(-45deg)", // Diagonal rotation
+    letterSpacing: 5,
+  },
+
   header: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
   logo: { width: 190, height: 55, objectFit: "contain" },
   formTitle: {
@@ -535,6 +556,10 @@ export default function CtoApplicationPdf({
         .fill(null)
         .map(() => ({ col1: "", col2: "", col3: "", col4: "", col5: "" }));
 
+  // ✅ Strictly verify if the document is revoked (case-insensitive check)
+  const isRevoked =
+    String(app?.overallStatus || "").toUpperCase() === "REVOKED";
+
   return (
     <Document title={`CTO Application - ${lastName || "Applicant"}`}>
       <Page size="A4" style={styles.page}>
@@ -739,6 +764,13 @@ export default function CtoApplicationPdf({
             </View>
           </View>
         </View>
+
+        {/* ✅ Render Watermark last so it draws OVER the content */}
+        {isRevoked && (
+          <View style={styles.watermarkContainer}>
+            <Text style={styles.watermarkText}>REVOKED</Text>
+          </View>
+        )}
       </Page>
     </Document>
   );

@@ -14,6 +14,7 @@ const getSettingsService = async () => {
   if (!setting) {
     setting = await RevocationSetting.create({
       isEnabled: true,
+      isAttachmentRequired: false, // ✅ Added default
     });
   }
 
@@ -36,19 +37,26 @@ const getSettingsService = async () => {
   return {
     _id: setting._id,
     isEnabled: setting.isEnabled,
+    isAttachmentRequired: setting.isAttachmentRequired, // ✅ Added to return object
     approvers: dynamicApprovers,
   };
 };
 
 /**
  * Update the global revocation settings.
- * Since approvers are now dynamically resolved, this only updates the toggle.
+ * Since approvers are now dynamically resolved, this only updates the toggles.
  */
-const updateSettingsService = async (isEnabled) => {
+// ✅ Updated parameters to accept an object matching the controller
+const updateSettingsService = async ({ isEnabled, isAttachmentRequired }) => {
   const updateData = {};
 
   if (typeof isEnabled === "boolean") {
     updateData.isEnabled = isEnabled;
+  }
+
+  // ✅ Added check for the new attachment toggle
+  if (typeof isAttachmentRequired === "boolean") {
+    updateData.isAttachmentRequired = isAttachmentRequired;
   }
 
   // Update the single global document

@@ -1,3 +1,4 @@
+// controllers/wellnessApplicationController.js
 const {
   addWellnessApplicationService,
   getAllWellnessApplicationsService,
@@ -6,11 +7,10 @@ const {
   followUpWellnessApplicationService,
   requestRevocationWellnessApplicationService,
   processRevocationWellnessRequestService,
-  getRevocationRequestsService, // ✅ Newly Imported Service
-  getWellnessRevocationByIdService, // ✅ Imported the new ID fetcher service
-} = require("../services/wellnessApplicationService"); // Adjust path if necessary
+  getRevocationRequestsService,
+  getWellnessRevocationByIdService,
+} = require("../services/wellnessApplicationService");
 
-// ✅ Import the Revocation Setting model to enforce RBAC visibility
 const RevocationSetting = require("../models/revocationSettingModel");
 
 /* =========================
@@ -127,10 +127,9 @@ const getWellnessApplicationsByEmployeeRequest = async (req, res, next) => {
   }
 };
 
-// ✅ NEW: Controller to fetch specific wellness application by ID (Admin/HR)
 const getWellnessRevocationByIdRequest = async (req, res, next) => {
   try {
-    const applicationId = req.params.id; // Using .id to match your route parameter
+    const applicationId = req.params.id;
     const application = await getWellnessRevocationByIdService(applicationId);
 
     res.status(200).json({
@@ -181,18 +180,29 @@ const followUpWellnessApplicationRequest = async (req, res, next) => {
     next(error);
   }
 };
-
 const requestRevocationWellnessController = async (req, res, next) => {
   try {
     const userId = req.user.id || req.user._id;
     const applicationId = req.params.id;
-    const { reason, attachmentUrl } = req.body;
+    const { reason } = req.body;
+
+    // ✅ NEW: Map req.file to the structured attachment object
+    let attachment = null;
+    if (req.file) {
+      attachment = {
+        url: req.file.path, // Uses multer's saved path
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+      };
+    } else if (req.body.attachment) {
+      attachment = req.body.attachment; // Fallback
+    }
 
     const application = await requestRevocationWellnessApplicationService({
       userId,
       applicationId,
       reason,
-      attachmentUrl,
+      attachment, // ✅ Pass 'attachment' here instead of 'file'
     });
 
     res.status(200).json({
@@ -234,13 +244,11 @@ const processRevocationWellnessController = async (req, res, next) => {
   }
 };
 
-// ✅ NEW: Controller for the Revocation Dashboard
 const getRevocationRequestsController = async (req, res, next) => {
   try {
     const { status, from, to, search, employeeId, page, limit } = req.query;
     const userId = req.user.id || req.user._id;
 
-    // ✅ VISIBILITY SHIELD: Enforce that only the designated global approver can access the dashboard
     const setting = await RevocationSetting.findOne();
     if (
       !setting ||

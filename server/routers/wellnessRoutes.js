@@ -6,6 +6,11 @@ const multer = require("multer");
 // Set up temporary storage for uploaded memos before the controller moves them
 const upload = multer({ dest: "uploads/temp/" });
 
+// ✅ NEW: Set up specific storage for revocation attachments
+const uploadRevocation = multer({
+  dest: "upload/wellness/revocation/attachments/",
+});
+
 const {
   authenticateToken,
   authorize,
@@ -26,7 +31,7 @@ const {
   addWellnessApplicationRequest,
   getAllWellnessApplicationsRequest,
   getWellnessApplicationsByEmployeeRequest,
-  getWellnessRevocationByIdRequest, // ✅ Imported Controller
+  getWellnessRevocationByIdRequest,
   cancelWellnessApplicationRequest,
   followUpWellnessApplicationRequest,
   requestRevocationWellnessController,
@@ -106,7 +111,7 @@ router.get(
   getWellnessApplicationsByEmployeeRequest,
 );
 
-// ✅ NEW: Admin View Specific Application By ID
+// Admin View Specific Application By ID
 // Placed DEAD LAST among the GET /applications/... routes
 router.get(
   "/applications/:id",
@@ -144,6 +149,7 @@ router.post(
 router.post(
   "/applications/:id/revoke-request",
   ...requirePerm("revocation.manage_self"),
+  uploadRevocation.single("file"), // ✅ Updated to use the new revocation upload directory
   requestRevocationWellnessController,
 );
 
@@ -183,7 +189,7 @@ router.get(
 router.post(
   "/credits/add",
   ...requirePerm("wellness.manage"),
-  upload.single("file"), // Matches the frontend FormData field name for the memo upload
+  upload.single("file"), // Kept the original temp storage for credit memos
   addWellnessCreditRequest,
 );
 

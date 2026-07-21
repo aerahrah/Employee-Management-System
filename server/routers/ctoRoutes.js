@@ -1,6 +1,12 @@
 // routes/ctoRoutes.js
 const express = require("express");
 const router = express.Router();
+const multer = require("multer"); // ✅ Imported multer
+
+// ✅ NEW: Set up specific storage for CTO revocation attachments
+const uploadCtoRevocation = multer({
+  dest: "upload/cto/revocation/attachments/",
+});
 
 const uploadCtoMemo = require("../middlewares/uploadCtoMemo.middleware.js");
 const {
@@ -33,7 +39,7 @@ const {
   addCtoApplicationRequest,
   getAllCtoApplicationsRequest,
   getCtoApplicationsByEmployeeRequest,
-  getCtoRevocationByIdRequest, // ✅ Imported the new controller
+  getCtoRevocationByIdRequest, // Imported the new controller
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest,
   getRevocationRequestsController,
@@ -157,7 +163,7 @@ router.get(
   getCtoApplicationById,
 );
 
-// ✅ NEW: Admin View Specific Application By ID
+// Admin View Specific Application By ID
 // PLACED DEAD LAST among GET routes so it doesn't hijack static words like "pending-count"
 router.get(
   "/applications/:applicationId",
@@ -194,6 +200,7 @@ router.post(
 router.post(
   "/applications/:applicationId/revoke-request",
   ...requirePerm("revocation.manage_self"),
+  uploadCtoRevocation.single("file"), // ✅ Added multer middleware here
   requestRevocationController,
 );
 

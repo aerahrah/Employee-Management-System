@@ -54,6 +54,10 @@ import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
+
+// ✅ Import your new RevokeRequestModal
+import RevokeRequestModal from "../../revocationComponents/revokeRequestModal";
+
 const pageSizeOptions = [20, 50, 100];
 
 const fmtHours = (h) => {
@@ -204,7 +208,7 @@ const ApplicationActionMenu = ({
   followingUp,
   onRequestRevoke,
   isOrganicApp,
-  canRequestRevocation, // ✅ Added check prop
+  canRequestRevocation,
   borderColor,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -365,7 +369,6 @@ const ApplicationActionMenu = ({
             </button>
           )}
 
-          {/* ✅ Conditionally render based on permissions and settings */}
           {isApproved && canRequestRevocation && (
             <button
               onClick={() => handle(onRequestRevoke)}
@@ -423,7 +426,7 @@ const ApplicationCard = ({
   followingUp,
   onRequestRevoke,
   isOrganicApp,
-  canRequestRevocation, // ✅ Added check prop
+  canRequestRevocation,
   borderColor,
 }) => {
   const status = String(app?.overallStatus || "").toUpperCase();
@@ -632,7 +635,6 @@ const ApplicationCard = ({
             </button>
           )}
 
-          {/* ✅ Conditionally render based on permissions and settings */}
           {isApproved && canRequestRevocation && (
             <button
               onClick={onRequestRevoke}
@@ -856,7 +858,6 @@ const MyCtoApplications = () => {
 
   const isUserOrganic = user?.employeeType === "Organic";
 
-  // ✅ Evaluate Permissions and Settings for Revocation Requests
   const canRevokeSelf = can("revocation.manage_self");
   const { data: settingsData } = useQuery({
     queryKey: ["revocationSettings"],
@@ -865,6 +866,7 @@ const MyCtoApplications = () => {
   });
   const isRevocationEnabled = settingsData?.isEnabled ?? true;
   const canRequestRevocation = canRevokeSelf && isRevocationEnabled;
+  const isAttachmentRequired = settingsData?.isAttachmentRequired ?? false;
 
   const borderColor = useMemo(() => {
     return resolvedTheme === "dark"
@@ -910,16 +912,13 @@ const MyCtoApplications = () => {
   const closeFollowUpModal = () =>
     setFollowUpModal({ isOpen: false, app: null });
 
-  // ✅ Added Revoke Modal State
+  // ✅ Updated Revoke Modal State
   const [revokeModal, setRevokeModal] = useState({
     isOpen: false,
     app: null,
-    reason: "",
   });
-  const openRevokeModal = (app) =>
-    setRevokeModal({ isOpen: true, app, reason: "" });
-  const closeRevokeModal = () =>
-    setRevokeModal({ isOpen: false, app: null, reason: "" });
+  const openRevokeModal = (app) => setRevokeModal({ isOpen: true, app });
+  const closeRevokeModal = () => setRevokeModal({ isOpen: false, app: null });
 
   const scrollRef = useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -1028,7 +1027,6 @@ const MyCtoApplications = () => {
     },
   });
 
-  // ✅ New Mutation for Requesting Revocation
   const revokeRequestMutation = useMutation({
     mutationFn: ({ id, payload }) => requestRevocation(id, payload),
     onSuccess: (payload) => {
@@ -1048,6 +1046,29 @@ const MyCtoApplications = () => {
       toast.error(err?.message || "Failed to request revocation.");
     },
   });
+
+  // ✅ New Submission Handler for the Component Modal
+  // ✅ New Submission Handler for the Component Modal
+  const handleRevokeSubmit = async ({ reason, file }) => {
+    const app = revokeModal.app;
+    if (!app?._id) return;
+
+    // ✅ ALWAYS use FormData because the backend route uses Multer!
+    const formData = new FormData();
+
+    // Append the text field
+    formData.append("reason", reason);
+
+    // Append the file if it exists
+    if (file) {
+      formData.append("file", file);
+    }
+
+    await revokeRequestMutation.mutateAsync({
+      id: app._id,
+      payload: formData,
+    });
+  };
 
   const applications = useMemo(() => data?.data || [], [data]);
 
@@ -1120,7 +1141,6 @@ const MyCtoApplications = () => {
       count: statusCounts.APPROVED || 0,
       tone: "green",
     },
-    // ✅ Added Revoke Request Tab
     {
       id: "REVOCATION_REQUESTED",
       label: "Revoke Req.",
@@ -1567,7 +1587,7 @@ const MyCtoApplications = () => {
                                   cancelling={cancelling}
                                   followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
-                                  canRequestRevocation={canRequestRevocation} // ✅ Passed prop
+                                  canRequestRevocation={canRequestRevocation}
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
@@ -1632,7 +1652,7 @@ const MyCtoApplications = () => {
                                   cancelling={cancelling}
                                   followingUp={followingUp}
                                   isOrganicApp={isAppOrganic}
-                                  canRequestRevocation={canRequestRevocation} // ✅ Passed prop
+                                  canRequestRevocation={canRequestRevocation}
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
@@ -1791,7 +1811,7 @@ const MyCtoApplications = () => {
                                         isOrganicApp={isAppOrganic}
                                         canRequestRevocation={
                                           canRequestRevocation
-                                        } // ✅ Passed prop
+                                        }
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
@@ -1969,112 +1989,16 @@ const MyCtoApplications = () => {
             </div>
           </Modal>
 
-          {/* ✅ Request Revocation Modal */}
-          <Modal
+          {/* ✅ Request Revocation Modal Implementation */}
+          <RevokeRequestModal
             isOpen={revokeModal.isOpen}
             onClose={closeRevokeModal}
-            title="Request Revocation"
-            maxWidth="max-w-lg"
-            preventCloseWhenBusy={true}
+            app={revokeModal.app}
             isBusy={revokeRequestMutation.isPending}
-            action={{
-              show: true,
-              variant: "primary",
-              label: revokeRequestMutation.isPending
-                ? "Submitting..."
-                : "Submit Request",
-              onClick: async () => {
-                if (!revokeModal.reason.trim()) {
-                  toast.error("Please provide a reason for the revocation.");
-                  return;
-                }
-                const app = revokeModal.app;
-                if (!app?._id) return;
-                await revokeRequestMutation.mutateAsync({
-                  id: app._id,
-                  payload: { reason: revokeModal.reason },
-                });
-              },
-              disabled:
-                revokeRequestMutation.isPending || !revokeModal.reason.trim(),
-            }}
-          >
-            <div className="p-2" style={{ color: "var(--app-text)" }}>
-              <div
-                className="mb-5 flex items-start gap-3 p-3 rounded-xl border"
-                style={{
-                  backgroundColor: "var(--app-surface-2)",
-                  borderColor: borderColor,
-                }}
-              >
-                <div
-                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    borderColor: borderColor,
-                    color: "var(--app-muted)",
-                  }}
-                >
-                  <Info size={16} />
-                </div>
-                <div className="min-w-0">
-                  <p
-                    className="text-[10px] font-bold uppercase tracking-wider"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Revoking Approved Request
-                  </p>
-                  <p
-                    className="text-sm font-bold break-words"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    Ref:{" "}
-                    {revokeModal.app?._id
-                      ? `#${revokeModal.app._id.slice(-6).toUpperCase()}`
-                      : "-"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="py-2">
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: "var(--app-text)" }}
-                >
-                  Reason for Revocation <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  className="w-full rounded-lg border p-3 text-sm outline-none transition-colors duration-200"
-                  rows={4}
-                  placeholder="e.g., Work suspended due to typhoon, event cancelled..."
-                  value={revokeModal.reason}
-                  onChange={(e) =>
-                    setRevokeModal((prev) => ({
-                      ...prev,
-                      reason: e.target.value,
-                    }))
-                  }
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    borderColor: borderColor,
-                    color: "var(--app-text)",
-                  }}
-                  onFocus={(e) =>
-                    (e.target.style.borderColor = "var(--accent)")
-                  }
-                  onBlur={(e) => (e.target.style.borderColor = borderColor)}
-                />
-                <p
-                  className="text-xs mt-2"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  Submitting this will change the status to "Revocation
-                  Requested". HR will review your request before returning your
-                  credits.
-                </p>
-              </div>
-            </div>
-          </Modal>
+            isAttachmentRequired={isAttachmentRequired}
+            borderColor={borderColor}
+            onSubmit={handleRevokeSubmit}
+          />
 
           {/* Cancel Confirm Modal */}
           <Modal

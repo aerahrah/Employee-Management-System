@@ -847,16 +847,32 @@ const requestRevocationCtoApplicationService = async ({
   userId,
   applicationId,
   reason,
-  attachmentUrl,
+  attachment,
 }) => {
   assertObjectId(userId, "User ID");
   assertObjectId(applicationId, "Application ID");
 
   const setting = await RevocationSetting.findOne();
-  if (setting && setting.isRevocationEnabled === false) {
+
+  // Check if global revocation is enabled (accounting for schema updates)
+  const isEnabled = setting
+    ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
+    : true;
+  if (!isEnabled) {
     throw createServiceError(
       "Revocation requests are currently disabled by HR settings.",
       403,
+    );
+  }
+
+  // ✅ UPDATED: Check for attachment.url (from multer) OR attachment.fileUrl (fallback)
+  const fileUrl = attachment?.url || attachment?.fileUrl;
+
+  const isAttachmentRequired = setting ? setting.isAttachmentRequired : false;
+  if (isAttachmentRequired && !fileUrl) {
+    throw createServiceError(
+      "An attachment (e.g., medical certificate or memo) is required to request a revocation.",
+      400,
     );
   }
 
@@ -887,9 +903,20 @@ const requestRevocationCtoApplicationService = async ({
   app.overallStatus = "REVOCATION_REQUESTED";
   app.revocationRequest = {
     reason: safeReason,
-    attachmentUrl: sanitizeText(attachmentUrl, 500) || null,
     requestedAt: new Date(),
   };
+
+  // ✅ UPDATED: Process and store using the multer keys (url, filename, mimetype)
+  if (fileUrl) {
+    app.revocationRequest.attachment = {
+      fileName:
+        sanitizeText(attachment.filename || attachment.fileName, 255) ||
+        "Revocation_Attachment",
+      fileUrl: sanitizeText(fileUrl, 500),
+      fileType: attachment.mimetype || attachment.fileType || "application/pdf",
+      uploadedAt: new Date(),
+    };
+  }
 
   await app.save();
 
@@ -907,7 +934,10 @@ const processRevocationRequestService = async ({
   assertObjectId(applicationId, "Application ID");
 
   const setting = await RevocationSetting.findOne();
-  if (setting && setting.isRevocationEnabled === false) {
+  const isEnabled = setting
+    ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
+    : true;
+  if (!isEnabled) {
     throw createServiceError(
       "Revocation requests are currently disabled by HR settings.",
       403,

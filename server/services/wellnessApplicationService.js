@@ -1,8 +1,9 @@
-// services/ctoApplication.service.js
+// services/wellnessApplication.service.js
 const mongoose = require("mongoose");
 const WellnessApplication = require("../models/wellnessApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
+const RevocationSetting = require("../models/revocationSettingModel"); // ✅ Imported Settings
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const NotificationService = require("./notificationService");
 const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
@@ -840,13 +841,40 @@ const requestRevocationWellnessApplicationService = async ({
   userId,
   applicationId,
   reason,
-  attachmentUrl,
+  attachment,
 }) => {
   if (
     !mongoose.isValidObjectId(userId) ||
     !mongoose.isValidObjectId(applicationId)
   ) {
     throw Object.assign(new Error("Invalid ID format."), { status: 400 });
+  }
+
+  // ✅ Check HR Revocation Settings
+  const setting = await RevocationSetting.findOne();
+  const isEnabled = setting
+    ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
+    : true;
+
+  if (!isEnabled) {
+    throw Object.assign(
+      new Error("Revocation requests are currently disabled by HR settings."),
+      { status: 403 },
+    );
+  }
+
+  // ✅ UPDATED: Look for the 'url' property passed from the controller
+  const fileUrl = attachment?.url || attachment?.fileUrl;
+
+  // ✅ Verify attachment requirement
+  const isAttachmentRequired = setting ? setting.isAttachmentRequired : false;
+  if (isAttachmentRequired && !fileUrl) {
+    throw Object.assign(
+      new Error(
+        "An attachment (e.g., medical certificate or memo) is required to request a revocation.",
+      ),
+      { status: 400 },
+    );
   }
 
   const safeReason = sanitizeText(reason, 1000);
@@ -879,15 +907,25 @@ const requestRevocationWellnessApplicationService = async ({
   app.overallStatus = "REVOCATION_REQUESTED";
   app.revocationRequest = {
     reason: safeReason,
-    attachmentUrl: sanitizeText(attachmentUrl, 500) || null,
     requestedAt: new Date(),
   };
+
+  // ✅ UPDATED: Map the attachment keys from multer (filename, mimetype) to your DB schema
+  if (fileUrl) {
+    app.revocationRequest.attachment = {
+      fileName:
+        sanitizeText(attachment.filename || attachment.fileName, 255) ||
+        "Revocation_Attachment",
+      fileUrl: sanitizeText(fileUrl, 500),
+      fileType: attachment.mimetype || attachment.fileType || "application/pdf",
+      uploadedAt: new Date(),
+    };
+  }
 
   await app.save();
 
   return populateApplicationById(app._id);
 };
-
 // ✅ NEW: STEP 2 - HR processes the revocation
 const processRevocationWellnessRequestService = async ({
   adminId,
@@ -900,6 +938,21 @@ const processRevocationWellnessRequestService = async ({
     !mongoose.isValidObjectId(applicationId)
   ) {
     throw Object.assign(new Error("Invalid ID format."), { status: 400 });
+  }
+
+  // ✅ Check HR Revocation Settings
+  const setting = await RevocationSetting.findOne();
+  const isEnabled = setting
+    ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
+    : true;
+
+  if (!isEnabled) {
+    throw Object.assign(
+      new Error("Revocation requests are currently disabled by HR settings."),
+      {
+        status: 403,
+      },
+    );
   }
 
   const safeAction = String(action).toUpperCase();

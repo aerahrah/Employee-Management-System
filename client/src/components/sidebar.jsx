@@ -146,6 +146,7 @@ const Sidebar = ({
     "CTO Service": true,
     "Wellness Service": true,
     "Leave Service": true,
+    "Revocation Management": true,
   });
 
   const safeNavigate = (path) => {
@@ -275,9 +276,21 @@ const Sidebar = ({
       {
         name: "Revocation Management",
         icon: <Undo size={18} />,
-        path: "/app/leave-revocations",
-        requiredPermission: "revocation.manage_application",
         hidden: !isRevocationEnabled, // ✅ Conditionally hide based on toggle
+        subItems: [
+          {
+            name: "All Revocations",
+            path: "/app/all-revocations",
+            icon: <Files size={14} />,
+            requiredPermission: "revocation.view_application",
+          },
+          {
+            name: "Pending Approvals",
+            path: "/app/leave-revocations",
+            icon: <UserCheck size={14} />,
+            requiredPermission: "revocation.manage_application",
+          },
+        ],
       },
       {
         name: "Employee Management",

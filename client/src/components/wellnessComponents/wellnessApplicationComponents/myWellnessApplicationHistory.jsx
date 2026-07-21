@@ -50,6 +50,7 @@ import WellnessLeavePdfModal from "./wellnessApplicationModal";
 import OrganicWellnessLeavePdfModal from "./organicWellnessApplicationPDFModal";
 import WellnessApplicationDetails from "./myWellnessApplicationFullDetails";
 import FullHeightCardContainer from "../../pageContainer";
+import RevokeRequestModal from "../../revocationComponents/revokeRequestModal";
 
 const pageSizeOptions = [20, 50, 100];
 
@@ -745,6 +746,7 @@ const MyWellnessApplications = () => {
     staleTime: 1000 * 60 * 5,
   });
   const isRevocationEnabled = settingsData?.isEnabled ?? true;
+  const isAttachmentRequired = settingsData?.isAttachmentRequired ?? false; // ✅ Extracted the attachment rule
   const canRequestRevocation = canRevokeSelf && isRevocationEnabled;
 
   const borderColor = useMemo(() => {
@@ -789,15 +791,10 @@ const MyWellnessApplications = () => {
   const closeFollowUpModal = () =>
     setFollowUpModal({ isOpen: false, app: null });
 
-  const [revokeModal, setRevokeModal] = useState({
-    isOpen: false,
-    app: null,
-    reason: "",
-  });
-  const openRevokeModal = (app) =>
-    setRevokeModal({ isOpen: true, app, reason: "" });
-  const closeRevokeModal = () =>
-    setRevokeModal({ isOpen: false, app: null, reason: "" });
+  // ✅ SIMPLIFIED: Only track isOpen and app, reasoning/files handled by modal
+  const [revokeModal, setRevokeModal] = useState({ isOpen: false, app: null });
+  const openRevokeModal = (app) => setRevokeModal({ isOpen: true, app });
+  const closeRevokeModal = () => setRevokeModal({ isOpen: false, app: null });
 
   const scrollRef = useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -895,10 +892,34 @@ const MyWellnessApplications = () => {
     },
   });
 
+  // ✅ Updated Mutation to handle file payload matching the CTO structure
   const revokeMutation = useMutation({
-    mutationFn: ({ id, reason }) => requestRevocationWellness(id, { reason }),
-    onSuccess: () => {
-      toast.success("Revocation request submitted successfully.");
+    mutationFn: async ({ id, reason, file }) => {
+      // 1. Create a FormData object
+      const formData = new FormData();
+
+      // 2. Append the text field
+      formData.append("reason", reason);
+
+      // 3. Append the raw file object (if it exists)
+      // ⚠️ "file" must exactly match uploadRevocation.single("file") in your routes!
+      if (file) {
+        formData.append("file", file);
+      }
+
+      // 4. Pass the formData directly to your API
+      return requestRevocationWellness(id, formData);
+    },
+    onSuccess: (payload) => {
+      toast.success(
+        payload?.message || "Revocation request submitted successfully.",
+      );
+
+      const updatedApp = payload?.application ?? payload?.data ?? payload;
+      if (updatedApp?._id && selectedApp?._id === updatedApp._id) {
+        setSelectedApp(updatedApp);
+      }
+
       closeRevokeModal();
       queryClient.invalidateQueries({ queryKey: ["myWellnessApplications"] });
       refetch();
@@ -1694,107 +1715,24 @@ const MyWellnessApplications = () => {
             </div>
           </Modal>
 
-          {/* ✅ Revoke Form Modal */}
-          <Modal
+          {/* ✅ Render the extracted Modal */}
+          <RevokeRequestModal
             isOpen={revokeModal.isOpen}
             onClose={closeRevokeModal}
-            title="Revoke Wellness Leave"
-            maxWidth="max-w-lg"
-            preventCloseWhenBusy={true}
+            app={revokeModal.app}
             isBusy={revokeMutation.isPending}
-            action={{
-              show: true,
-              variant: "primary",
-              label: revokeMutation.isPending
-                ? "Submitting..."
-                : "Submit Revocation Request",
-              onClick: async () => {
-                const app = revokeModal.app;
-                if (!app?._id) return;
+            isAttachmentRequired={isAttachmentRequired}
+            borderColor={borderColor}
+            onSubmit={({ reason, file }) => {
+              if (!revokeModal.app?._id) return;
 
-                if (!revokeModal.reason.trim()) {
-                  toast.error("Please provide a reason for revocation.");
-                  return;
-                }
-
-                await revokeMutation.mutateAsync({
-                  id: app._id,
-                  reason: revokeModal.reason,
-                });
-              },
-              disabled: revokeMutation.isPending || !revokeModal.reason.trim(),
+              revokeMutation.mutateAsync({
+                id: revokeModal.app._id,
+                reason,
+                file, // Passes the raw file to the mutation to be uploaded
+              });
             }}
-          >
-            <div className="p-2 space-y-4" style={{ color: "var(--app-text)" }}>
-              <div
-                className="flex items-start gap-3 p-3 rounded-xl border"
-                style={{
-                  backgroundColor: "var(--app-surface-2)",
-                  borderColor: borderColor,
-                }}
-              >
-                <div
-                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    borderColor: borderColor,
-                    color: "var(--app-muted)",
-                  }}
-                >
-                  <Info size={16} />
-                </div>
-                <div className="min-w-0">
-                  <p
-                    className="text-[10px] font-bold uppercase tracking-wider"
-                    style={{ color: "var(--app-muted)" }}
-                  >
-                    Revoking Approved Leave
-                  </p>
-                  <p
-                    className="text-sm font-bold break-words"
-                    style={{ color: "var(--app-text)" }}
-                  >
-                    Ref:{" "}
-                    {revokeModal.app?._id
-                      ? `#${revokeModal.app._id.slice(-6).toUpperCase()}`
-                      : "-"}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 mb-2 text-sm font-bold">
-                  <Undo size={16} style={{ color: "#9333ea" }} />
-                  Reason for Revocation <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={revokeModal.reason}
-                  onChange={(e) =>
-                    setRevokeModal((prev) => ({
-                      ...prev,
-                      reason: e.target.value,
-                    }))
-                  }
-                  placeholder="Explain why you need to revoke this approved leave..."
-                  className="w-full p-3 rounded-xl border outline-none min-h-[120px] text-sm transition-colors duration-200"
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    color: "var(--app-text)",
-                    borderColor: borderColor,
-                  }}
-                  disabled={revokeMutation.isPending}
-                />
-              </div>
-
-              <p
-                className="text-xs italic"
-                style={{ color: "var(--app-muted)" }}
-              >
-                Note: Submitting this request will flag the leave for HR review.
-                Your balance will be updated once HR approves the revocation.
-              </p>
-            </div>
-          </Modal>
+          />
 
           {/* Cancel Confirm Modal */}
           <Modal
