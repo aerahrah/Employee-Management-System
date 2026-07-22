@@ -7,6 +7,11 @@ const revocationSettingSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // ✅ ADDED: Toggle to make the revocation attachment optional or required
+    isAttachmentRequired: {
+      type: Boolean,
+      default: false, // Defaults to optional
+    },
     approvers: [
       {
         type: mongoose.Schema.Types.ObjectId,

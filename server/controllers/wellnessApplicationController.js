@@ -11,8 +11,6 @@ const {
   getWellnessRevocationByIdService,
 } = require("../services/wellnessApplicationService");
 
-const RevocationSetting = require("../models/revocationSettingModel");
-
 /* =========================
    Controllers
 ========================= */
@@ -36,57 +34,18 @@ const addWellnessApplicationRequest = async (req, res, next) => {
 
 const getAllWellnessApplicationsRequest = async (req, res, next) => {
   try {
-    const {
-      status,
-      from,
-      to,
-      search,
-      employeeId,
-      page,
-      limit,
-      isRevocationInbox,
-    } = req.query;
-    const userId = req.user.id || req.user._id;
+    // ✅ Extract employeeType here so frontend filters work
+    const { status, from, to, search, employeeId, employeeType, page, limit } =
+      req.query;
 
-    // ✅ VISIBILITY SHIELD: If this is querying the revocation inbox data, check the global approver
-    if (
-      status === "REVOCATION_REQUESTED" ||
-      status === "REVOKED" ||
-      isRevocationInbox === "true"
-    ) {
-      const setting = await RevocationSetting.findOne();
-
-      // If no setting exists, or the current user is NOT the designated global approver
-      if (
-        !setting ||
-        !setting.globalApprover ||
-        String(setting.globalApprover) !== String(userId)
-      ) {
-        return res.status(200).json({
-          success: true,
-          message: "Fetched Wellness applications successfully",
-          data: [],
-          pagination: {
-            page: Number(page) || 1,
-            limit: Number(limit) || 20,
-            total: 0,
-            totalPages: 0,
-          },
-          statusCounts: {
-            PENDING: 0,
-            APPROVED: 0,
-            REJECTED: 0,
-            CANCELLED: 0,
-            REVOCATION_REQUESTED: 0,
-            REVOKED: 0,
-            total: 0,
-          },
-        });
-      }
-    }
+    /* 
+      ✅ REMOVED THE VISIBILITY SHIELD:
+      This was silently forcing `data: []` if the user wasn't the global approver.
+      Now it behaves exactly like CTO and trusts your route middleware.
+    */
 
     const result = await getAllWellnessApplicationsService(
-      { status, from, to, search, employeeId },
+      { status, from, to, search, employeeId, employeeType },
       page,
       limit,
     );
@@ -104,7 +63,16 @@ const getWellnessApplicationsByEmployeeRequest = async (req, res, next) => {
   try {
     const employeeId = req.params.employeeId || req.user.id || req.user._id;
 
-    const { page = 1, limit = 20, status, search, from, to } = req.query;
+    // ✅ Extract employeeType
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      search,
+      from,
+      to,
+      employeeType,
+    } = req.query;
 
     const result = await getWellnessApplicationsByEmployeeService(
       employeeId,
@@ -115,6 +83,7 @@ const getWellnessApplicationsByEmployeeRequest = async (req, res, next) => {
         search,
         from,
         to,
+        employeeType, // ✅ Pass it to the service
       },
     );
 
@@ -180,29 +149,29 @@ const followUpWellnessApplicationRequest = async (req, res, next) => {
     next(error);
   }
 };
+
 const requestRevocationWellnessController = async (req, res, next) => {
   try {
     const userId = req.user.id || req.user._id;
     const applicationId = req.params.id;
     const { reason } = req.body;
 
-    // ✅ NEW: Map req.file to the structured attachment object
     let attachment = null;
     if (req.file) {
       attachment = {
-        url: req.file.path, // Uses multer's saved path
+        url: req.file.path,
         filename: req.file.originalname,
         mimetype: req.file.mimetype,
       };
     } else if (req.body.attachment) {
-      attachment = req.body.attachment; // Fallback
+      attachment = req.body.attachment;
     }
 
     const application = await requestRevocationWellnessApplicationService({
       userId,
       applicationId,
       reason,
-      attachment, // ✅ Pass 'attachment' here instead of 'file'
+      attachment,
     });
 
     res.status(200).json({
@@ -246,35 +215,17 @@ const processRevocationWellnessController = async (req, res, next) => {
 
 const getRevocationRequestsController = async (req, res, next) => {
   try {
-    const { status, from, to, search, employeeId, page, limit } = req.query;
-    const userId = req.user.id || req.user._id;
+    // ✅ Extract employeeType here
+    const { status, from, to, search, employeeId, employeeType, page, limit } =
+      req.query;
 
-    const setting = await RevocationSetting.findOne();
-    if (
-      !setting ||
-      !setting.globalApprover ||
-      String(setting.globalApprover) !== String(userId)
-    ) {
-      return res.status(200).json({
-        success: true,
-        message: "Fetched Revocation requests successfully",
-        data: [],
-        pagination: {
-          page: Number(page) || 1,
-          limit: Number(limit) || 20,
-          total: 0,
-          totalPages: 0,
-        },
-        statusCounts: {
-          REVOCATION_REQUESTED: 0,
-          REVOKED: 0,
-          total: 0,
-        },
-      });
-    }
+    /* 
+      ✅ REMOVED THE VISIBILITY SHIELD:
+      This was silently forcing `data: []` because it demanded a specific `globalApprover` ID.
+    */
 
     const result = await getRevocationRequestsService(
-      { status, from, to, search, employeeId },
+      { status, from, to, search, employeeId, employeeType }, // ✅ Passed employeeType
       page,
       limit,
     );

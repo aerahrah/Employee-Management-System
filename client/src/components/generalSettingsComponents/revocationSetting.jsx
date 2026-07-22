@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Users,
+  Paperclip,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -347,8 +348,9 @@ export default function RevocationSettings() {
 
   const [inlineError, setInlineError] = useState("");
 
-  // form state
+  // form states
   const [isEnabled, setIsEnabled] = useState(true);
+  const [isAttachmentRequired, setIsAttachmentRequired] = useState(false); // ✅ Added state
 
   // initial snapshot for dirty detection
   const [initial, setInitial] = useState(null);
@@ -366,18 +368,22 @@ export default function RevocationSettings() {
     if (doc === undefined) return;
 
     const enabledStatus = doc?.isEnabled ?? true;
+    const attachmentRequiredStatus = doc?.isAttachmentRequired ?? false; // ✅ Extracted from doc
 
     setIsEnabled(enabledStatus);
+    setIsAttachmentRequired(attachmentRequiredStatus);
     setInitial({
       isEnabled: enabledStatus,
+      isAttachmentRequired: attachmentRequiredStatus,
     });
   }, [doc]);
 
   const isDirty = useMemo(() => {
     if (!initial) return false;
     if (initial.isEnabled !== isEnabled) return true;
+    if (initial.isAttachmentRequired !== isAttachmentRequired) return true; // ✅ Dirty check
     return false;
-  }, [initial, isEnabled]);
+  }, [initial, isEnabled, isAttachmentRequired]);
 
   const refetch = useCallback(async () => {
     setInlineError("");
@@ -393,6 +399,7 @@ export default function RevocationSettings() {
       await queryClient.invalidateQueries({ queryKey: QK_SETTINGS });
       setInitial({
         isEnabled,
+        isAttachmentRequired,
       });
     },
     onError: (err) => {
@@ -407,6 +414,7 @@ export default function RevocationSettings() {
 
     saveMutation.mutate({
       isEnabled,
+      isAttachmentRequired, // ✅ Passed to mutation payload
     });
   };
 
@@ -414,6 +422,7 @@ export default function RevocationSettings() {
     if (!initial) return;
     setInlineError("");
     setIsEnabled(initial.isEnabled);
+    setIsAttachmentRequired(initial.isAttachmentRequired);
   };
 
   const isRefreshing = settingsQuery.isRefetching;
@@ -443,7 +452,8 @@ export default function RevocationSettings() {
               className="text-sm mt-1 transition-colors duration-300 ease-out"
               style={{ color: "var(--app-muted)" }}
             >
-              Configure the availability of the leave revocation workflow.
+              Configure the availability and requirements of the leave
+              revocation workflow.
             </p>
           </div>
 
@@ -490,8 +500,8 @@ export default function RevocationSettings() {
                   className="text-xs mt-1 transition-colors duration-300 ease-out"
                   style={{ color: "var(--app-muted)" }}
                 >
-                  Manage the routing of revocation requests submitted by
-                  employees.
+                  Manage the routing and rules of revocation requests submitted
+                  by employees.
                 </div>
               </div>
 
@@ -517,7 +527,7 @@ export default function RevocationSettings() {
                 </div>
               ) : (
                 <div className="p-4 space-y-6">
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <Toggle
                       checked={isEnabled}
                       disabled={isSaving}
@@ -527,6 +537,19 @@ export default function RevocationSettings() {
                       borderColor={borderColor}
                       theme={resolvedTheme}
                     />
+
+                    {/* ✅ Added Attachment Requirement Toggle */}
+                    <div className="pt-4 border-t border-[color:var(--app-border)]">
+                      <Toggle
+                        checked={isAttachmentRequired}
+                        disabled={isSaving || !isEnabled}
+                        onChange={(v) => setIsAttachmentRequired(v)}
+                        label="Require Supporting Document"
+                        hint="Force employees to upload a file (e.g., medical certificate or memo) when requesting a revocation."
+                        borderColor={borderColor}
+                        theme={resolvedTheme}
+                      />
+                    </div>
                   </div>
 
                   <SoftNotice
@@ -536,7 +559,7 @@ export default function RevocationSettings() {
                     theme={resolvedTheme}
                   >
                     {isEnabled
-                      ? "When an employee revokes an active leave, the request will immediately route to authorized HR staff for final processing."
+                      ? `When an employee revokes an active leave, the request will immediately route to authorized HR staff for final processing.${isAttachmentRequired ? " Employees are strictly required to provide an attachment." : ""}`
                       : "Employees cannot currently submit revocation requests for approved leaves."}
                   </SoftNotice>
 
@@ -635,6 +658,35 @@ export default function RevocationSettings() {
                       style={{ color: "var(--app-text)" }}
                     >
                       {isEnabled ? "Active" : "Disabled"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ Attachment Requirement Summary Box */}
+                <div
+                  className="rounded-xl p-4 transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: subtleBg,
+                    border: `1px solid ${borderColor}`,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out flex items-center gap-1"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    <Paperclip className="w-3 h-3" /> Supporting Document
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    {isAttachmentRequired ? (
+                      <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                    ) : (
+                      <Info className="w-4 h-4 text-gray-400" />
+                    )}
+                    <div
+                      className="text-sm font-semibold transition-colors duration-300 ease-out"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      {isAttachmentRequired ? "Mandatory" : "Optional"}
                     </div>
                   </div>
                 </div>

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const WellnessApplication = require("../models/wellnessApplicationModel");
 const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
-const RevocationSetting = require("../models/revocationSettingModel"); // ✅ Imported Settings
+const RevocationSetting = require("../models/revocationSettingModel");
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const NotificationService = require("./notificationService");
 const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
@@ -20,6 +20,21 @@ const {
 /* =========================
    Helpers
 ========================= */
+
+function sanitizeSearch(str, limit = 100) {
+  return String(str || "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, limit)
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function sanitizeText(str, limit = 1000) {
+  return String(str || "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, limit);
+}
 
 async function safeSendEmail(to, subject, html) {
   try {
@@ -41,14 +56,14 @@ const populateApplicationById = async (applicationId, session = null) => {
   return WellnessApplication.findById(applicationId)
     .populate(
       "employee",
-      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
+      "prefixTitle firstName middleName lastName nameExtension postfixTitle position division email employeeId signature",
     )
     .populate({
       path: "approvals",
       populate: {
         path: "approver",
         select:
-          "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
+          "prefixTitle firstName middleName lastName nameExtension postfixTitle position division email",
       },
       options: { sort: { level: 1 } },
     })
@@ -111,13 +126,6 @@ const notifyApproversOfCancellation = async ({
     );
   }
 };
-
-function sanitizeText(str, limit = 1000) {
-  return String(str || "")
-    .replace(/\0/g, "")
-    .trim()
-    .slice(0, limit);
-}
 
 /* =========================
    Services
@@ -501,63 +509,95 @@ const followUpWellnessApplicationService = async ({
 };
 
 const getAllWellnessApplicationsService = async (
-  { status, from, to, search, employeeId },
+  filters = {},
   page = 1,
-  limit = 10,
+  limit = 20,
 ) => {
-  const query = {};
+  page = Math.max(parseInt(page) || 1, 1);
+  limit = Math.min(parseInt(limit) || 20, 100);
+  const skip = (page - 1) * limit;
 
-  if (status) query.overallStatus = status;
-  if (employeeId) query.employee = employeeId;
-  if (from || to) {
-    query.inclusiveDates = {};
-    if (from) query.inclusiveDates.$gte = new Date(from);
-    if (to) query.inclusiveDates.$lte = new Date(to);
+  const baseQuery = {};
+
+  if (filters.employeeId) {
+    if (!mongoose.isValidObjectId(filters.employeeId)) {
+      throw Object.assign(new Error("Invalid Employee ID format."), {
+        status: 400,
+      });
+    }
+    baseQuery.employee = filters.employeeId;
   }
 
-  if (search) {
+  // ✅ ADDED EMPLOYEE TYPE FILTER
+  if (filters.employeeType) {
+    baseQuery.employeeType = filters.employeeType;
+  }
+
+  if (filters.from && filters.to) {
+    baseQuery.createdAt = {
+      $gte: new Date(filters.from),
+      $lte: new Date(filters.to),
+    };
+  }
+
+  if (filters.search) {
+    const safeSearch = sanitizeSearch(filters.search, 100);
     const employeeIds = await Employee.find({
       $or: [
-        { firstName: { $regex: search, $options: "i" } },
-        { lastName: { $regex: search, $options: "i" } },
-        { employeeId: { $regex: search, $options: "i" } },
+        { firstName: { $regex: safeSearch, $options: "i" } },
+        { lastName: { $regex: safeSearch, $options: "i" } },
+        { employeeId: { $regex: safeSearch, $options: "i" } },
       ],
     })
       .select("_id")
       .lean();
 
-    query.employee = { $in: employeeIds.map((e) => e._id) };
+    baseQuery.employee = { $in: employeeIds.map((e) => e._id) };
   }
 
-  const pageNum = Math.max(1, parseInt(page));
-  const limitNum = Math.max(1, parseInt(limit));
-  const skip = (pageNum - 1) * limitNum;
+  const query = { ...baseQuery };
+  if (filters.status) {
+    query.overallStatus = String(filters.status).toUpperCase();
+  }
 
-  const applications = await WellnessApplication.find(query)
-    .populate(
-      "employee",
-      "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
-    )
-    .populate({
-      path: "approvals",
-      populate: {
-        path: "approver",
-        select:
-          "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
-      },
-      options: { sort: { level: 1 } },
-    })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum)
-    .lean();
+  const [applications, total] = await Promise.all([
+    WellnessApplication.find(query)
+      .select(
+        "totalDays reason overallStatus approvals employee inclusiveDates createdAt employeeType commutation applicantSignatureUrl applicantSnapshot certificationOfLeaveCredits revokedBy revokeReason revokedAt revocationRequest",
+      )
+      .populate(
+        "employee",
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position division email employeeId signature",
+      )
+      .populate({
+        path: "approvals",
+        populate: {
+          path: "approver",
+          select:
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle position division email _id",
+        },
+        options: { sort: { level: 1 } },
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    WellnessApplication.countDocuments(query),
+  ]);
 
-  const total = await WellnessApplication.countDocuments(query);
+  // ✅ ADDED MAPPING TO MATCH CTO
+  const transformed = applications.map((app) => {
+    const approvals = app.approvals || [];
+    return {
+      ...app,
+      category: app.employeeType,
+      approver1: approvals[0]?.approver || null,
+      approver2: approvals[1]?.approver || null,
+      approver3: approvals[2]?.approver || null,
+    };
+  });
 
-  const baseQuery = { ...query };
-  delete baseQuery.overallStatus;
-
-  const statusCountsAgg = await WellnessApplication.aggregate([
+  const statusAgg = await WellnessApplication.aggregate([
     { $match: baseQuery },
     {
       $group: {
@@ -579,17 +619,17 @@ const getAllWellnessApplicationsService = async (
     total: totalAll,
   };
 
-  statusCountsAgg.forEach((s) => {
+  statusAgg.forEach((s) => {
     if (s._id) statusCounts[s._id] = s.count;
   });
 
   return {
-    data: applications,
+    data: transformed, // ✅ Returned transformed array
     pagination: {
-      page: pageNum,
-      limit: limitNum,
+      page,
+      limit,
       total,
-      totalPages: Math.ceil(total / limitNum),
+      totalPages: Math.ceil(total / limit),
     },
     statusCounts,
   };
@@ -614,6 +654,13 @@ const getWellnessApplicationsByEmployeeService = async (
 
   const pipeline = [{ $match: { employee: employeeObjectId } }];
 
+  // ✅ ADDED EMPLOYEE TYPE FILTER
+  if (filters.employeeType) {
+    pipeline.push({
+      $match: { employeeType: filters.employeeType },
+    });
+  }
+
   if (filters.status) {
     pipeline.push({
       $match: { overallStatus: String(filters.status).toUpperCase() },
@@ -632,9 +679,10 @@ const getWellnessApplicationsByEmployeeService = async (
   }
 
   if (filters.search) {
+    const safeSearch = sanitizeSearch(filters.search, 100);
     pipeline.push({
       $match: {
-        reason: { $regex: filters.search, $options: "i" },
+        reason: { $regex: safeSearch, $options: "i" },
       },
     });
   }
@@ -672,6 +720,7 @@ const getWellnessApplicationsByEmployeeService = async (
               nameExtension: "$approver.nameExtension",
               postfixTitle: "$approver.postfixTitle",
               position: "$approver.position",
+              division: "$approver.division",
               email: "$approver.email",
             },
           },
@@ -706,6 +755,7 @@ const getWellnessApplicationsByEmployeeService = async (
         nameExtension: "$employeeDoc.nameExtension",
         postfixTitle: "$employeeDoc.postfixTitle",
         position: "$employeeDoc.position",
+        division: "$employeeDoc.division",
         email: "$employeeDoc.email",
         signature: "$employeeDoc.signature",
       },
@@ -713,12 +763,17 @@ const getWellnessApplicationsByEmployeeService = async (
   });
 
   pipeline.push({ $project: { employeeDoc: 0 } });
-
   pipeline.push({ $sort: { createdAt: -1 } });
   pipeline.push({ $skip: skip });
   pipeline.push({ $limit: limit });
 
   let applications = await WellnessApplication.aggregate(pipeline);
+
+  // ✅ ADDED MAPPING TO MATCH CTO
+  applications = applications.map((app) => {
+    app.category = app.employeeType;
+    return app;
+  });
 
   const countPipeline = [
     { $match: { employee: employeeObjectId } },
@@ -836,7 +891,6 @@ const cancelWellnessApplicationService = async ({
   }
 };
 
-// ✅ NEW: STEP 1 - Employee requests revocation
 const requestRevocationWellnessApplicationService = async ({
   userId,
   applicationId,
@@ -850,7 +904,6 @@ const requestRevocationWellnessApplicationService = async ({
     throw Object.assign(new Error("Invalid ID format."), { status: 400 });
   }
 
-  // ✅ Check HR Revocation Settings
   const setting = await RevocationSetting.findOne();
   const isEnabled = setting
     ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
@@ -863,10 +916,8 @@ const requestRevocationWellnessApplicationService = async ({
     );
   }
 
-  // ✅ UPDATED: Look for the 'url' property passed from the controller
   const fileUrl = attachment?.url || attachment?.fileUrl;
 
-  // ✅ Verify attachment requirement
   const isAttachmentRequired = setting ? setting.isAttachmentRequired : false;
   if (isAttachmentRequired && !fileUrl) {
     throw Object.assign(
@@ -910,7 +961,6 @@ const requestRevocationWellnessApplicationService = async ({
     requestedAt: new Date(),
   };
 
-  // ✅ UPDATED: Map the attachment keys from multer (filename, mimetype) to your DB schema
   if (fileUrl) {
     app.revocationRequest.attachment = {
       fileName:
@@ -926,7 +976,7 @@ const requestRevocationWellnessApplicationService = async ({
 
   return populateApplicationById(app._id);
 };
-// ✅ NEW: STEP 2 - HR processes the revocation
+
 const processRevocationWellnessRequestService = async ({
   adminId,
   applicationId,
@@ -940,7 +990,6 @@ const processRevocationWellnessRequestService = async ({
     throw Object.assign(new Error("Invalid ID format."), { status: 400 });
   }
 
-  // ✅ Check HR Revocation Settings
   const setting = await RevocationSetting.findOne();
   const isEnabled = setting
     ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
@@ -990,7 +1039,6 @@ const processRevocationWellnessRequestService = async ({
     }
 
     if (safeAction === "APPROVE") {
-      // ✅ Restore Employee Balance
       const employeeId = application.employee._id;
       const totalDays = application.totalDays;
 
@@ -1012,7 +1060,6 @@ const processRevocationWellnessRequestService = async ({
       application.revokeReason = safeRemarks;
       application.revokedAt = new Date();
     } else if (safeAction === "REJECT") {
-      // ✅ Keep as approved, log the HR remarks
       application.overallStatus = "APPROVED";
       application.revokedBy = adminId;
       application.revokeReason = safeRemarks;
@@ -1032,7 +1079,7 @@ const processRevocationWellnessRequestService = async ({
   }
 };
 
-// ✅ NEW: SEPARATE API FOR REVOCATION DASHBOARD
+// ✅ REVAMPED GET REVOCATION REQUESTS SERVICE TO MATCH CTO
 const getRevocationRequestsService = async (
   filters = {},
   page = 1,
@@ -1059,6 +1106,11 @@ const getRevocationRequestsService = async (
     baseQuery.employee = filters.employeeId;
   }
 
+  // ✅ ADDED EMPLOYEE TYPE FILTER
+  if (filters.employeeType) {
+    baseQuery.employeeType = filters.employeeType;
+  }
+
   if (filters.from && filters.to) {
     baseQuery["revocationRequest.requestedAt"] = {
       $gte: new Date(filters.from),
@@ -1067,7 +1119,7 @@ const getRevocationRequestsService = async (
   }
 
   if (filters.search) {
-    const safeSearch = sanitizeText(filters.search, 100);
+    const safeSearch = sanitizeSearch(filters.search, 100);
     const employeeIds = await Employee.find({
       $or: [
         { firstName: { $regex: safeSearch, $options: "i" } },
@@ -1083,18 +1135,22 @@ const getRevocationRequestsService = async (
 
   const [applications, total] = await Promise.all([
     WellnessApplication.find(baseQuery)
+      // ✅ ADDED PROJECTION TO MATCH CTO
+      .select(
+        "totalDays reason overallStatus approvals employee inclusiveDates createdAt employeeType commutation applicantSignatureUrl applicantSnapshot certificationOfLeaveCredits revokedBy revokeReason revokedAt revocationRequest",
+      )
       .populate(
         "employee",
-        "prefixTitle firstName middleName lastName nameExtension postfixTitle position email employeeId signature",
+        "prefixTitle firstName middleName lastName nameExtension postfixTitle position division email employeeId signature",
       )
       .populate({
         path: "approvals",
+        options: { sort: { level: 1 } },
         populate: {
           path: "approver",
           select:
-            "prefixTitle firstName middleName lastName nameExtension postfixTitle position email",
+            "prefixTitle firstName middleName lastName nameExtension postfixTitle position division email _id",
         },
-        options: { sort: { level: 1 } },
       })
       .sort({ "revocationRequest.requestedAt": -1, createdAt: -1 })
       .skip(skip)
@@ -1102,6 +1158,18 @@ const getRevocationRequestsService = async (
       .lean(),
     WellnessApplication.countDocuments(baseQuery),
   ]);
+
+  // ✅ ADDED MAP TRANSFORMATION TO MATCH CTO
+  const transformed = applications.map((app) => {
+    const approvals = app.approvals || [];
+    return {
+      ...app,
+      category: app.employeeType,
+      approver1: approvals[0]?.approver || null,
+      approver2: approvals[1]?.approver || null,
+      approver3: approvals[2]?.approver || null,
+    };
+  });
 
   const statusAgg = await WellnessApplication.aggregate([
     { $match: { overallStatus: { $in: ["REVOCATION_REQUESTED", "REVOKED"] } } },
@@ -1127,7 +1195,7 @@ const getRevocationRequestsService = async (
   });
 
   return {
-    data: applications,
+    data: transformed, // ✅ Returned transformed map
     pagination: {
       page,
       limit,

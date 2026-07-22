@@ -895,19 +895,11 @@ const MyWellnessApplications = () => {
   // ✅ Updated Mutation to handle file payload matching the CTO structure
   const revokeMutation = useMutation({
     mutationFn: async ({ id, reason, file }) => {
-      // 1. Create a FormData object
       const formData = new FormData();
-
-      // 2. Append the text field
       formData.append("reason", reason);
-
-      // 3. Append the raw file object (if it exists)
-      // ⚠️ "file" must exactly match uploadRevocation.single("file") in your routes!
       if (file) {
         formData.append("file", file);
       }
-
-      // 4. Pass the formData directly to your API
       return requestRevocationWellness(id, formData);
     },
     onSuccess: (payload) => {
@@ -928,6 +920,17 @@ const MyWellnessApplications = () => {
       toast.error(err?.message || "Failed to submit revocation request.");
     },
   });
+
+  // ✅ Strict boolean checks to support React Query v4/v5 loading states safely
+  const isCancelLoading = !!(
+    cancelMutation.isPending || cancelMutation.isLoading
+  );
+  const isFollowUpLoading = !!(
+    followUpMutation.isPending || followUpMutation.isLoading
+  );
+  const isRevokeLoading = !!(
+    revokeMutation.isPending || revokeMutation.isLoading
+  );
 
   const applications = useMemo(
     () => data?.applications || data?.data || [],
@@ -1356,15 +1359,13 @@ const MyWellnessApplications = () => {
                             ))
                           : applications.map((app) => {
                               const cancelling =
-                                cancelMutation.isPending &&
+                                isCancelLoading &&
                                 cancelMutation.variables === app._id;
-
                               const followingUp =
-                                followUpMutation.isPending &&
+                                isFollowUpLoading &&
                                 followUpMutation.variables === app._id;
-
                               const revoking =
-                                revokeMutation.isPending &&
+                                isRevokeLoading &&
                                 revokeMutation.variables?.id === app._id;
 
                               const isAppOrganic =
@@ -1443,15 +1444,13 @@ const MyWellnessApplications = () => {
                                     : "var(--app-surface-2)";
 
                                 const cancelling =
-                                  cancelMutation.isPending &&
+                                  isCancelLoading &&
                                   cancelMutation.variables === app._id;
-
                                 const followingUp =
-                                  followUpMutation.isPending &&
+                                  isFollowUpLoading &&
                                   followUpMutation.variables === app._id;
-
                                 const revoking =
-                                  revokeMutation.isPending &&
+                                  isRevokeLoading &&
                                   revokeMutation.variables?.id === app._id;
 
                                 const isAppOrganic =
@@ -1635,19 +1634,17 @@ const MyWellnessApplications = () => {
             title="Send Follow-up"
             maxWidth="max-w-lg"
             preventCloseWhenBusy={true}
-            isBusy={followUpMutation.isPending}
+            isBusy={isFollowUpLoading}
             action={{
               show: true,
               variant: "warning",
-              label: followUpMutation.isPending
-                ? "Sending..."
-                : "Yes, Send Follow-up",
+              label: isFollowUpLoading ? "Sending..." : "Yes, Send Follow-up",
               onClick: async () => {
                 const app = followUpModal.app;
                 if (!app?._id) return;
                 await followUpMutation.mutateAsync(app._id);
               },
-              disabled: followUpMutation.isPending,
+              disabled: isFollowUpLoading,
             }}
           >
             <div className="p-2" style={{ color: "var(--app-text)" }}>
@@ -1720,7 +1717,7 @@ const MyWellnessApplications = () => {
             isOpen={revokeModal.isOpen}
             onClose={closeRevokeModal}
             app={revokeModal.app}
-            isBusy={revokeMutation.isPending}
+            isBusy={isRevokeLoading}
             isAttachmentRequired={isAttachmentRequired}
             borderColor={borderColor}
             onSubmit={({ reason, file }) => {
@@ -1741,11 +1738,11 @@ const MyWellnessApplications = () => {
             title="Cancel Wellness Leave"
             maxWidth="max-w-lg"
             preventCloseWhenBusy={true}
-            isBusy={cancelMutation.isPending}
+            isBusy={isCancelLoading}
             action={{
               show: true,
               variant: "cancel",
-              label: cancelMutation.isPending ? "Cancelling..." : "Yes, Cancel",
+              label: isCancelLoading ? "Cancelling..." : "Yes, Cancel",
               onClick: async () => {
                 const app = cancelModal.app;
                 if (!app?._id) return;
@@ -1759,7 +1756,7 @@ const MyWellnessApplications = () => {
 
                 await cancelMutation.mutateAsync(app._id);
               },
-              disabled: cancelMutation.isPending,
+              disabled: isCancelLoading,
             }}
           >
             <div className="p-2" style={{ color: "var(--app-text)" }}>

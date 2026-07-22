@@ -20,15 +20,18 @@ const getRevocationSettings = async (req, res, next) => {
 
 /**
  * PUT or PATCH /api/settings/revocation
- * Updates the global revocation settings (enable/disable).
+ * Updates the global revocation settings (enable/disable, attachment requirements).
  */
 const updateRevocationSettings = async (req, res, next) => {
   try {
-    // Expecting payload: { isEnabled: boolean }
-    const { isEnabled } = req.body;
+    // ✅ Expecting payload: { isEnabled: boolean, isAttachmentRequired: boolean }
+    const { isEnabled, isAttachmentRequired } = req.body;
 
-    const data =
-      await revocationSettingService.updateSettingsService(isEnabled);
+    // Passed as an object for better scalability
+    const data = await revocationSettingService.updateSettingsService({
+      isEnabled,
+      isAttachmentRequired,
+    });
 
     res.status(200).json({
       success: true,

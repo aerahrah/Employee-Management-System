@@ -1047,19 +1047,23 @@ const MyCtoApplications = () => {
     },
   });
 
-  // ✅ New Submission Handler for the Component Modal
-  // ✅ New Submission Handler for the Component Modal
+  // ✅ Strict boolean checks (Supports both React Query v4 & v5 loading states safely)
+  const isCancelLoading = !!(
+    cancelMutation.isPending || cancelMutation.isLoading
+  );
+  const isFollowUpLoading = !!(
+    followUpMutation.isPending || followUpMutation.isLoading
+  );
+  const isRevokeLoading = !!(
+    revokeRequestMutation.isPending || revokeRequestMutation.isLoading
+  );
+
   const handleRevokeSubmit = async ({ reason, file }) => {
     const app = revokeModal.app;
     if (!app?._id) return;
 
-    // ✅ ALWAYS use FormData because the backend route uses Multer!
     const formData = new FormData();
-
-    // Append the text field
     formData.append("reason", reason);
-
-    // Append the file if it exists
     if (file) {
       formData.append("file", file);
     }
@@ -1564,13 +1568,11 @@ const MyCtoApplications = () => {
                             ))
                           : applications.map((app) => {
                               const cancelling =
-                                cancelMutation.isPending &&
+                                isCancelLoading &&
                                 cancelMutation.variables === app._id;
-
                               const followingUp =
-                                followUpMutation.isPending &&
+                                isFollowUpLoading &&
                                 followUpMutation.variables === app._id;
-
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
                                 app?.category === "Organic" ||
@@ -1629,13 +1631,11 @@ const MyCtoApplications = () => {
                             ))
                           : applications.map((app) => {
                               const cancelling =
-                                cancelMutation.isPending &&
+                                isCancelLoading &&
                                 cancelMutation.variables === app._id;
-
                               const followingUp =
-                                followUpMutation.isPending &&
+                                isFollowUpLoading &&
                                 followUpMutation.variables === app._id;
-
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
                                 app?.category === "Organic" ||
@@ -1717,13 +1717,11 @@ const MyCtoApplications = () => {
                                     : "var(--app-surface-2)";
 
                                 const cancelling =
-                                  cancelMutation.isPending &&
+                                  isCancelLoading &&
                                   cancelMutation.variables === app._id;
-
                                 const followingUp =
-                                  followUpMutation.isPending &&
+                                  isFollowUpLoading &&
                                   followUpMutation.variables === app._id;
-
                                 const isAppOrganic =
                                   app?.employeeType === "Organic" ||
                                   app?.category === "Organic" ||
@@ -1909,19 +1907,17 @@ const MyCtoApplications = () => {
             title="Send Follow-up"
             maxWidth="max-w-lg"
             preventCloseWhenBusy={true}
-            isBusy={followUpMutation.isPending}
+            isBusy={isFollowUpLoading}
             action={{
               show: true,
               variant: "warning",
-              label: followUpMutation.isPending
-                ? "Sending..."
-                : "Yes, Send Follow-up",
+              label: isFollowUpLoading ? "Sending..." : "Yes, Send Follow-up",
               onClick: async () => {
                 const app = followUpModal.app;
                 if (!app?._id) return;
                 await followUpMutation.mutateAsync(app._id);
               },
-              disabled: followUpMutation.isPending,
+              disabled: isFollowUpLoading,
             }}
           >
             <div className="p-2" style={{ color: "var(--app-text)" }}>
@@ -1994,7 +1990,7 @@ const MyCtoApplications = () => {
             isOpen={revokeModal.isOpen}
             onClose={closeRevokeModal}
             app={revokeModal.app}
-            isBusy={revokeRequestMutation.isPending}
+            isBusy={isRevokeLoading} // Passed properly as a strict boolean
             isAttachmentRequired={isAttachmentRequired}
             borderColor={borderColor}
             onSubmit={handleRevokeSubmit}
@@ -2007,11 +2003,11 @@ const MyCtoApplications = () => {
             title="Cancel Application"
             maxWidth="max-w-lg"
             preventCloseWhenBusy={true}
-            isBusy={cancelMutation.isPending}
+            isBusy={isCancelLoading}
             action={{
               show: true,
               variant: "cancel",
-              label: cancelMutation.isPending ? "Cancelling..." : "Yes, Cancel",
+              label: isCancelLoading ? "Cancelling..." : "Yes, Cancel",
               onClick: async () => {
                 const app = cancelModal.app;
                 if (!app?._id) return;
@@ -2025,7 +2021,7 @@ const MyCtoApplications = () => {
 
                 await cancelMutation.mutateAsync(app._id);
               },
-              disabled: cancelMutation.isPending,
+              disabled: isCancelLoading,
             }}
           >
             <div className="p-2" style={{ color: "var(--app-text)" }}>

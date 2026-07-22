@@ -31,7 +31,7 @@ const RevokeRequestModal = ({
       const validTypes = ["application/pdf", "image/jpeg", "image/png"];
       if (!validTypes.includes(selectedFile.type)) {
         toast.error("Invalid file type. Please upload a PDF, JPG, or PNG.");
-        e.target.value = null; // Reset input
+        e.target.value = "";
         return;
       }
 
@@ -39,7 +39,7 @@ const RevokeRequestModal = ({
       const maxSize = 5 * 1024 * 1024; // 5MB in bytes
       if (selectedFile.size > maxSize) {
         toast.error("File is too large. Maximum size is 5MB.");
-        e.target.value = null; // Reset input
+        e.target.value = "";
         return;
       }
 
@@ -55,7 +55,6 @@ const RevokeRequestModal = ({
       return;
     }
 
-    // Strict check if attachment is required by global settings
     if (isAttachmentRequired && !file) {
       toast.error(
         "An attachment (e.g., Memo or Medical Certificate) is required by HR.",
@@ -63,8 +62,6 @@ const RevokeRequestModal = ({
       return;
     }
 
-    // Pass data back to the parent component.
-    // The parent's mutation will handle the actual server upload before submitting the final request.
     onSubmit({ reason, file });
   };
 
@@ -78,11 +75,19 @@ const RevokeRequestModal = ({
       isBusy={isBusy}
       action={{
         show: true,
-        variant: "primary",
+        variant: "warning",
         label: isBusy ? "Submitting..." : "Submit Request",
         onClick: handleSubmitClick,
-        // Disable button if busy, reason is empty, or if file is required but missing
-        disabled: isBusy || !reason.trim() || (isAttachmentRequired && !file),
+        // FIX: Only disable when actually submitting.
+        // This prevents your Modal component from accidentally locking the Close button.
+        disabled: isBusy,
+      }}
+      secondaryAction={{
+        show: true,
+        variant: "outline",
+        label: "Cancel",
+        onClick: onClose,
+        disabled: isBusy,
       }}
     >
       <div className="p-2 space-y-4" style={{ color: "var(--app-text)" }}>

@@ -174,18 +174,31 @@ const getRevocationRequestsController = async (req, res) => {
     });
   }
 };
-
 const requestRevocationController = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
     const applicationId = req.params.applicationId;
-    const { reason, attachmentUrl } = req.body;
+
+    const { reason } = req.body;
+
+    let attachment = null;
+    if (req.file) {
+      attachment = {
+        url: req.file.path, // e.g., 'upload/cto/revocation/attachment/filename'
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      };
+    } else if (req.body.attachment) {
+      // Optional fallback if no file is uploaded but a string/object was passed
+      attachment = req.body.attachment;
+    }
 
     const application = await requestRevocationCtoApplicationService({
       userId,
       applicationId,
       reason,
-      attachmentUrl,
+      attachment, // ✅ Pass the structured object to the service
     });
 
     res.status(200).json({
