@@ -15,7 +15,11 @@ const { isEmailEnabled } = require("../utils/emailNotificationSettings");
 const {
   wellnessApprovalEmail,
   wellnessFollowUpEmail,
+  wellnessRevocationRequestEmail, // ✅ Added for revocation request
+  wellnessRevocationApprovedEmail, // ✅ Added for revocation approval
+  wellnessRevocationRejectedEmail, // ✅ Added for revocation rejection
 } = require("../utils/emailTemplates");
+const { getRevocationApproverEmails } = require("../utils/getHrEmails");
 
 /* =========================
    Helpers
@@ -392,7 +396,9 @@ const addWellnessApplicationService = async ({
             approverName: `${approverUser.firstName} ${approverUser.lastName}`,
             employeeName: `${employee.firstName} ${employee.lastName}`,
             requestedDays: totalDays,
-            inclusiveDates: inclusiveDates.join(", "),
+            inclusiveDates: inclusiveDates
+              .map((d) => new Date(d).toLocaleDateString())
+              .join(", "),
             reason: finalReason,
             level: 1,
             link: `${process.env.FRONTEND_URL}/app/wellness-approvals/${populatedApp._id}`,
@@ -974,6 +980,41 @@ const requestRevocationWellnessApplicationService = async ({
 
   await app.save();
 
+  // ✅ Send Email Notifications to HR
+  try {
+    const emailEnabled = await canSend(EMAIL_KEYS.WELLNESS_REVOCATION_REQUEST);
+    if (emailEnabled) {
+      const employee =
+        await Employee.findById(userId).select("firstName lastName");
+      const hrEmails = await getRevocationApproverEmails();
+
+      if (hrEmails && hrEmails.length > 0) {
+        const tpl = wellnessRevocationRequestEmail({
+          hrName: "HR Team",
+          employeeName:
+            `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim(),
+          requestedDays: app.totalDays,
+          inclusiveDates: app.inclusiveDates
+            .map((d) => new Date(d).toLocaleDateString())
+            .join(", "),
+          reason: safeReason,
+          link: `${process.env.FRONTEND_URL}/dashboard/hr/revocations/${app._id}?type=WELLNESS`,
+        });
+
+        // Broadcast to all authorized HRs concurrently
+        const emailPromises = hrEmails.map((hrEmail) =>
+          safeSendEmail(hrEmail, tpl.subject, tpl.html),
+        );
+        await Promise.all(emailPromises);
+      }
+    }
+  } catch (err) {
+    console.error(
+      "Failed to send Wellness revocation request email:",
+      err?.message,
+    );
+  }
+
   return populateApplicationById(app._id);
 };
 
@@ -1020,8 +1061,10 @@ const processRevocationWellnessRequestService = async ({
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let application;
+
   try {
-    const application = await WellnessApplication.findById(applicationId)
+    application = await WellnessApplication.findById(applicationId)
       .populate("employee", "_id firstName lastName email balances")
       .session(session);
 
@@ -1060,23 +1103,81 @@ const processRevocationWellnessRequestService = async ({
       application.revokeReason = safeRemarks;
       application.revokedAt = new Date();
     } else if (safeAction === "REJECT") {
+      // ✅ ADDED: History tracking for rejections
+      if (!application.revocationHistory) {
+        application.revocationHistory = [];
+      }
+
+      application.revocationHistory.push({
+        reason: application.revocationRequest.reason,
+        attachment: application.revocationRequest.attachment,
+        requestedAt: application.revocationRequest.requestedAt,
+        status: "REJECTED",
+        processedBy: adminId,
+        remarks: safeRemarks,
+        processedAt: new Date(),
+      });
+
+      // Revert to APPROVED so they can request again
       application.overallStatus = "APPROVED";
-      application.revokedBy = adminId;
-      application.revokeReason = safeRemarks;
-      application.revokedAt = new Date();
+      application.revocationRequest = undefined;
+      application.revokedBy = undefined;
+      application.revokeReason = undefined;
+      application.revokedAt = undefined;
     }
 
     await application.save({ session });
 
     await session.commitTransaction();
     session.endSession();
-
-    return application;
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
     throw err;
   }
+
+  // ✅ Send Email Notifications to Employee
+  try {
+    const emp = application.employee;
+    if (emp && emp.email) {
+      const empName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
+
+      if (safeAction === "APPROVE") {
+        const emailEnabled = await canSend(
+          EMAIL_KEYS.WELLNESS_REVOCATION_APPROVED,
+        );
+        if (emailEnabled) {
+          const tpl = wellnessRevocationApprovedEmail({
+            employeeName: empName,
+            restoredDays: application.totalDays,
+            inclusiveDates: application.inclusiveDates
+              .map((d) => new Date(d).toLocaleDateString())
+              .join(", "),
+            remarks: safeRemarks,
+          });
+          await safeSendEmail(emp.email, tpl.subject, tpl.html);
+        }
+      } else if (safeAction === "REJECT") {
+        const emailEnabled = await canSend(
+          EMAIL_KEYS.WELLNESS_REVOCATION_REJECTED,
+        );
+        if (emailEnabled) {
+          const tpl = wellnessRevocationRejectedEmail({
+            employeeName: empName,
+            remarks: safeRemarks,
+          });
+          await safeSendEmail(emp.email, tpl.subject, tpl.html);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(
+      "Failed to send Wellness revocation process email:",
+      err?.message,
+    );
+  }
+
+  return application;
 };
 
 // ✅ REVAMPED GET REVOCATION REQUESTS SERVICE TO MATCH CTO
@@ -1219,6 +1320,80 @@ const getWellnessRevocationByIdService = async (applicationId) => {
   return app;
 };
 
+const cancelRevocationWellnessRequestService = async ({
+  userId,
+  applicationId,
+}) => {
+  if (
+    !mongoose.isValidObjectId(userId) ||
+    !mongoose.isValidObjectId(applicationId)
+  ) {
+    throw Object.assign(new Error("Invalid ID format."), { status: 400 });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const application =
+      await WellnessApplication.findById(applicationId).session(session);
+
+    if (!application) {
+      throw Object.assign(new Error("Application not found."), { status: 404 });
+    }
+
+    // Ensure it belongs to the user trying to cancel it
+    if (String(application.employee) !== String(userId)) {
+      throw Object.assign(
+        new Error("Not authorized to modify this application."),
+        { status: 403 },
+      );
+    }
+
+    // Ensure there is actually a pending revocation to cancel
+    if (application.overallStatus !== "REVOCATION_REQUESTED") {
+      throw Object.assign(
+        new Error("There is no pending revocation request to cancel."),
+        { status: 400 },
+      );
+    }
+
+    // 1. Initialize history array if it doesn't exist
+    if (!application.revocationHistory) {
+      application.revocationHistory = [];
+    }
+
+    // 2. Push the cancelled attempt into history for the audit trail
+    application.revocationHistory.push({
+      reason: application.revocationRequest.reason,
+      attachment: application.revocationRequest.attachment,
+      requestedAt: application.revocationRequest.requestedAt,
+      status: "CANCELLED",
+      processedBy: userId, // The employee processed their own cancellation
+      remarks: "Revocation request was withdrawn by the employee.",
+      processedAt: new Date(),
+    });
+
+    // 3. Revert to APPROVED and clear the active revocation fields
+    application.overallStatus = "APPROVED";
+    application.revocationRequest = undefined;
+    application.revokedBy = undefined;
+    application.revokeReason = undefined;
+    application.revokedAt = undefined;
+
+    await application.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return populateApplicationById(application._id);
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    throw err;
+  }
+};
+
 module.exports = {
   addWellnessApplicationService,
   followUpWellnessApplicationService,
@@ -1230,4 +1405,5 @@ module.exports = {
   processRevocationWellnessRequestService,
   getRevocationRequestsService,
   getWellnessRevocationByIdService,
+  cancelRevocationWellnessRequestService,
 };

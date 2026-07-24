@@ -9,6 +9,7 @@ const {
   processRevocationWellnessRequestService,
   getRevocationRequestsService,
   getWellnessRevocationByIdService,
+  cancelRevocationWellnessRequestService, // ✅ Imported the new cancel service
 } = require("../services/wellnessApplicationService");
 
 /* =========================
@@ -239,6 +240,27 @@ const getRevocationRequestsController = async (req, res, next) => {
   }
 };
 
+// ✅ NEW: Controller to cancel a pending revocation request
+const cancelRevocationWellnessController = async (req, res, next) => {
+  try {
+    const applicationId = req.params.id;
+    const userId = req.user.id || req.user._id;
+
+    const application = await cancelRevocationWellnessRequestService({
+      userId,
+      applicationId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Revocation request cancelled successfully.",
+      data: application,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   addWellnessApplicationRequest,
   getAllWellnessApplicationsRequest,
@@ -249,4 +271,5 @@ module.exports = {
   requestRevocationWellnessController,
   processRevocationWellnessController,
   getRevocationRequestsController,
+  cancelRevocationWellnessController, // ✅ Exported the new controller
 };

@@ -6,9 +6,9 @@ const multer = require("multer");
 // Set up temporary storage for uploaded memos before the controller moves them
 const upload = multer({ dest: "uploads/temp/" });
 
-// ✅ NEW: Set up specific storage for revocation attachments
+// ✅ FIXED: Changed 'upload/' to 'uploads/' for folder consistency
 const uploadRevocation = multer({
-  dest: "upload/wellness/revocation/attachments/",
+  dest: "uploads/wellness/revocation/attachments/",
 });
 
 const {
@@ -37,6 +37,7 @@ const {
   requestRevocationWellnessController,
   processRevocationWellnessController,
   getRevocationRequestsController,
+  cancelRevocationWellnessController, // ✅ Imported the new controller
 } = require("../controllers/wellnessApplicationController.js");
 
 const {
@@ -112,9 +113,9 @@ router.get(
 );
 
 // Admin View Specific Application By ID
-// Placed DEAD LAST among the GET /applications/... routes
+// ✅ FIXED: Added the missing leading slash '/'
 router.get(
-  "/applications/:id",
+  "/revocation/applications/:id",
   ...requirePerm("revocation.manage_application"),
   getWellnessRevocationByIdRequest,
 );
@@ -147,29 +148,36 @@ router.post(
 
 // Employee requests revocation of an approved leave
 router.post(
-  "/applications/:id/revoke-request",
+  "/revocation/applications/:id/revoke-request",
   ...requirePerm("revocation.manage_self"),
-  uploadRevocation.single("file"), // ✅ Updated to use the new revocation upload directory
+  uploadRevocation.single("file"),
   requestRevocationWellnessController,
+);
+
+// ✅ NEW: Employee cancels their pending revocation request
+router.patch(
+  "/revocation/applications/:id/cancel-request",
+  ...requirePerm("revocation.manage_self"),
+  cancelRevocationWellnessController,
 );
 
 // HR processes (approves/rejects) the revocation request
 router.patch(
-  "/applications/:id/revoke-process",
+  "/revocation/applications/:id/revoke-process",
   ...requirePerm("revocation.manage_application"),
   processRevocationWellnessController,
 );
 
 // Approver Approves
 router.post(
-  "/applications/approver/:applicationId/approve",
+  "/applications/approvers/my-approvals/:applicationId/approve",
   ...requirePerm("wellness.manage_application"),
   approveWellnessApplication,
 );
 
 // Approver Rejects
 router.put(
-  "/applications/approver/:applicationId/reject",
+  "/applications/approvers/my-approvals/:applicationId/reject",
   ...requirePerm("wellness.manage_application"),
   rejectWellnessApplication,
 );
@@ -189,7 +197,7 @@ router.get(
 router.post(
   "/credits/add",
   ...requirePerm("wellness.manage"),
-  upload.single("file"), // Kept the original temp storage for credit memos
+  upload.single("file"),
   addWellnessCreditRequest,
 );
 
@@ -207,17 +215,18 @@ router.get(
   getAllWellnessCreditRequests,
 );
 
+// Get personal credit history (Self-service view)
+// ✅ FIXED: Moved UP above the dynamic /:employeeId route so "my-credits" doesn't get treated as an ID
+router.get(
+  "/credits/my-credits",
+  ...requirePerm("wellness.view_self"),
+  getEmployeeWellnessCredits,
+);
+
 // Get credit history for a specific employee (Admin/HR view)
 router.get(
   "/credits/employee/:employeeId",
   ...requirePerm("wellness.view_all"),
-  getEmployeeWellnessCredits,
-);
-
-// Get personal credit history (Self-service view)
-router.get(
-  "/credits/my-credits",
-  ...requirePerm("wellness.view_self"),
   getEmployeeWellnessCredits,
 );
 

@@ -7,6 +7,7 @@ import {
   cancelWellnessApplicationRequest,
   followUpWellnessApplicationRequest,
   requestRevocationWellness,
+  cancelRevocationWellnessRequest, // ✅ Newly imported endpoint
 } from "../../../api/wellnessApplication";
 
 // ✅ Import Revocation Settings API
@@ -140,10 +141,12 @@ const ApplicationActionMenu = ({
   followingUp,
   onRevoke,
   revoking,
+  onCancelRevoke, // ✅ Pass handler down
+  cancellingRevoke, // ✅ Pass loading state down
   borderColor,
   isOrganicApp,
   canManageSelf,
-  canRequestRevocation, // ✅ Added missing prop
+  canRequestRevocation,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -172,6 +175,7 @@ const ApplicationActionMenu = ({
   const status = String(app?.overallStatus || "").toUpperCase();
   const isPending = status === "PENDING";
   const isApproved = status === "APPROVED";
+  const isRevocationRequested = status === "REVOCATION_REQUESTED"; // ✅ Track active revocation
 
   return (
     <div className="relative inline-flex justify-end" ref={menuRef}>
@@ -283,7 +287,6 @@ const ApplicationActionMenu = ({
             </button>
           )}
 
-          {/* ✅ Check canRequestRevocation before rendering */}
           {isApproved && canRequestRevocation && (
             <button
               disabled={revoking}
@@ -300,6 +303,27 @@ const ApplicationActionMenu = ({
               type="button"
             >
               <Undo size={14} /> {revoking ? "Revoking..." : "Revoke Leave"}
+            </button>
+          )}
+
+          {/* ✅ New action to cancel a pending revocation */}
+          {isRevocationRequested && canRequestRevocation && (
+            <button
+              disabled={cancellingRevoke}
+              onClick={() => handle(onCancelRevoke)}
+              className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+              style={{ color: "#ef4444" }}
+              onMouseEnter={(e) => {
+                if (e.currentTarget.disabled) return;
+                e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.12)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+              type="button"
+            >
+              <Ban size={14} />{" "}
+              {cancellingRevoke ? "Cancelling..." : "Cancel Revocation"}
             </button>
           )}
 
@@ -354,20 +378,25 @@ const ApplicationCard = ({
   followingUp,
   onRevoke,
   revoking,
+  onCancelRevoke, // ✅ Pass down
+  cancellingRevoke, // ✅ Pass down
   borderColor,
   isOrganicApp,
   canManageSelf,
-  canRequestRevocation, // ✅ Added missing prop
+  canRequestRevocation,
 }) => {
   const status = String(app?.overallStatus || "").toUpperCase();
   const isPending = status === "PENDING";
   const isApproved = status === "APPROVED";
+  const isRevocationRequested = status === "REVOCATION_REQUESTED";
 
+  // ✅ Added missing declaration
   const coveredDatesLabel = formatCoveredDates(app?.inclusiveDates);
 
   let colCount = 2; // Details + Gen PDF
   if (isPending && canManageSelf) colCount += 2; // Follow-up + Cancel
-  if (isApproved && canRequestRevocation) colCount += 1; // ✅ Revoke based on new prop
+  if (isApproved && canRequestRevocation) colCount += 1;
+  if (isRevocationRequested && canRequestRevocation) colCount += 1; // ✅ Space for Cancel Revocation
   if (isOrganicApp) colCount++;
 
   const actionCols = `grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4`;
@@ -548,7 +577,6 @@ const ApplicationCard = ({
             </button>
           )}
 
-          {/* ✅ Check canRequestRevocation before rendering */}
           {isApproved && canRequestRevocation && (
             <button
               onClick={onRevoke}
@@ -564,6 +592,25 @@ const ApplicationCard = ({
             >
               <Undo className="w-4 h-4" />
               {revoking ? "..." : "Revoke"}
+            </button>
+          )}
+
+          {/* ✅ Inline button for canceling an active revocation */}
+          {isRevocationRequested && canRequestRevocation && (
+            <button
+              onClick={onCancelRevoke}
+              disabled={cancellingRevoke}
+              className="inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 ease-out"
+              type="button"
+              title="Cancel Revocation"
+              style={{
+                backgroundColor: "rgba(239,68,68,0.12)",
+                borderColor: "rgba(239,68,68,0.20)",
+                color: "#ef4444",
+              }}
+            >
+              <Ban className="w-4 h-4" />
+              {cancellingRevoke ? "..." : "Cancel Revoke"}
             </button>
           )}
 
@@ -746,7 +793,7 @@ const MyWellnessApplications = () => {
     staleTime: 1000 * 60 * 5,
   });
   const isRevocationEnabled = settingsData?.isEnabled ?? true;
-  const isAttachmentRequired = settingsData?.isAttachmentRequired ?? false; // ✅ Extracted the attachment rule
+  const isAttachmentRequired = settingsData?.isAttachmentRequired ?? false;
   const canRequestRevocation = canRevokeSelf && isRevocationEnabled;
 
   const borderColor = useMemo(() => {
@@ -783,6 +830,16 @@ const MyWellnessApplications = () => {
   const openCancelModal = (app) => setCancelModal({ isOpen: true, app });
   const closeCancelModal = () => setCancelModal({ isOpen: false, app: null });
 
+  // ✅ New state to handle cancelling an active revocation
+  const [cancelRevokeModal, setCancelRevokeModal] = useState({
+    isOpen: false,
+    app: null,
+  });
+  const openCancelRevokeModal = (app) =>
+    setCancelRevokeModal({ isOpen: true, app });
+  const closeCancelRevokeModal = () =>
+    setCancelRevokeModal({ isOpen: false, app: null });
+
   const [followUpModal, setFollowUpModal] = useState({
     isOpen: false,
     app: null,
@@ -791,7 +848,6 @@ const MyWellnessApplications = () => {
   const closeFollowUpModal = () =>
     setFollowUpModal({ isOpen: false, app: null });
 
-  // ✅ SIMPLIFIED: Only track isOpen and app, reasoning/files handled by modal
   const [revokeModal, setRevokeModal] = useState({ isOpen: false, app: null });
   const openRevokeModal = (app) => setRevokeModal({ isOpen: true, app });
   const closeRevokeModal = () => setRevokeModal({ isOpen: false, app: null });
@@ -878,6 +934,20 @@ const MyWellnessApplications = () => {
     onError: (err) => toast.error(err?.message || "Failed to cancel request."),
   });
 
+  // ✅ New Mutation for cancelling a revocation
+  const cancelRevokeMutation = useMutation({
+    mutationFn: (applicationId) =>
+      cancelRevocationWellnessRequest(applicationId), // Ensure this exists in your wellnessApplication API file
+    onSuccess: () => {
+      toast.success("Revocation request withdrawn successfully.");
+      closeCancelRevokeModal();
+      queryClient.invalidateQueries({ queryKey: ["myWellnessApplications"] });
+      refetch();
+    },
+    onError: (err) =>
+      toast.error(err?.message || "Failed to cancel revocation."),
+  });
+
   const followUpMutation = useMutation({
     mutationFn: (applicationId) =>
       followUpWellnessApplicationRequest(applicationId),
@@ -892,7 +962,6 @@ const MyWellnessApplications = () => {
     },
   });
 
-  // ✅ Updated Mutation to handle file payload matching the CTO structure
   const revokeMutation = useMutation({
     mutationFn: async ({ id, reason, file }) => {
       const formData = new FormData();
@@ -921,10 +990,12 @@ const MyWellnessApplications = () => {
     },
   });
 
-  // ✅ Strict boolean checks to support React Query v4/v5 loading states safely
   const isCancelLoading = !!(
     cancelMutation.isPending || cancelMutation.isLoading
   );
+  const isCancelRevokeLoading = !!(
+    cancelRevokeMutation.isPending || cancelRevokeMutation.isLoading
+  ); // ✅ Tracker
   const isFollowUpLoading = !!(
     followUpMutation.isPending || followUpMutation.isLoading
   );
@@ -1367,6 +1438,9 @@ const MyWellnessApplications = () => {
                               const revoking =
                                 isRevokeLoading &&
                                 revokeMutation.variables?.id === app._id;
+                              const cancellingRevoke =
+                                isCancelRevokeLoading &&
+                                cancelRevokeMutation.variables === app._id;
 
                               const isAppOrganic =
                                 app?.employeeType === "Organic" ||
@@ -1377,7 +1451,7 @@ const MyWellnessApplications = () => {
                                   key={app._id}
                                   app={app}
                                   canManageSelf={canManageSelf}
-                                  canRequestRevocation={canRequestRevocation} // ✅ Passed prop
+                                  canRequestRevocation={canRequestRevocation}
                                   borderColor={borderColor}
                                   leftStripClassName={getStatusColor(
                                     app.overallStatus,
@@ -1385,6 +1459,7 @@ const MyWellnessApplications = () => {
                                   cancelling={cancelling}
                                   followingUp={followingUp}
                                   revoking={revoking}
+                                  cancellingRevoke={cancellingRevoke} // ✅ Passed prop
                                   isOrganicApp={isAppOrganic}
                                   onViewDetails={() => setSelectedApp(app)}
                                   onViewPdf={() => setPdfApp(app)}
@@ -1394,6 +1469,9 @@ const MyWellnessApplications = () => {
                                   onCancel={() => openCancelModal(app)}
                                   onFollowUp={() => openFollowUpModal(app)}
                                   onRevoke={() => openRevokeModal(app)}
+                                  onCancelRevoke={() =>
+                                    openCancelRevokeModal(app)
+                                  } // ✅ Passed prop
                                 />
                               );
                             })}
@@ -1452,6 +1530,9 @@ const MyWellnessApplications = () => {
                                 const revoking =
                                   isRevokeLoading &&
                                   revokeMutation.variables?.id === app._id;
+                                const cancellingRevoke =
+                                  isCancelRevokeLoading &&
+                                  cancelRevokeMutation.variables === app._id;
 
                                 const isAppOrganic =
                                   app?.employeeType === "Organic" ||
@@ -1534,7 +1615,7 @@ const MyWellnessApplications = () => {
                                         canManageSelf={canManageSelf}
                                         canRequestRevocation={
                                           canRequestRevocation
-                                        } // ✅ Passed prop
+                                        }
                                         borderColor={borderColor}
                                         isOrganicApp={isAppOrganic}
                                         onViewDetails={() =>
@@ -1552,6 +1633,10 @@ const MyWellnessApplications = () => {
                                         followingUp={followingUp}
                                         onRevoke={() => openRevokeModal(app)}
                                         revoking={revoking}
+                                        onCancelRevoke={() =>
+                                          openCancelRevokeModal(app)
+                                        } // ✅ Passed down
+                                        cancellingRevoke={cancellingRevoke} // ✅ Passed down
                                       />
                                     </td>
                                   </tr>
@@ -1712,7 +1797,7 @@ const MyWellnessApplications = () => {
             </div>
           </Modal>
 
-          {/* ✅ Render the extracted Modal */}
+          {/* ✅ Revoke Request Modal */}
           <RevokeRequestModal
             isOpen={revokeModal.isOpen}
             onClose={closeRevokeModal}
@@ -1731,7 +1816,95 @@ const MyWellnessApplications = () => {
             }}
           />
 
-          {/* Cancel Confirm Modal */}
+          {/* ✅ Cancel Revocation Request Modal */}
+          <Modal
+            isOpen={cancelRevokeModal.isOpen}
+            onClose={closeCancelRevokeModal}
+            title="Cancel Revocation Request"
+            maxWidth="max-w-lg"
+            preventCloseWhenBusy={true}
+            isBusy={isCancelRevokeLoading}
+            action={{
+              show: true,
+              variant: "delete",
+              label: isCancelRevokeLoading
+                ? "Withdrawing..."
+                : "Withdraw Revocation",
+              onClick: async () => {
+                const app = cancelRevokeModal.app;
+                if (!app?._id) return;
+                await cancelRevokeMutation.mutateAsync(app._id);
+              },
+              disabled: isCancelRevokeLoading,
+            }}
+          >
+            <div className="p-2" style={{ color: "var(--app-text)" }}>
+              <div
+                className="mb-5 flex items-start gap-3 p-3 rounded-xl border"
+                style={{
+                  backgroundColor: "var(--app-surface-2)",
+                  borderColor: borderColor,
+                }}
+              >
+                <div
+                  className="mt-0.5 p-1.5 rounded-lg border shadow-sm"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
+                >
+                  <Info size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    You are withdrawing your request
+                  </p>
+                  <p
+                    className="text-sm font-bold break-words"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    Ref:{" "}
+                    {cancelRevokeModal.app?._id
+                      ? `#${cancelRevokeModal.app._id.slice(-6).toUpperCase()}`
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center py-2">
+                <div
+                  className="mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 border-4 shadow-inner"
+                  style={{
+                    backgroundColor: "rgba(239,68,68,0.12)",
+                    color: "#ef4444",
+                    borderColor: "rgba(239,68,68,0.20)",
+                  }}
+                >
+                  <Ban size={40} strokeWidth={3} />
+                </div>
+                <h2
+                  className="text-lg font-semibold"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  Withdraw this revocation request?
+                </h2>
+                <p
+                  className="text-sm mt-2"
+                  style={{ color: "var(--app-muted)" }}
+                >
+                  This action will revert your Wellness Leave back to its
+                  APPROVED state. You can request another revocation later if
+                  needed.
+                </p>
+              </div>
+            </div>
+          </Modal>
+
+          {/* Cancel Original Request Confirm Modal */}
           <Modal
             isOpen={cancelModal.isOpen}
             onClose={closeCancelModal}

@@ -70,19 +70,6 @@ export const fetchEmployeeWellnessApplications = async (
   }
 };
 
-// ✅ NEW: Fetch a specific Wellness application by ID (Admin/HR View)
-export const fetchWellnessApplicationById = async (applicationId) => {
-  try {
-    const res = await API.get(
-      `/wellness/applications/${applicationId}`,
-      withCreds(),
-    );
-    return unwrap(res)?.data ?? unwrap(res);
-  } catch (err) {
-    safeError(err, "Failed to fetch Wellness Leave application details");
-  }
-};
-
 export const cancelWellnessApplicationRequest = async (id) => {
   try {
     const res = await API.patch(
@@ -110,7 +97,11 @@ export const followUpWellnessApplicationRequest = async (applicationId) => {
   }
 };
 
-// ✅ NEW: Fetch Revocation Requests for HR Dashboard
+/* =========================
+   REVOCATIONS (WELLNESS)
+========================= */
+
+// ✅ Fetch Revocation Requests for HR Dashboard
 export const fetchWellnessRevocationRequests = async (params = {}) => {
   try {
     const res = await API.get(
@@ -123,13 +114,29 @@ export const fetchWellnessRevocationRequests = async (params = {}) => {
   }
 };
 
-// ✅ NEW: Step 1 - Employee requests revocation
-export const requestRevocationWellness = async (applicationId, payload) => {
+// ✅ Fetch a specific Wellness application by ID (Admin/HR Revocation View)
+export const fetchWellnessApplicationById = async (applicationId) => {
+  try {
+    const res = await API.get(
+      `/wellness/revocation/applications/${applicationId}`,
+      withCreds(),
+    );
+    return unwrap(res)?.data ?? unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch Wellness Leave application details");
+  }
+};
+
+// ✅ Step 1 - Employee requests revocation (Includes multer file upload)
+export const requestRevocationWellness = async (applicationId, formData) => {
   try {
     const res = await API.post(
-      `/wellness/applications/${applicationId}/revoke-request`,
-      payload, // expects { reason, attachmentUrl }
-      withCreds(),
+      `/wellness/revocation/applications/${applicationId}/revoke-request`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        withCredentials: true,
+      },
     );
     return unwrap(res);
   } catch (err) {
@@ -137,14 +144,28 @@ export const requestRevocationWellness = async (applicationId, payload) => {
   }
 };
 
-// ✅ NEW: Step 2 - HR approves or rejects revocation request
+// ✅ Employee cancels their pending revocation request
+export const cancelRevocationWellnessRequest = async (applicationId) => {
+  try {
+    const res = await API.patch(
+      `/wellness/revocation/applications/${applicationId}/cancel-request`,
+      {},
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to cancel revocation request");
+  }
+};
+
+// ✅ Step 2 - HR approves or rejects revocation request
 export const processRevocationWellnessRequest = async (
   applicationId,
   payload,
 ) => {
   try {
     const res = await API.patch(
-      `/wellness/applications/${applicationId}/revoke-process`,
+      `/wellness/revocation/applications/${applicationId}/revoke-process`,
       payload, // expects { action: "APPROVE" | "REJECT", remarks }
       withCreds(),
     );
@@ -182,20 +203,24 @@ export const fetchMyWellnessApplicationsApprovals = async (params = {}) => {
   }
 };
 
+// ✅ Fixed endpoint to match the approvers dynamic route
 export const getWellnessApplicationById = async (id) => {
   try {
-    console.log(id);
-    const res = await API.get(`/wellness/applications/${id}`, withCreds());
+    const res = await API.get(
+      `/wellness/applications/approvers/my-approvals/${id}`,
+      withCreds(),
+    );
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave application details");
   }
 };
 
+// ✅ Fixed endpoint to match the approvers flow
 export const approveWellnessApplicationRequest = async (applicationId) => {
   try {
     const res = await API.post(
-      `/wellness/applications/approver/${applicationId}/approve`,
+      `/wellness/applications/approvers/my-approvals/${applicationId}/approve`,
       {},
       withCreds(),
     );
@@ -205,13 +230,14 @@ export const approveWellnessApplicationRequest = async (applicationId) => {
   }
 };
 
+// ✅ Fixed endpoint to match the approvers flow
 export const rejectWellnessApplicationRequest = async (
   applicationId,
   remarks,
 ) => {
   try {
     const res = await API.put(
-      `/wellness/applications/approver/${applicationId}/reject`,
+      `/wellness/applications/approvers/my-approvals/${applicationId}/reject`,
       { remarks },
       withCreds(),
     );
@@ -237,10 +263,13 @@ export const fetchWellnessEmployeeDetails = async (employeeId) => {
   }
 };
 
-export const addWellnessCreditRequest = async (payload) => {
+// ✅ Fixed to support multer (FormData) since your route uses `upload.single("file")`
+export const addWellnessCreditRequest = async (formData) => {
   try {
-    // Uses standard JSON payload since file uploads were removed
-    const res = await API.post("/wellness/credits/add", payload, withCreds());
+    const res = await API.post("/wellness/credits/add", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      withCredentials: true,
+    });
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to add Wellness Credits");
@@ -300,8 +329,6 @@ export const fetchMyWellnessCredits = async (params = {}) => {
 export const fetchWellnessDashboard = async () => {
   try {
     const res = await API.get("/wellness/dashboard", withCreds());
-
-    console.log(res.data);
     return unwrap(res)?.data ?? unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch Wellness Leave dashboard summary");
