@@ -7,9 +7,10 @@ module.exports = {
   CTO_FOLLOW_UP: "cto_follow_up",
   CTO_FINAL_APPROVAL: "cto_final_approval",
   CTO_REJECTION: "cto_rejection",
-  CTO_REVOCATION_REQUEST: "cto_revocation_request", // ✅ Added
-  CTO_REVOCATION_APPROVED: "cto_revocation_approved", // ✅ Added
-  CTO_REVOCATION_REJECTED: "cto_revocation_rejected", // ✅ Added
+  CTO_REVOCATION_REQUEST: "cto_revocation_request",
+  CTO_REVOCATION_APPROVED: "cto_revocation_approved",
+  CTO_REVOCATION_REJECTED: "cto_revocation_rejected",
+  CTO_REVOCATION_CANCELLED: "cto_revocation_cancelled", // ✅ Added
   CTO_CREDIT_ADDED: "cto_credit_added",
   CTO_CREDIT_ROLLED_BACK: "cto_credit_rolled_back",
 
@@ -18,9 +19,10 @@ module.exports = {
   WELLNESS_FOLLOW_UP: "wellness_follow_up",
   WELLNESS_FINAL_APPROVAL: "wellness_final_approval",
   WELLNESS_REJECTION: "wellness_rejection",
-  WELLNESS_REVOCATION_REQUEST: "wellness_revocation_request", // ✅ Added
-  WELLNESS_REVOCATION_APPROVED: "wellness_revocation_approved", // ✅ Added
-  WELLNESS_REVOCATION_REJECTED: "wellness_revocation_rejected", // ✅ Added
+  WELLNESS_REVOCATION_REQUEST: "wellness_revocation_request",
+  WELLNESS_REVOCATION_APPROVED: "wellness_revocation_approved",
+  WELLNESS_REVOCATION_REJECTED: "wellness_revocation_rejected",
+  WELLNESS_REVOCATION_CANCELLED: "wellness_revocation_cancelled", // ✅ Added
   WELLNESS_CREDIT_ADDED: "wellness_credit_added",
   WELLNESS_CREDIT_ROLLED_BACK: "wellness_credit_rolled_back",
 

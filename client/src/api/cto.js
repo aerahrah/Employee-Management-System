@@ -213,6 +213,20 @@ export const requestRevocation = async (applicationId, formData) => {
   }
 };
 
+// ✅ Employee cancels their pending revocation request
+export const cancelRevocationCtoRequest = async (applicationId) => {
+  try {
+    const res = await API.patch(
+      `/cto/revocation/applications/${applicationId}/cancel-request`,
+      {},
+      withCreds(),
+    );
+    return unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to cancel revocation request");
+  }
+};
+
 // ✅ Step 2 - HR approves or rejects revocation request
 export const processRevocationRequest = async (applicationId, payload) => {
   try {
@@ -298,7 +312,6 @@ export const cancelOrganicApplicationRequest = async (applicationId) => {
    APPROVALS (CTO)
 ========================= */
 
-// ✅ Updated to align with approvers/my-approvals flow
 export const approveApplicationRequest = async (applicationId) => {
   try {
     const res = await API.post(
@@ -312,7 +325,6 @@ export const approveApplicationRequest = async (applicationId) => {
   }
 };
 
-// ✅ Updated to align with approvers/my-approvals flow
 export const rejectApplicationRequest = async (applicationId, remarks) => {
   try {
     const res = await API.put(

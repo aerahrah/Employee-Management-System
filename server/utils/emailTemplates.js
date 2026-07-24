@@ -710,6 +710,38 @@ function ctoRevocationRejectedEmail({
   };
 }
 
+function ctoRevocationCancelledEmail({
+  hrName = "HR Admin",
+  employeeName,
+  requestedHours,
+  brandName = BRAND.name,
+}) {
+  const safeHR = escapeHtml(hrName);
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeHours = escapeHtml(requestedHours ?? "0");
+
+  const details = `
+    ${detailRow("Status", "Withdrawn by Employee", false, BRAND.muted)}
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Hours Intended to Revoke", `${safeHours} hrs`, true)}
+  `;
+
+  return {
+    subject: `Notice: CTO Revocation Withdrawn — ${employeeName || "Employee"}`,
+    html: emailLayout({
+      title: "CTO Revocation Withdrawn",
+      preheader: `${employeeName} has withdrawn their CTO revocation request.`,
+      greeting: `Hi <strong>${safeHR}</strong>,`,
+      intro: `<strong>${safeEmployee}</strong> has withdrawn their pending request to revoke a Compensatory Time-Off (CTO).`,
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "No further action is required from you for this request. The leave remains in its original Approved state.",
+      brandName,
+    }),
+  };
+}
+
 // ───────────────────────────────────────────────────────────────
 // WELLNESS REVOCATIONS (NEW)
 // ───────────────────────────────────────────────────────────────
@@ -811,6 +843,41 @@ function wellnessRevocationRejectedEmail({
       cta: null,
       outro:
         "Your leave schedule and balance remain unchanged. Please review the remarks or reach out to HR for further clarification.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessRevocationCancelledEmail({
+  hrName = "HR Admin",
+  employeeName,
+  requestedDays,
+  inclusiveDates,
+  brandName = BRAND.name,
+}) {
+  const safeHR = escapeHtml(hrName);
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeDays = escapeHtml(requestedDays ?? "0");
+  const safeDates = escapeHtml(inclusiveDates || "—");
+
+  const details = `
+    ${detailRow("Status", "Withdrawn by Employee", false, BRAND.muted)}
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Days Intended to Revoke", `${safeDays} day(s)`)}
+    ${detailRow("Original Dates", safeDates, true)}
+  `;
+
+  return {
+    subject: `Notice: Wellness Revocation Withdrawn — ${employeeName || "Employee"}`,
+    html: emailLayout({
+      title: "Wellness Revocation Withdrawn",
+      preheader: `${employeeName} has withdrawn their Wellness Leave revocation request.`,
+      greeting: `Hi <strong>${safeHR}</strong>,`,
+      intro: `<strong>${safeEmployee}</strong> has withdrawn their pending request to revoke an approved Wellness Leave.`,
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "No further action is required from you for this request. The leave remains in its original Approved state.",
       brandName,
     }),
   };
@@ -1064,9 +1131,10 @@ module.exports = {
   ctoStepApprovalEmail,
   ctoFinalApprovalEmail,
   ctoRejectionEmail,
-  ctoRevocationRequestEmail, // ✅ Added CTO Revocation
-  ctoRevocationApprovedEmail, // ✅ Added CTO Revocation
-  ctoRevocationRejectedEmail, // ✅ Added CTO Revocation
+  ctoRevocationRequestEmail,
+  ctoRevocationApprovedEmail,
+  ctoRevocationRejectedEmail,
+  ctoRevocationCancelledEmail, // ✅ Added CTO Revocation Cancelled
   ctoCreditAddedEmail,
   ctoCreditRolledBackEmail,
   wellnessApprovalEmail,
@@ -1074,9 +1142,10 @@ module.exports = {
   wellnessStepApprovalEmail,
   wellnessFinalApprovalEmail,
   wellnessRejectionEmail,
-  wellnessRevocationRequestEmail, // ✅ Added Wellness Revocation
-  wellnessRevocationApprovedEmail, // ✅ Added Wellness Revocation
-  wellnessRevocationRejectedEmail, // ✅ Added Wellness Revocation
+  wellnessRevocationRequestEmail,
+  wellnessRevocationApprovedEmail,
+  wellnessRevocationRejectedEmail,
+  wellnessRevocationCancelledEmail, // ✅ Added Wellness Revocation Cancelled
   wellnessCreditAddedEmail,
   wellnessCreditRolledBackEmail,
   leaveCreditAddedEmail,

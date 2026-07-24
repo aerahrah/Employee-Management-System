@@ -184,7 +184,7 @@ const CtoApplicationSchema = new mongoose.Schema(
     revokeReason: { type: String, trim: true }, // Renamed from revokeRemarks to match your service layer
     revokedAt: { type: Date },
 
-    // 3. 🆕 History of past (rejected) revocation attempts
+    // 3. 🆕 History of past revocation attempts (rejections or cancellations)
     revocationHistory: [
       {
         // Employee's Request
@@ -197,10 +197,10 @@ const CtoApplicationSchema = new mongoose.Schema(
         },
         requestedAt: { type: Date },
 
-        // HR's Response
+        // Outcome / Response
         status: {
           type: String,
-          enum: ["APPROVED", "REJECTED"],
+          enum: ["APPROVED", "REJECTED", "CANCELLED"], // ✅ Added "CANCELLED" here
           required: true,
         },
         processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },

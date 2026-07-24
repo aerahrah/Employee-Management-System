@@ -44,6 +44,7 @@ const {
   followUpCtoApplicationRequest,
   getRevocationRequestsController,
   requestRevocationController,
+  cancelRevocationController, // ✅ Imported the new controller
   processRevocationController,
 } = require("../controllers/ctoApplicationController.js");
 
@@ -191,7 +192,7 @@ router.put(
 /* =========================================
    CTO REVOCATIONS
 ========================================= */
-// ✅ Fixed missing leading '/'
+
 router.get(
   "/revocation/applications/:applicationId",
   ...requirePerm("revocation.view_application"),
@@ -203,6 +204,13 @@ router.post(
   ...requirePerm("revocation.manage_self"),
   uploadCtoRevocation.single("file"),
   requestRevocationController,
+);
+
+// ✅ NEW: Employee cancels their pending revocation request
+router.patch(
+  "/revocation/applications/:applicationId/cancel-request",
+  ...requirePerm("revocation.manage_self"),
+  cancelRevocationController,
 );
 
 router.patch(

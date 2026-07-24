@@ -32,6 +32,9 @@ function getTemplate(key, data) {
     case KEYS.CTO_REVOCATION_REJECTED:
       return templates.ctoRevocationRejectedEmail(data);
 
+    case KEYS.CTO_REVOCATION_CANCELLED: // ✅ Added
+      return templates.ctoRevocationCancelledEmail(data);
+
     // --- CTO Credits ---
     case KEYS.CTO_CREDIT_ADDED:
       return templates.ctoCreditAddedEmail(data);
@@ -61,6 +64,9 @@ function getTemplate(key, data) {
 
     case KEYS.WELLNESS_REVOCATION_REJECTED:
       return templates.wellnessRevocationRejectedEmail(data);
+
+    case KEYS.WELLNESS_REVOCATION_CANCELLED: // ✅ Added
+      return templates.wellnessRevocationCancelledEmail(data);
 
     // --- Wellness Credits ---
     case KEYS.WELLNESS_CREDIT_ADDED:

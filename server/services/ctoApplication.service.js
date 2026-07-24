@@ -958,6 +958,72 @@ const requestRevocationCtoApplicationService = async ({
   return populateApplicationById(app._id);
 };
 
+// ✅ NEW: EMPLOYEE CANCELS THEIR REVOCATION REQUEST
+const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
+  assertObjectId(userId, "User ID");
+  assertObjectId(applicationId, "Application ID");
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const application =
+      await CtoApplication.findById(applicationId).session(session);
+
+    if (!application) {
+      throw createServiceError("Application not found.", 404);
+    }
+
+    if (String(application.employee) !== String(userId)) {
+      throw createServiceError(
+        "Not authorized to modify this application.",
+        403,
+      );
+    }
+
+    if (application.overallStatus !== "REVOCATION_REQUESTED") {
+      throw createServiceError(
+        "There is no pending revocation request to cancel.",
+        400,
+      );
+    }
+
+    // 1. Initialize history array if it doesn't exist
+    if (!application.revocationHistory) {
+      application.revocationHistory = [];
+    }
+
+    // 2. Push the cancelled attempt into history for the audit trail
+    application.revocationHistory.push({
+      reason: application.revocationRequest.reason,
+      attachment: application.revocationRequest.attachment,
+      requestedAt: application.revocationRequest.requestedAt,
+      status: "CANCELLED",
+      processedBy: userId, // Employee processed their own cancellation
+      remarks: "Revocation request was withdrawn by the employee.",
+      processedAt: new Date(),
+    });
+
+    // 3. Revert to APPROVED and clear the active revocation fields
+    application.overallStatus = "APPROVED";
+    application.revocationRequest = undefined;
+    application.revokedBy = undefined;
+    application.revokeReason = undefined;
+    application.revokedAt = undefined;
+
+    await application.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return populateApplicationById(application._id);
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    throw err;
+  }
+};
+
 // ✅ STEP 2: HR APPROVES OR REJECTS THE REVOCATION REQUEST
 const processRevocationRequestService = async ({
   adminId,
@@ -1622,6 +1688,7 @@ module.exports = {
   getCtoApplicationsByEmployeeService,
   followUpCtoApplicationService,
   requestRevocationCtoApplicationService,
+  cancelRevocationCtoRequestService, // ✅ Exported the new cancel revocation service
   processRevocationRequestService,
   getRevocationRequestsService,
   getCtoRevocationByIdService,

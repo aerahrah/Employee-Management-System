@@ -21,6 +21,7 @@ import { StatusBadge } from "../../statusUtils";
 import Modal from "../../modal";
 import MemoList from "../ctoMemoModal";
 import { useAuth } from "../../../store/authStore";
+import { buildApiUrl } from "../../../config/env"; // ✅ Ensure this is imported for the download links
 
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
@@ -145,6 +146,12 @@ const TimelineCard = ({ approval, index, isLast, borderColor }) => {
   const isPending = status === "PENDING";
   const isCancelled = status === "CANCELLED";
 
+  // ✅ Extract Signed At Timestamp (same as wellness)
+  const signedAt =
+    approval.approverSnapshot?.signedAt ||
+    approval.approverSignature?.signedAt ||
+    approval.reviewedAt;
+
   return (
     <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
       {/* Connector Line */}
@@ -253,6 +260,21 @@ const TimelineCard = ({ approval, index, isLast, borderColor }) => {
             </p>
           </div>
         )}
+
+        {/* ✅ Timestamp Output (same as wellness) */}
+        {signedAt && (
+          <div
+            className="mt-4 pt-3 border-t border-dashed"
+            style={{ borderColor: "var(--app-border)" }}
+          >
+            <p
+              className="text-[10px] font-mono"
+              style={{ color: "var(--app-muted)" }}
+            >
+              Signed on: {new Date(signedAt).toLocaleString()}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -298,7 +320,7 @@ const CtoApplicationDetails = ({ app }) => {
     isRevoked;
   const hasRevocationAttachment = !!revocationReq.attachment?.fileUrl;
 
-  // History of past (rejected) revocations
+  // History of past (rejected or cancelled) revocations
   const revocationHistory = Array.isArray(app.revocationHistory)
     ? app.revocationHistory
     : [];
@@ -307,9 +329,7 @@ const CtoApplicationDetails = ({ app }) => {
   const handleDownloadAttachment = (attachmentObj) => {
     if (!attachmentObj?.fileUrl) return;
     const url = attachmentObj.fileUrl.replace(/\\/g, "/");
-    const fullUrl = url.startsWith("http")
-      ? url
-      : `${process.env.REACT_APP_API_URL || ""}/${url}`;
+    const fullUrl = url.startsWith("http") ? url : buildApiUrl(url); // ✅ Adjusted to use buildApiUrl correctly
     window.open(fullUrl, "_blank");
   };
 
@@ -885,160 +905,207 @@ const CtoApplicationDetails = ({ app }) => {
                     </div>
                   )}
 
-                  {/* 3. HISTORY OF REJECTED REVOCATIONS */}
+                  {/* 3. HISTORY OF REJECTED/CANCELLED REVOCATIONS */}
                   {hasRevocationHistory &&
-                    revocationHistory.map((hist, hIdx) => (
-                      <React.Fragment key={`hist-${hIdx}`}>
-                        {/* Node A: Past Request */}
-                        <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
-                          <div
-                            className="absolute left-5 top-10 bottom-0 w-0.5"
-                            style={{ backgroundColor: "var(--app-border)" }}
-                          />
-                          <div
-                            className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none"
-                            style={{
-                              backgroundColor: "#94a3b8",
-                              borderColor: "var(--app-surface)",
-                            }}
-                          >
-                            <Undo size={16} className="text-white" />
-                          </div>
-                          <div
-                            className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all opacity-80"
-                            style={{
-                              backgroundColor: "var(--app-surface-2)",
-                              borderColor: "var(--app-border)",
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-3 min-w-0">
-                              <div className="min-w-0">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                  Past Attempt #{hIdx + 1}
-                                </span>
-                                <p
-                                  className="text-sm font-semibold break-words mt-1"
-                                  style={{ color: "var(--app-text)" }}
-                                >
-                                  Revocation Requested
-                                </p>
-                                <p
-                                  className="text-xs mt-0.5 break-words"
-                                  style={{ color: "var(--app-muted)" }}
-                                >
-                                  Reason: {hist.reason || "None provided."}
-                                </p>
-                              </div>
-                            </div>
+                    revocationHistory.map((hist, hIdx) => {
+                      const isHistCancelled = hist.status === "CANCELLED";
 
-                            {hist.attachment?.fileUrl && (
-                              <button
-                                onClick={() =>
-                                  handleDownloadAttachment(hist.attachment)
-                                }
-                                className="mt-3 text-xs flex items-center gap-1 font-medium transition-colors hover:underline"
-                                style={{ color: "var(--accent)" }}
-                              >
-                                <Download size={12} /> View Attachment
-                              </button>
-                            )}
-
-                            {hist.requestedAt && (
-                              <div
-                                className="mt-4 pt-3 border-t border-dashed"
-                                style={{ borderColor: "var(--app-border)" }}
-                              >
-                                <p
-                                  className="text-[10px] font-mono"
-                                  style={{ color: "var(--app-muted)" }}
-                                >
-                                  Requested on:{" "}
-                                  {new Date(hist.requestedAt).toLocaleString()}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Node B: Past Rejection */}
-                        <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
-                          {/* Only draw connector if there is more history or an active revocation request following this */}
-                          {(hIdx < revocationHistory.length - 1 ||
-                            hasActiveRevocationReq) && (
+                      return (
+                        <React.Fragment key={`hist-${hIdx}`}>
+                          {/* Node A: Past Request */}
+                          <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
                             <div
                               className="absolute left-5 top-10 bottom-0 w-0.5"
                               style={{ backgroundColor: "var(--app-border)" }}
                             />
-                          )}
-                          <div
-                            className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none bg-red-500"
-                            style={{ borderColor: "var(--app-surface)" }}
-                          >
-                            <XCircle size={16} className="text-white" />
-                          </div>
-                          <div
-                            className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all"
-                            style={{
-                              backgroundColor: "rgba(239, 68, 68, 0.05)",
-                              borderColor: "rgba(239, 68, 68, 0.2)",
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-3 min-w-0">
-                              <div className="min-w-0">
-                                <span className="text-xs font-bold uppercase tracking-wider text-red-500">
-                                  HR Final Step
-                                </span>
-                                <p
-                                  className="text-sm font-semibold break-words mt-1"
-                                  style={{ color: "var(--app-text)" }}
-                                >
-                                  Rejected by HR
-                                </p>
-                              </div>
-                              <div className="flex-none">
-                                <StatusBadge status="REJECTED" size="sm" />
-                              </div>
+                            <div
+                              className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none"
+                              style={{
+                                backgroundColor: "#94a3b8",
+                                borderColor: "var(--app-surface)",
+                              }}
+                            >
+                              <Undo size={16} className="text-white" />
                             </div>
-
-                            {hist.remarks && (
-                              <div
-                                className="mt-4 rounded-xl p-3 text-xs leading-relaxed border flex items-start gap-2 min-w-0"
-                                style={{
-                                  backgroundColor: "var(--app-surface-2)",
-                                  borderColor: borderColor,
-                                  color: "var(--app-text)",
-                                }}
-                              >
-                                <AlertCircle
-                                  size={14}
-                                  className="shrink-0 mt-0.5"
-                                  style={{ color: "var(--app-muted)" }}
-                                />
-                                <p className="break-words">
-                                  <strong>HR Note:</strong> {hist.remarks}
-                                </p>
+                            <div
+                              className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all opacity-80"
+                              style={{
+                                backgroundColor: "var(--app-surface-2)",
+                                borderColor: "var(--app-border)",
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3 min-w-0">
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    Past Attempt #{hIdx + 1}
+                                  </span>
+                                  <p
+                                    className="text-sm font-semibold break-words mt-1"
+                                    style={{ color: "var(--app-text)" }}
+                                  >
+                                    Revocation Requested
+                                  </p>
+                                  <p
+                                    className="text-xs mt-0.5 break-words"
+                                    style={{ color: "var(--app-muted)" }}
+                                  >
+                                    Reason: {hist.reason || "None provided."}
+                                  </p>
+                                </div>
                               </div>
-                            )}
 
-                            {hist.processedAt && (
-                              <div
-                                className="mt-4 pt-3 border-t border-dashed"
-                                style={{
-                                  borderColor: "rgba(239, 68, 68, 0.2)",
-                                }}
-                              >
-                                <p className="text-[10px] font-mono text-red-400">
-                                  Processed on:{" "}
-                                  {new Date(hist.processedAt).toLocaleString()}
-                                </p>
-                              </div>
-                            )}
+                              {hist.attachment?.fileUrl && (
+                                <button
+                                  onClick={() =>
+                                    handleDownloadAttachment(hist.attachment)
+                                  }
+                                  className="mt-3 text-xs flex items-center gap-1 font-medium transition-colors hover:underline"
+                                  style={{ color: "var(--accent)" }}
+                                >
+                                  <Download size={12} /> View Attachment
+                                </button>
+                              )}
+
+                              {hist.requestedAt && (
+                                <div
+                                  className="mt-4 pt-3 border-t border-dashed"
+                                  style={{ borderColor: "var(--app-border)" }}
+                                >
+                                  <p
+                                    className="text-[10px] font-mono"
+                                    style={{ color: "var(--app-muted)" }}
+                                  >
+                                    Requested on:{" "}
+                                    {new Date(
+                                      hist.requestedAt,
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </React.Fragment>
-                    ))}
 
-                  {/* 4. ACTIVE REVOCATION REQUESTED STEP (Only if an active revocation exists) */}
+                          {/* Node B: Past Outcome (Rejected or Cancelled) */}
+                          <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
+                            {/* Only draw connector if there is more history or an active revocation request following this */}
+                            {(hIdx < revocationHistory.length - 1 ||
+                              hasActiveRevocationReq) && (
+                              <div
+                                className="absolute left-5 top-10 bottom-0 w-0.5"
+                                style={{ backgroundColor: "var(--app-border)" }}
+                              />
+                            )}
+                            <div
+                              className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none"
+                              style={{
+                                backgroundColor: isHistCancelled
+                                  ? "#94a3b8"
+                                  : "#ef4444",
+                                borderColor: "var(--app-surface)",
+                              }}
+                            >
+                              {isHistCancelled ? (
+                                <Ban size={16} className="text-white" />
+                              ) : (
+                                <XCircle size={16} className="text-white" />
+                              )}
+                            </div>
+                            <div
+                              className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all"
+                              style={{
+                                backgroundColor: isHistCancelled
+                                  ? "rgba(148, 163, 184, 0.05)"
+                                  : "rgba(239, 68, 68, 0.05)",
+                                borderColor: isHistCancelled
+                                  ? "rgba(148, 163, 184, 0.2)"
+                                  : "rgba(239, 68, 68, 0.2)",
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3 min-w-0">
+                                <div className="min-w-0">
+                                  <span
+                                    className={`text-xs font-bold uppercase tracking-wider ${
+                                      isHistCancelled
+                                        ? "text-slate-500"
+                                        : "text-red-500"
+                                    }`}
+                                  >
+                                    {isHistCancelled
+                                      ? "Employee Action"
+                                      : "HR Final Step"}
+                                  </span>
+                                  <p
+                                    className="text-sm font-semibold break-words mt-1"
+                                    style={{ color: "var(--app-text)" }}
+                                  >
+                                    {isHistCancelled
+                                      ? "Withdrawn by Employee"
+                                      : "Rejected by HR"}
+                                  </p>
+                                </div>
+                                <div className="flex-none">
+                                  <StatusBadge
+                                    status={hist.status || "REJECTED"}
+                                    size="sm"
+                                  />
+                                </div>
+                              </div>
+
+                              {hist.remarks && (
+                                <div
+                                  className="mt-4 rounded-xl p-3 text-xs leading-relaxed border flex items-start gap-2 min-w-0"
+                                  style={{
+                                    backgroundColor: "var(--app-surface-2)",
+                                    borderColor: borderColor,
+                                    color: "var(--app-text)",
+                                  }}
+                                >
+                                  <AlertCircle
+                                    size={14}
+                                    className="shrink-0 mt-0.5"
+                                    style={{ color: "var(--app-muted)" }}
+                                  />
+                                  <p className="break-words">
+                                    <strong>
+                                      {isHistCancelled
+                                        ? "System Note:"
+                                        : "HR Note:"}
+                                    </strong>{" "}
+                                    {hist.remarks}
+                                  </p>
+                                </div>
+                              )}
+
+                              {hist.processedAt && (
+                                <div
+                                  className="mt-4 pt-3 border-t border-dashed"
+                                  style={{
+                                    borderColor: isHistCancelled
+                                      ? "rgba(148, 163, 184, 0.2)"
+                                      : "rgba(239, 68, 68, 0.2)",
+                                  }}
+                                >
+                                  <p
+                                    className={`text-[10px] font-mono ${
+                                      isHistCancelled
+                                        ? "text-slate-500"
+                                        : "text-red-400"
+                                    }`}
+                                  >
+                                    Processed on:{" "}
+                                    {new Date(
+                                      hist.processedAt,
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+
+                  {/* 4. ACTIVE REVOCATION REQUESTED STEP */}
                   {hasActiveRevocationReq && (
                     <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
                       <div
@@ -1107,7 +1174,7 @@ const CtoApplicationDetails = ({ app }) => {
                     </div>
                   )}
 
-                  {/* 5. HR PROCESSING STATUS (Only if an active revocation exists) */}
+                  {/* 5. HR PROCESSING STATUS */}
                   {hasActiveRevocationReq && (
                     <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
                       <div

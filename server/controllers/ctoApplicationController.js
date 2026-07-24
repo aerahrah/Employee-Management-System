@@ -8,7 +8,8 @@ const {
   requestRevocationCtoApplicationService,
   processRevocationRequestService,
   getRevocationRequestsService,
-  getCtoRevocationByIdService, // ✅ Imported the new service
+  getCtoRevocationByIdService,
+  cancelRevocationCtoRequestService, // ✅ Imported the new service
 } = require("../services/ctoApplication.service");
 
 const addCtoApplicationRequest = async (req, res) => {
@@ -95,7 +96,6 @@ const getCtoApplicationsByEmployeeRequest = async (req, res) => {
   }
 };
 
-// ✅ NEW: Dedicated controller to fetch a specific application by ID
 const getCtoRevocationByIdRequest = async (req, res) => {
   try {
     const applicationId = req.params.applicationId;
@@ -103,7 +103,7 @@ const getCtoRevocationByIdRequest = async (req, res) => {
 
     res.status(200).json({
       message: "Fetched CTO revocation application successfully",
-      ...application._doc, // Spreading to match how frontend expects the data object if unwrap expects data fields
+      ...application._doc,
       application,
     });
   } catch (error) {
@@ -154,7 +154,6 @@ const followUpCtoApplicationRequest = async (req, res) => {
   }
 };
 
-// ✅ NEW: Dedicated controller for the HR Revocation Dashboard
 const getRevocationRequestsController = async (req, res) => {
   try {
     const { page, limit, search, status, from, to, employeeType, employeeId } =
@@ -174,6 +173,7 @@ const getRevocationRequestsController = async (req, res) => {
     });
   }
 };
+
 const requestRevocationController = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -184,13 +184,12 @@ const requestRevocationController = async (req, res) => {
     let attachment = null;
     if (req.file) {
       attachment = {
-        url: req.file.path, // e.g., 'upload/cto/revocation/attachment/filename'
+        url: req.file.path,
         filename: req.file.originalname,
         mimetype: req.file.mimetype,
         size: req.file.size,
       };
     } else if (req.body.attachment) {
-      // Optional fallback if no file is uploaded but a string/object was passed
       attachment = req.body.attachment;
     }
 
@@ -198,7 +197,7 @@ const requestRevocationController = async (req, res) => {
       userId,
       applicationId,
       reason,
-      attachment, // ✅ Pass the structured object to the service
+      attachment,
     });
 
     res.status(200).json({
@@ -209,6 +208,29 @@ const requestRevocationController = async (req, res) => {
   } catch (error) {
     res.status(error.status || 500).json({
       error: error.message || "Server error while requesting revocation",
+    });
+  }
+};
+
+// ✅ NEW: Controller to cancel an active revocation request
+const cancelRevocationController = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const applicationId = req.params.applicationId;
+
+    const application = await cancelRevocationCtoRequestService({
+      userId,
+      applicationId,
+    });
+
+    res.status(200).json({
+      message: "Revocation request cancelled successfully.",
+      application,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error:
+        error.message || "Server error while cancelling revocation request",
     });
   }
 };
@@ -247,10 +269,11 @@ module.exports = {
   addCtoApplicationRequest,
   getAllCtoApplicationsRequest,
   getCtoApplicationsByEmployeeRequest,
-  getCtoRevocationByIdRequest, // ✅ Exported the new controller
+  getCtoRevocationByIdRequest,
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest,
   getRevocationRequestsController,
   requestRevocationController,
+  cancelRevocationController, // ✅ Exported the new controller
   processRevocationController,
 };
