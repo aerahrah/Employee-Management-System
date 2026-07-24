@@ -1,5 +1,5 @@
 // utils/emailTemplates.js
-// Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit + Wellness + Leave Credits)
+// Single place for all HRMS/CTO email templates (welcome + CTO workflow + CTO credit + Wellness + Leave Credits + Revocations)
 
 const BRAND = {
   name: "DICT Wellness & CTO",
@@ -612,6 +612,211 @@ function wellnessRejectionEmail({
 }
 
 // ───────────────────────────────────────────────────────────────
+// CTO REVOCATIONS (NEW)
+// ───────────────────────────────────────────────────────────────
+function ctoRevocationRequestEmail({
+  hrName = "HR Admin",
+  employeeName,
+  requestedHours,
+  reason,
+  link,
+  brandName = BRAND.name,
+}) {
+  const safeHR = escapeHtml(hrName);
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeHours = escapeHtml(requestedHours ?? "0");
+  const safeReason = escapeHtml(reason || "—");
+
+  const details = `
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Hours to Revoke", `${safeHours} hrs`)}
+    ${detailRow("Reason", safeReason, true)}
+  `;
+
+  return {
+    subject: `Action Required: CTO Revocation Request — ${employeeName || "Pending"}`,
+    html: emailLayout({
+      title: "Pending CTO Revocation Request",
+      preheader: `${employeeName} has requested to revoke an approved CTO.`,
+      greeting: `Hi <strong>${safeHR}</strong>,`,
+      intro: `<strong>${safeEmployee}</strong> has submitted a request to revoke a previously approved Compensatory Time-Off (CTO). Please review the request and attachment.`,
+      detailsRowsHtml: details,
+      cta: { label: "Review Revocation", url: link },
+      outro: "Please process this request to maintain accurate leave balances.",
+      brandName,
+    }),
+  };
+}
+
+function ctoRevocationApprovedEmail({
+  employeeName,
+  restoredHours,
+  remarks,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeHours = escapeHtml(restoredHours ?? "0");
+  const safeRemarks = escapeHtml(remarks || "—");
+
+  const details = `
+    ${detailRow("Status", "Revocation Approved", false, BRAND.success)}
+    ${detailRow("Restored Hours", `+${safeHours} hrs`)}
+    ${detailRow("Remarks", safeRemarks, true)}
+  `;
+
+  return {
+    subject: "Approved: Your CTO Revocation Request",
+    html: emailLayout({
+      title: "CTO Revocation Approved",
+      preheader: "Your CTO revocation request has been successfully approved.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your request to revoke your previously approved Compensatory Time-Off (CTO) has been fully approved by HR.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro: "Your hours have been successfully restored to your CTO balance.",
+      brandName,
+    }),
+  };
+}
+
+function ctoRevocationRejectedEmail({
+  employeeName,
+  remarks,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeRemarks = escapeHtml(remarks || "No remarks provided.");
+
+  const details = `
+    ${detailRow("Status", "Revocation Rejected", false, BRAND.danger)}
+    ${detailRow("Remarks", safeRemarks, true)}
+  `;
+
+  return {
+    subject: "Update: Your CTO Revocation Request",
+    html: emailLayout({
+      title: "CTO Revocation Rejected",
+      preheader: "Your CTO revocation request has been declined.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your request to revoke your approved Compensatory Time-Off (CTO) has unfortunately been declined by HR.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "Your CTO schedule and balance remain unchanged. Please review the remarks or reach out to HR for further clarification.",
+      brandName,
+    }),
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
+// WELLNESS REVOCATIONS (NEW)
+// ───────────────────────────────────────────────────────────────
+function wellnessRevocationRequestEmail({
+  hrName = "HR Admin",
+  employeeName,
+  requestedDays,
+  inclusiveDates,
+  reason,
+  link,
+  brandName = BRAND.name,
+}) {
+  const safeHR = escapeHtml(hrName);
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeDays = escapeHtml(requestedDays ?? "0");
+  const safeDates = escapeHtml(inclusiveDates || "—");
+  const safeReason = escapeHtml(reason || "—");
+
+  const details = `
+    ${detailRow("Employee", safeEmployee)}
+    ${detailRow("Days to Revoke", `${safeDays} day(s)`)}
+    ${detailRow("Dates Covered", safeDates)}
+    ${detailRow("Reason", safeReason, true)}
+  `;
+
+  return {
+    subject: `Action Required: Wellness Revocation Request — ${employeeName || "Pending"}`,
+    html: emailLayout({
+      title: "Pending Wellness Revocation Request",
+      preheader: `${employeeName} has requested to revoke an approved Wellness Leave.`,
+      greeting: `Hi <strong>${safeHR}</strong>,`,
+      intro: `<strong>${safeEmployee}</strong> has submitted a request to revoke a previously approved Wellness Leave. Please review the request and attachment.`,
+      detailsRowsHtml: details,
+      cta: { label: "Review Revocation", url: link },
+      outro: "Please process this request to maintain accurate leave balances.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessRevocationApprovedEmail({
+  employeeName,
+  restoredDays,
+  inclusiveDates,
+  remarks,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeDays = escapeHtml(restoredDays ?? "0");
+  const safeDates = escapeHtml(inclusiveDates || "—");
+  const safeRemarks = escapeHtml(remarks || "—");
+
+  const details = `
+    ${detailRow("Status", "Revocation Approved", false, BRAND.success)}
+    ${detailRow("Restored Days", `+${safeDays} day(s)`)}
+    ${detailRow("Original Dates", safeDates)}
+    ${detailRow("Remarks", safeRemarks, true)}
+  `;
+
+  return {
+    subject: "Approved: Your Wellness Leave Revocation Request",
+    html: emailLayout({
+      title: "Wellness Revocation Approved",
+      preheader: "Your Wellness Leave revocation request has been approved.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your request to revoke your previously approved Wellness Leave has been fully approved by HR.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "Your days have been successfully restored to your Wellness Leave balance.",
+      brandName,
+    }),
+  };
+}
+
+function wellnessRevocationRejectedEmail({
+  employeeName,
+  remarks,
+  brandName = BRAND.name,
+}) {
+  const safeEmployee = escapeHtml(employeeName || "Employee");
+  const safeRemarks = escapeHtml(remarks || "No remarks provided.");
+
+  const details = `
+    ${detailRow("Status", "Revocation Rejected", false, BRAND.danger)}
+    ${detailRow("Remarks", safeRemarks, true)}
+  `;
+
+  return {
+    subject: "Update: Your Wellness Leave Revocation Request",
+    html: emailLayout({
+      title: "Wellness Revocation Rejected",
+      preheader: "Your Wellness Leave revocation request has been declined.",
+      greeting: `Hi <strong>${safeEmployee}</strong>,`,
+      intro:
+        "Your request to revoke your approved Wellness Leave has unfortunately been declined by HR.",
+      detailsRowsHtml: details,
+      cta: null,
+      outro:
+        "Your leave schedule and balance remain unchanged. Please review the remarks or reach out to HR for further clarification.",
+      brandName,
+    }),
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
 // CTO CREDIT EMAILS
 // ───────────────────────────────────────────────────────────────
 function ctoCreditAddedEmail({
@@ -859,6 +1064,9 @@ module.exports = {
   ctoStepApprovalEmail,
   ctoFinalApprovalEmail,
   ctoRejectionEmail,
+  ctoRevocationRequestEmail, // ✅ Added CTO Revocation
+  ctoRevocationApprovedEmail, // ✅ Added CTO Revocation
+  ctoRevocationRejectedEmail, // ✅ Added CTO Revocation
   ctoCreditAddedEmail,
   ctoCreditRolledBackEmail,
   wellnessApprovalEmail,
@@ -866,6 +1074,9 @@ module.exports = {
   wellnessStepApprovalEmail,
   wellnessFinalApprovalEmail,
   wellnessRejectionEmail,
+  wellnessRevocationRequestEmail, // ✅ Added Wellness Revocation
+  wellnessRevocationApprovedEmail, // ✅ Added Wellness Revocation
+  wellnessRevocationRejectedEmail, // ✅ Added Wellness Revocation
   wellnessCreditAddedEmail,
   wellnessCreditRolledBackEmail,
   leaveCreditAddedEmail,

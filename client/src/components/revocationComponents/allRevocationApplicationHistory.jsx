@@ -36,15 +36,16 @@ import {
 
 import StatusTabs from "../statusTabs";
 
-// CTO Component Imports
-import CtoApplicationDetails from "../ctoComponents/ctoApplicationComponents/myCtoApplicationFullDetails";
+// CTO PDF Modal Imports
 import CtoApplicationPdfModal from "../ctoComponents/ctoApplicationComponents/ctoApplicationPDFModal";
 import OrganicCtoApplicationPdfModal from "../ctoComponents/ctoApplicationComponents/organicApplicationPDFModal";
 
-// Wellness Component Imports
-import WellnessApplicationDetails from "../wellnessComponents/wellnessApplicationComponents/myWellnessApplicationFullDetails";
+// Wellness PDF Modal Imports
 import WellnessLeavePdfModal from "../wellnessComponents/wellnessApplicationComponents/wellnessApplicationModal";
 import OrganicWellnessApplicationPdfModal from "../wellnessComponents/wellnessApplicationComponents/organicWellnessApplicationPDFModal";
+
+// ✅ NEW: Import the Unified Revocation Details Component
+import RevocationApplicationFullDetails from "../revocationComponents/RevocationApplicationFullDetails";
 
 import { useAuth } from "../../store/authStore";
 
@@ -259,7 +260,8 @@ const ApplicationActionMenu = ({
               e.currentTarget.style.color = "var(--app-muted)";
             }}
           >
-            <Eye size={14} /> View Details
+            {/* ✅ UPDATED TEXT TO "View Revocation Details" */}
+            <Eye size={14} /> View Revocation Details
           </button>
 
           <button
@@ -551,6 +553,7 @@ const ApplicationCard = ({
               e.currentTarget.style.backgroundColor = "var(--app-surface)";
             }}
           >
+            {/* ✅ UPDATED TEXT TO "Revoke Details" for compactness */}
             <Eye className="w-4 h-4" />
             Details
           </button>
@@ -1717,7 +1720,7 @@ const AllRevocationApplicationHistory = () => {
             />
           )}
 
-          {/* Details modal */}
+          {/* ✅ UPDATED: Single Unified Details Modal */}
           {selectedApp && (
             <Modal
               isOpen={!!selectedApp}
@@ -1725,17 +1728,7 @@ const AllRevocationApplicationHistory = () => {
               maxWidth="max-w-5xl"
               title={`${leaveTypeFilter} Revocation Request Details`}
             >
-              {leaveTypeFilter === "CTO" ? (
-                <CtoApplicationDetails
-                  app={selectedApp}
-                  loading={!selectedApp}
-                />
-              ) : (
-                <WellnessApplicationDetails
-                  app={selectedApp}
-                  loading={!selectedApp}
-                />
-              )}
+              <RevocationApplicationFullDetails app={selectedApp} />
             </Modal>
           )}
 

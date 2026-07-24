@@ -1,9 +1,9 @@
 // routes/ctoRoutes.js
 const express = require("express");
 const router = express.Router();
-const multer = require("multer"); // ✅ Imported multer
+const multer = require("multer");
 
-// ✅ NEW: Set up specific storage for CTO revocation attachments
+// ✅ Set up specific storage for CTO revocation attachments
 const uploadCtoRevocation = multer({
   dest: "upload/cto/revocation/attachments/",
 });
@@ -39,7 +39,7 @@ const {
   addCtoApplicationRequest,
   getAllCtoApplicationsRequest,
   getCtoApplicationsByEmployeeRequest,
-  getCtoRevocationByIdRequest, // Imported the new controller
+  getCtoRevocationByIdRequest,
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest,
   getRevocationRequestsController,
@@ -60,9 +60,30 @@ const requirePerm = (perm) => [authenticateToken, authorize(perm)];
 const authOnly = [authenticateToken];
 
 /* =========================================
+   EMPLOYEE DETAILS
+========================================= */
+router.get(
+  "/employee/:employeeId/details",
+  ...requirePerm("cto.records_view"),
+  getEmployeeDetails,
+);
+
+/* =========================================
    CTO CREDITS
 ========================================= */
-// Manage credits
+// Static Routes First
+router.get(
+  "/credits/all",
+  ...requirePerm("cto.credits_view"),
+  getAllCreditRequests,
+);
+
+router.get(
+  "/credits/my-credits",
+  ...requirePerm("cto.view_self"),
+  getEmployeeCredits,
+);
+
 router.post(
   "/credits",
   ...requirePerm("cto.credits_manage"),
@@ -70,20 +91,7 @@ router.post(
   addCtoCreditRequest,
 );
 
-// View global credit records
-router.get(
-  "/credits/all",
-  ...requirePerm("cto.credits_view"),
-  getAllCreditRequests,
-);
-
-// Self-service credit views (MUST come before /:employeeId)
-router.get(
-  "/credits/my-credits",
-  ...requirePerm("cto.view_self"),
-  getEmployeeCredits,
-);
-
+// Dynamic Routes Last
 router.get(
   "/credits/:employeeId/history",
   ...requirePerm("cto.credits_view"),
@@ -96,139 +104,116 @@ router.patch(
   rollbackCreditedRequest,
 );
 
-router.get(
-  "/employee/:employeeId/details",
-  ...requirePerm("cto.records_view"),
-  getEmployeeDetails,
-);
-
 /* =========================================
-   CTO APPLICATIONS - STATIC GET ROUTES
-   (These MUST come before /:applicationId)
+   CTO APPLICATIONS (Base)
 ========================================= */
-
-// Admin View All Applications
+// Static Routes First
 router.get(
   "/applications/all",
   ...requirePerm("cto.applications_view"),
   getAllCtoApplicationsRequest,
 );
 
-// HR Dashboard view specifically for Revocations
 router.get(
   "/applications/revocations",
   ...requirePerm("revocation.view_application"),
   getRevocationRequestsController,
 );
 
-// Self-service application views
 router.get(
   "/applications/my-application",
   ...requirePerm("cto.view_self"),
   getCtoApplicationsByEmployeeRequest,
 );
 
-// Approver Flow: Pending Count
-router.get(
-  "/applications/pending-count",
-  ...authOnly,
-  getPendingCountForApproverController,
-);
-
-// Approver Flow: Approver Options
-router.get("/applications/approvers", ...authOnly, getApproverOptions);
-
-// Approver Flow: My Approvals List
-router.get(
-  "/applications/approvers/my-approvals",
-  ...requirePerm("cto.view_application"),
-  getCtoApplicationsForApprover,
-);
-
-/* =========================================
-   CTO APPLICATIONS - DYNAMIC GET ROUTES
-========================================= */
-
-// Admin View Specific Employee Applications
-router.get(
-  "/applications/employee/:employeeId",
-  ...requirePerm("cto.applications_view"),
-  getCtoApplicationsByEmployeeRequest,
-);
-
-// Approver Flow: Specific Approval By ID
-router.get(
-  "/applications/approvers/my-approvals/:applicationId",
-  ...requirePerm("cto.view_application"),
-  getCtoApplicationById,
-);
-
-// Admin View Specific Application By ID
-// PLACED DEAD LAST among GET routes so it doesn't hijack static words like "pending-count"
-router.get(
-  "/applications/:applicationId",
-  ...requirePerm("revocation.manage_application"),
-  getCtoRevocationByIdRequest,
-);
-
-/* =========================================
-   CTO APPLICATIONS - POST / PATCH / PUT
-========================================= */
-
-// Apply for CTO
 router.post(
   "/applications/apply",
   ...requirePerm("cto.create"),
   addCtoApplicationRequest,
 );
 
-// Cancel CTO Application
+// Dynamic Routes Last
+router.get(
+  "/applications/employee/:employeeId",
+  ...requirePerm("cto.applications_view"),
+  getCtoApplicationsByEmployeeRequest,
+);
+
 router.patch(
   "/applications/:applicationId/cancel",
   ...requirePerm("cto.view_self"),
   cancelCtoApplicationRequest,
 );
 
-// Follow-up on a pending CTO application
 router.post(
   "/applications/:applicationId/follow-up",
   ...requirePerm("cto.view_self"),
   followUpCtoApplicationRequest,
 );
 
-// Employee requests revocation of an approved leave
-router.post(
-  "/applications/:applicationId/revoke-request",
-  ...requirePerm("revocation.manage_self"),
-  uploadCtoRevocation.single("file"), // ✅ Added multer middleware here
-  requestRevocationController,
+/* =========================================
+   CTO APPLICATIONS (Approvers Flow)
+========================================= */
+// Static Routes First
+router.get(
+  "/applications/pending-count",
+  ...authOnly,
+  getPendingCountForApproverController,
 );
 
-// HR processes (approves/rejects) the revocation request
-router.patch(
-  "/applications/:applicationId/revoke-process",
-  ...requirePerm("revocation.manage_application"),
-  processRevocationController,
+router.get("/applications/approvers", ...authOnly, getApproverOptions);
+
+router.get(
+  "/applications/approvers/my-approvals",
+  ...requirePerm("cto.view_application"),
+  getCtoApplicationsForApprover,
 );
 
-// Approver Approves
+// Dynamic Routes Last
+router.get(
+  "/applications/approvers/my-approvals/:applicationId",
+  ...requirePerm("cto.view_application"),
+  getCtoApplicationById,
+);
+
 router.post(
-  "/applications/approver/:applicationId/approve",
+  "/applications/approvers/my-approvals/:applicationId/approve",
   ...requirePerm("cto.manage_application"),
   approveCtoApplication,
 );
 
-// Approver Rejects
 router.put(
-  "/applications/approver/:applicationId/reject",
+  "/applications/approvers/my-approvals/:applicationId/reject",
   ...requirePerm("cto.manage_application"),
   rejectCtoApplication,
 );
 
 /* =========================================
+   CTO REVOCATIONS
+========================================= */
+// ✅ Fixed missing leading '/'
+router.get(
+  "/revocation/applications/:applicationId",
+  ...requirePerm("revocation.view_application"),
+  getCtoRevocationByIdRequest,
+);
+
+router.post(
+  "/revocation/applications/:applicationId/revoke-request",
+  ...requirePerm("revocation.manage_self"),
+  uploadCtoRevocation.single("file"),
+  requestRevocationController,
+);
+
+router.patch(
+  "/revocation/applications/:applicationId/revoke-process",
+  ...requirePerm("revocation.manage_application"),
+  processRevocationController,
+);
+
+/* =========================================
    ORGANIC LEAVES (WELLNESS, ETC.)
 ========================================= */
-// (Keep this commented out block as it was)
 // // Apply for Organic Leave
 // router.post(
 //   "/organic-applications/apply",

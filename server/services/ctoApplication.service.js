@@ -15,8 +15,13 @@ const { isEmailEnabled } = require("../utils/emailNotificationSettings");
 const {
   ctoApprovalEmail,
   ctoFollowUpEmail,
+  ctoRevocationRequestEmail,
+  ctoRevocationApprovedEmail,
+  ctoRevocationRejectedEmail,
 } = require("../utils/emailTemplates");
 const { APPROVAL_ROLE_VALUES } = require("../constants/approvalRoles");
+
+const { getRevocationApproverEmails } = require("../utils/getHrEmails");
 
 /* =========================
    Helpers
@@ -865,7 +870,7 @@ const requestRevocationCtoApplicationService = async ({
     );
   }
 
-  // ✅ UPDATED: Check for attachment.url (from multer) OR attachment.fileUrl (fallback)
+  // ✅ Check for attachment.url (from multer) OR attachment.fileUrl (fallback)
   const fileUrl = attachment?.url || attachment?.fileUrl;
 
   const isAttachmentRequired = setting ? setting.isAttachmentRequired : false;
@@ -906,7 +911,7 @@ const requestRevocationCtoApplicationService = async ({
     requestedAt: new Date(),
   };
 
-  // ✅ UPDATED: Process and store using the multer keys (url, filename, mimetype)
+  // ✅ Process and store using the multer keys (url, filename, mimetype)
   if (fileUrl) {
     app.revocationRequest.attachment = {
       fileName:
@@ -919,6 +924,36 @@ const requestRevocationCtoApplicationService = async ({
   }
 
   await app.save();
+
+  // ✅ Send Email Notifications to HR
+  try {
+    const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REQUEST);
+    if (emailEnabled) {
+      const employee =
+        await Employee.findById(userId).select("firstName lastName");
+      const hrEmails = await getRevocationApproverEmails();
+
+      if (hrEmails && hrEmails.length > 0) {
+        const tpl = ctoRevocationRequestEmail({
+          hrName: "HR Team",
+          employeeName:
+            `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim(),
+          requestedHours: app.requestedHours,
+          reason: safeReason,
+          link: `${process.env.FRONTEND_URL}/dashboard/hr/revocations/${app._id}`,
+        });
+
+        // ✅ PRO-TIP: Send all emails concurrently for a faster API response
+        const emailPromises = hrEmails.map((hrEmail) =>
+          safeSendEmail(hrEmail, tpl.subject, tpl.html),
+        );
+
+        await Promise.all(emailPromises);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to send CTO revocation request email:", err?.message);
+  }
 
   return populateApplicationById(app._id);
 };
@@ -958,8 +993,10 @@ const processRevocationRequestService = async ({
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let application;
+
   try {
-    const application = await CtoApplication.findById(applicationId)
+    application = await CtoApplication.findById(applicationId)
       .populate("employee", "_id firstName lastName email balances")
       .session(session);
 
@@ -1031,27 +1068,75 @@ const processRevocationRequestService = async ({
 
       application.overallStatus = "REVOKED";
       application.revokedBy = adminId;
-      application.revokeReason = safeRemarks;
+      application.revokeReason = safeRemarks; // Note: Updated to match schema revokeReason
       application.revokedAt = new Date();
     } else if (safeAction === "REJECT") {
-      // Revert status to APPROVED. Keep request details for audit, but set HR remarks.
+      // ✅ ADDED: History tracking for rejections so employees can re-apply
+      if (!application.revocationHistory) {
+        application.revocationHistory = [];
+      }
+
+      application.revocationHistory.push({
+        reason: application.revocationRequest.reason,
+        attachment: application.revocationRequest.attachment,
+        requestedAt: application.revocationRequest.requestedAt,
+        status: "REJECTED",
+        processedBy: adminId,
+        remarks: safeRemarks,
+        processedAt: new Date(),
+      });
+
+      // Revert status to APPROVED and clear active request so they can request again
       application.overallStatus = "APPROVED";
-      application.revokedBy = adminId;
-      application.revokeReason = safeRemarks;
-      application.revokedAt = new Date();
+      application.revocationRequest = undefined;
+      application.revokedBy = undefined;
+      application.revokeReason = undefined;
+      application.revokedAt = undefined;
     }
 
     await application.save({ session });
 
     await session.commitTransaction();
     session.endSession();
-
-    return application;
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
     throw err;
   }
+
+  // ✅ Send Email Notifications to Employee
+  try {
+    const emp = application.employee;
+    if (emp && emp.email) {
+      const empName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
+      const requestedHours = strictNumber(application.requestedHours);
+
+      if (safeAction === "APPROVE") {
+        const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_APPROVED);
+        if (emailEnabled) {
+          const tpl = ctoRevocationApprovedEmail({
+            employeeName: empName,
+            restoredHours: requestedHours,
+            remarks: safeRemarks,
+          });
+          await safeSendEmail(emp.email, tpl.subject, tpl.html);
+        }
+      } else if (safeAction === "REJECT") {
+        const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REJECTED);
+        if (emailEnabled) {
+          const tpl = ctoRevocationRejectedEmail({
+            employeeName: empName,
+            remarks: safeRemarks,
+          });
+          await safeSendEmail(emp.email, tpl.subject, tpl.html);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to send CTO revocation process email:", err?.message);
+  }
+
+  return application;
 };
 
 // ✅ NEW: SEPARATE API FOR REVOCATION DASHBOARD

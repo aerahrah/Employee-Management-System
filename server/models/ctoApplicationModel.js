@@ -157,13 +157,12 @@ const CtoApplicationSchema = new mongoose.Schema(
     },
 
     // =========================================
-    // 2-STEP REVOCATION WORKFLOW
+    // 2-STEP REVOCATION WORKFLOW & HISTORY
     // =========================================
-    // 1. Employee Request Details
+
+    // 1. Current / Active Employee Request Details
     revocationRequest: {
       reason: { type: String, trim: true, maxlength: 1000 },
-
-      // ✅ UPDATED: Robust attachment object for the revocation request
       attachment: {
         fileName: { type: String, trim: true, maxlength: 255 },
         fileUrl: { type: String, trim: true, maxlength: 500 },
@@ -174,17 +173,41 @@ const CtoApplicationSchema = new mongoose.Schema(
         },
         uploadedAt: { type: Date },
       },
-
       requestedAt: { type: Date },
     },
 
-    // 2. HR Action Details
+    // 2. Current / Active HR Action Details
     revokedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
     },
-    revokeRemarks: { type: String, trim: true }, // HR's reasoning for approval/rejection
+    revokeReason: { type: String, trim: true }, // Renamed from revokeRemarks to match your service layer
     revokedAt: { type: Date },
+
+    // 3. 🆕 History of past (rejected) revocation attempts
+    revocationHistory: [
+      {
+        // Employee's Request
+        reason: { type: String, trim: true, maxlength: 1000 },
+        attachment: {
+          fileName: { type: String, trim: true, maxlength: 255 },
+          fileUrl: { type: String, trim: true, maxlength: 500 },
+          fileType: { type: String, trim: true },
+          uploadedAt: { type: Date },
+        },
+        requestedAt: { type: Date },
+
+        // HR's Response
+        status: {
+          type: String,
+          enum: ["APPROVED", "REJECTED"],
+          required: true,
+        },
+        processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
+        remarks: { type: String, trim: true },
+        processedAt: { type: Date },
+      },
+    ],
   },
   {
     timestamps: true,

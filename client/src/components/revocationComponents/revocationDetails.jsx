@@ -23,6 +23,7 @@ import {
   Paperclip,
   ShieldX,
   ShieldAlert,
+  Download,
 } from "lucide-react";
 import { StatusIcon, StatusBadge } from "../statusUtils";
 import { useAuth } from "../../store/authStore";
@@ -666,6 +667,25 @@ const RevocationDetails = () => {
       !!currentUserId && !!id && canManageApplication && isRevocationEnabled,
   });
 
+  // ✅ Set Up Revocation Tracking Variables
+  const status = String(application?.overallStatus || "").toUpperCase();
+  const isFullyApproved =
+    status === "APPROVED" ||
+    status === "REVOCATION_REQUESTED" ||
+    status === "REVOKED";
+  const isRevoked = status === "REVOKED";
+
+  const revocationReq = application?.revocationRequest || {};
+  const hasActiveRevocationReq =
+    !!revocationReq.requestedAt ||
+    status === "REVOCATION_REQUESTED" ||
+    isRevoked;
+
+  const revocationHistory = Array.isArray(application?.revocationHistory)
+    ? application.revocationHistory
+    : [];
+  const hasRevocationHistory = revocationHistory.length > 0;
+
   const isOrganicApp =
     application?.employeeType === "Organic" ||
     application?.category === "Organic" ||
@@ -1165,14 +1185,12 @@ const RevocationDetails = () => {
           {/* MAIN */}
           <div className="lg:col-span-2 space-y-4 min-w-0">
             {/* ✅ REVOCATION REASON SECTION (Highly Prominent) */}
-            {(application.overallStatus === "REVOCATION_REQUESTED" ||
-              application.overallStatus === "REVOKED" ||
-              application.revocationRequest?.reason) && (
+            {hasActiveRevocationReq && (
               <section
                 className="border rounded-xl p-3 shadow-sm min-w-0"
                 style={{
-                  backgroundColor: "rgba(168,85,247,0.03)", // Subtle purple tint
-                  borderColor: "rgba(168,85,247,0.3)", // Purple border
+                  backgroundColor: "rgba(168,85,247,0.03)",
+                  borderColor: "rgba(168,85,247,0.3)",
                 }}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -1181,7 +1199,7 @@ const RevocationDetails = () => {
                       className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
                       style={{
                         backgroundColor: "rgba(168,85,247,0.16)",
-                        color: "#9333ea", // Purple text
+                        color: "#9333ea",
                         borderColor: "rgba(168,85,247,0.26)",
                       }}
                     >
@@ -1194,15 +1212,13 @@ const RevocationDetails = () => {
                       Employee Revocation Request
                     </h3>
                   </div>
-                  {application.revocationRequest?.requestedAt && (
+                  {revocationReq.requestedAt && (
                     <span
                       className="text-[11px] font-medium"
                       style={{ color: "var(--app-muted)" }}
                     >
                       Requested on{" "}
-                      {new Date(
-                        application.revocationRequest.requestedAt,
-                      ).toLocaleDateString()}
+                      {new Date(revocationReq.requestedAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
@@ -1215,16 +1231,13 @@ const RevocationDetails = () => {
                     borderColor: borderColor,
                   }}
                 >
-                  {application.revocationRequest?.reason ||
-                    "No reason provided."}
+                  {revocationReq.reason || "No reason provided."}
                 </p>
 
-                {application.revocationRequest?.attachmentUrl && (
+                {revocationReq.attachment?.fileUrl && (
                   <div className="mt-4">
                     <a
-                      href={buildApiUrl(
-                        application.revocationRequest.attachmentUrl,
-                      )}
+                      href={buildApiUrl(revocationReq.attachment.fileUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg border transition-colors hover:bg-slate-50"
@@ -1275,14 +1288,16 @@ const RevocationDetails = () => {
                   className="text-[11px] font-bold uppercase tracking-widest"
                   style={{ color: "var(--app-muted)" }}
                 >
-                  Original Purpose of Leave
+                  {hasActiveRevocationReq || hasRevocationHistory
+                    ? "Original Purpose of Leave"
+                    : "Purpose of Leave"}
                 </h3>
               </div>
 
               <p
                 className="leading-relaxed italic p-3 rounded-xl border break-words text-sm"
                 style={{
-                  color: "var(--app-muted)", // Dimmed color for original reason
+                  color: "var(--app-muted)",
                   backgroundColor: "var(--app-surface-2)",
                   borderColor: borderColor,
                 }}
@@ -1300,21 +1315,25 @@ const RevocationDetails = () => {
               }}
             >
               <div className="flex items-center gap-3 mb-6">
-                {(() => {
-                  const chip = getIconChipStyle("green", borderColor);
-                  return (
-                    <span
-                      className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
-                      style={{
-                        backgroundColor: chip.bg,
-                        color: chip.fg,
-                        borderColor: chip.br,
-                      }}
-                    >
-                      <History size={18} />
-                    </span>
-                  );
-                })()}
+                <span
+                  className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
+                  style={{
+                    backgroundColor:
+                      hasActiveRevocationReq || hasRevocationHistory
+                        ? "var(--app-surface-2)"
+                        : "rgba(34,197,94,0.14)",
+                    borderColor:
+                      hasActiveRevocationReq || hasRevocationHistory
+                        ? borderColor
+                        : "rgba(34,197,94,0.22)",
+                    color:
+                      hasActiveRevocationReq || hasRevocationHistory
+                        ? "var(--app-muted)"
+                        : "#16a34a",
+                  }}
+                >
+                  <History size={18} />
+                </span>
 
                 <div className="min-w-0">
                   <h3
@@ -1327,60 +1346,391 @@ const RevocationDetails = () => {
                     className="text-xs font-medium"
                     style={{ color: "var(--app-muted)" }}
                   >
-                    Initial approval flow
+                    {hasActiveRevocationReq || hasRevocationHistory
+                      ? "Original workflow & revocation history"
+                      : "Step-by-step approval progress"}
                   </p>
                 </div>
               </div>
 
-              <div className="relative space-y-6 sm:space-y-8 t-1 min-w-0 opacity-80">
+              <div className="relative space-y-6 sm:space-y-8 t-1 min-w-0 opacity-90">
                 <div
                   className="absolute left-5 top-2 bottom-2 w-0.5"
                   style={{ backgroundColor: "var(--app-border)" }}
                 />
 
+                {/* 1. ORIGINAL APPROVALS */}
                 {sortedApprovals.map((approval, idx) => (
                   <TimelineCard
                     key={approval?._id || idx}
                     approval={approval}
                     index={idx}
                     isLast={
+                      !hasActiveRevocationReq &&
+                      !hasRevocationHistory &&
                       idx === sortedApprovals.length - 1 &&
-                      application.overallStatus !== "REVOKED"
+                      !isFullyApproved
                     }
                   />
                 ))}
 
-                {application.overallStatus === "REVOKED" && (
-                  <div className="relative flex gap-2 sm:gap-4 items-start mt-8">
-                    <div className="relative z-10 h-10 w-10 rounded-full bg-slate-500 flex items-center justify-center border-4 border-white shadow-md flex-none">
-                      <Undo size={18} className="text-white" />
+                {/* 2. REGULAR SUCCESS STATE */}
+                {isFullyApproved && (
+                  <div className="relative flex gap-2 sm:gap-4 items-start">
+                    {!hasActiveRevocationReq && !hasRevocationHistory ? null : (
+                      <div
+                        className="absolute left-5 top-10 bottom-0 w-0.5"
+                        style={{ backgroundColor: "var(--app-border)" }}
+                      />
+                    )}
+                    <div
+                      className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none"
+                      style={{
+                        backgroundColor: "#10b981",
+                        borderColor: "var(--app-surface)",
+                      }}
+                    >
+                      <CheckCircle2 size={18} className="text-white" />
                     </div>
+
                     <div
                       className="flex-1 rounded-2xl p-4 shadow-sm border"
                       style={{
-                        backgroundColor: "rgba(148,163,184,0.14)",
-                        borderColor: "rgba(148,163,184,0.22)",
+                        backgroundColor: "rgba(34,197,94,0.12)",
+                        borderColor: "rgba(34,197,94,0.20)",
                       }}
                     >
                       <p
                         className="font-bold text-sm"
                         style={{ color: "var(--app-text)" }}
                       >
-                        Application Revoked
+                        Application Fully Approved
                       </p>
                       <p
                         className="text-xs mt-0.5"
                         style={{ color: "var(--app-muted)" }}
                       >
-                        Credits have been restored to the employee's ledger.
+                        The original request was finalized.
                       </p>
-                      {application.revokeReason && (
-                        <p
-                          className="mt-2 text-xs italic"
-                          style={{ color: "var(--app-muted)" }}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. HISTORY OF REJECTED REVOCATIONS */}
+                {hasRevocationHistory &&
+                  revocationHistory.map((hist, hIdx) => (
+                    <React.Fragment key={`hist-${hIdx}`}>
+                      {/* Node A: Past Request */}
+                      <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
+                        <div
+                          className="absolute left-5 top-10 bottom-0 w-0.5"
+                          style={{ backgroundColor: "var(--app-border)" }}
+                        />
+                        <div
+                          className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none"
+                          style={{
+                            backgroundColor: "#94a3b8",
+                            borderColor: "var(--app-surface)",
+                          }}
                         >
-                          HR Note: {application.revokeReason}
-                        </p>
+                          <Undo size={16} className="text-white" />
+                        </div>
+                        <div
+                          className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all opacity-80"
+                          style={{
+                            backgroundColor: "var(--app-surface-2)",
+                            borderColor: "var(--app-border)",
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3 min-w-0">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Past Attempt #{hIdx + 1}
+                              </span>
+                              <p
+                                className="text-sm font-semibold break-words mt-1"
+                                style={{ color: "var(--app-text)" }}
+                              >
+                                Revocation Requested
+                              </p>
+                              <p
+                                className="text-xs mt-0.5 break-words"
+                                style={{ color: "var(--app-muted)" }}
+                              >
+                                Reason: {hist.reason || "None provided."}
+                              </p>
+                            </div>
+                          </div>
+
+                          {hist.attachment?.fileUrl && (
+                            <a
+                              href={buildApiUrl(hist.attachment.fileUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 inline-flex items-center gap-1 text-xs font-medium transition-colors hover:underline"
+                              style={{ color: "var(--accent)" }}
+                            >
+                              <Download size={12} /> View Attachment
+                            </a>
+                          )}
+
+                          {hist.requestedAt && (
+                            <div
+                              className="mt-4 pt-3 border-t border-dashed"
+                              style={{ borderColor: "var(--app-border)" }}
+                            >
+                              <p
+                                className="text-[10px] font-mono"
+                                style={{ color: "var(--app-muted)" }}
+                              >
+                                Requested on:{" "}
+                                {new Date(hist.requestedAt).toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Node B: Past Rejection */}
+                      <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
+                        {/* Only draw connector if there is more history or an active revocation request following this */}
+                        {(hIdx < revocationHistory.length - 1 ||
+                          hasActiveRevocationReq) && (
+                          <div
+                            className="absolute left-5 top-10 bottom-0 w-0.5"
+                            style={{ backgroundColor: "var(--app-border)" }}
+                          />
+                        )}
+                        <div
+                          className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none bg-red-500"
+                          style={{ borderColor: "var(--app-surface)" }}
+                        >
+                          <XCircle size={16} className="text-white" />
+                        </div>
+                        <div
+                          className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all"
+                          style={{
+                            backgroundColor: "rgba(239, 68, 68, 0.05)",
+                            borderColor: "rgba(239, 68, 68, 0.2)",
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3 min-w-0">
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold uppercase tracking-wider text-red-500">
+                                HR Final Step
+                              </span>
+                              <p
+                                className="text-sm font-semibold break-words mt-1"
+                                style={{ color: "var(--app-text)" }}
+                              >
+                                Rejected by HR
+                              </p>
+                            </div>
+                            <div className="flex-none">
+                              <StatusBadge status="REJECTED" size="sm" />
+                            </div>
+                          </div>
+
+                          {hist.remarks && (
+                            <div
+                              className="mt-4 rounded-xl p-3 text-xs leading-relaxed border flex items-start gap-2 min-w-0"
+                              style={{
+                                backgroundColor: "var(--app-surface-2)",
+                                borderColor: borderColor,
+                                color: "var(--app-text)",
+                              }}
+                            >
+                              <AlertCircle
+                                size={14}
+                                className="shrink-0 mt-0.5"
+                                style={{ color: "var(--app-muted)" }}
+                              />
+                              <p className="break-words">
+                                <strong>HR Note:</strong> {hist.remarks}
+                              </p>
+                            </div>
+                          )}
+
+                          {hist.processedAt && (
+                            <div
+                              className="mt-4 pt-3 border-t border-dashed"
+                              style={{ borderColor: "rgba(239, 68, 68, 0.2)" }}
+                            >
+                              <p className="text-[10px] font-mono text-red-400">
+                                Processed on:{" "}
+                                {new Date(hist.processedAt).toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  ))}
+
+                {/* 4. ACTIVE REVOCATION REQUESTED STEP */}
+                {hasActiveRevocationReq && (
+                  <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
+                    <div
+                      className="absolute left-5 top-10 bottom-0 w-0.5"
+                      style={{ backgroundColor: "var(--app-border)" }}
+                    />
+                    <div
+                      className="relative z-10 h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center border-4 shadow-md flex-none"
+                      style={{ borderColor: "var(--app-surface)" }}
+                    >
+                      <Undo size={16} className="text-white" />
+                    </div>
+                    <div
+                      className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all"
+                      style={{
+                        backgroundColor: "rgba(147, 51, 234, 0.04)",
+                        borderColor: "rgba(147, 51, 234, 0.2)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <span
+                            className="text-xs font-bold uppercase tracking-wider"
+                            style={{ color: "#9333ea" }}
+                          >
+                            Active Revocation Stage
+                          </span>
+                          <p
+                            className="text-sm font-semibold break-words mt-1"
+                            style={{ color: "var(--app-text)" }}
+                          >
+                            Revocation Requested
+                          </p>
+                          <p
+                            className="text-xs mt-0.5"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            Employee submitted a request to cancel this approved
+                            leave.
+                          </p>
+                        </div>
+                        <div className="flex-none">
+                          <StatusBadge
+                            status="REVOCATION_REQUESTED"
+                            size="sm"
+                          />
+                        </div>
+                      </div>
+                      {revocationReq.requestedAt && (
+                        <div
+                          className="mt-4 pt-3 border-t border-dashed"
+                          style={{ borderColor: "var(--app-border)" }}
+                        >
+                          <p
+                            className="text-[10px] font-mono"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            Requested on:{" "}
+                            {new Date(
+                              revocationReq.requestedAt,
+                            ).toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. HR PROCESSING STATUS */}
+                {hasActiveRevocationReq && (
+                  <div className="relative flex gap-2 sm:gap-4 items-start min-w-0">
+                    <div
+                      className="relative z-10 h-10 w-10 rounded-full flex items-center justify-center border-4 shadow-md flex-none"
+                      style={{
+                        backgroundColor: isRevoked
+                          ? "#64748b"
+                          : "var(--app-muted)",
+                        borderColor: "var(--app-surface)",
+                      }}
+                    >
+                      {isRevoked ? (
+                        <RotateCcw size={16} className="text-white" />
+                      ) : (
+                        <Clock size={16} className="text-white" />
+                      )}
+                    </div>
+                    <div
+                      className="flex-1 border rounded-2xl p-4 sm:p-5 shadow-xs min-w-0 transition-all"
+                      style={{
+                        backgroundColor: isRevoked
+                          ? "rgba(100, 116, 139, 0.08)"
+                          : "var(--app-surface)",
+                        borderColor: isRevoked
+                          ? "rgba(100, 116, 139, 0.2)"
+                          : "var(--app-border)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <span
+                            className="text-xs font-bold uppercase tracking-wider"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            HR Final Step
+                          </span>
+                          <p
+                            className="text-sm font-semibold break-words mt-1"
+                            style={{ color: "var(--app-text)" }}
+                          >
+                            {isRevoked
+                              ? "Revoked by HR"
+                              : "Pending HR Approval"}
+                          </p>
+                          <p
+                            className="text-xs mt-0.5"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            {isRevoked
+                              ? "HR has processed this request and restored the balances."
+                              : "Awaiting Human Resources to review and restore the balances."}
+                          </p>
+                        </div>
+                        <div className="flex-none">
+                          <StatusBadge
+                            status={isRevoked ? "REVOKED" : "PENDING"}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
+
+                      {isRevoked && application?.revokeReason && (
+                        <div
+                          className="mt-4 rounded-xl p-3 text-xs leading-relaxed border flex items-start gap-2 min-w-0"
+                          style={{
+                            backgroundColor: "var(--app-surface-2)",
+                            borderColor: borderColor,
+                            color: "var(--app-text)",
+                          }}
+                        >
+                          <AlertCircle
+                            size={14}
+                            className="shrink-0 mt-0.5"
+                            style={{ color: "var(--app-muted)" }}
+                          />
+                          <p className="break-words">
+                            <strong>HR Note:</strong> {application.revokeReason}
+                          </p>
+                        </div>
+                      )}
+
+                      {application?.revokedAt && (
+                        <div
+                          className="mt-4 pt-3 border-t border-dashed"
+                          style={{ borderColor: "var(--app-border)" }}
+                        >
+                          <p
+                            className="text-[10px] font-mono"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            Processed on:{" "}
+                            {new Date(application.revokedAt).toLocaleString()}
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>

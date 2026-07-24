@@ -110,7 +110,7 @@ export const addApplicationRequest = async (payload) => {
 export const fetchMyCtoApplications = async (params = {}) => {
   try {
     const res = await API.get(
-      "cto/applications/my-application",
+      "/cto/applications/my-application",
       withCreds(params),
     );
     return unwrap(res);
@@ -121,7 +121,7 @@ export const fetchMyCtoApplications = async (params = {}) => {
 
 export const fetchAllCtoApplications = async (params = {}) => {
   try {
-    const res = await API.get("cto/applications/all", withCreds(params));
+    const res = await API.get("/cto/applications/all", withCreds(params));
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch all CTO applications");
@@ -137,19 +137,6 @@ export const fetchEmployeeApplications = async (employeeId, params = {}) => {
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch employee applications");
-  }
-};
-
-// ✅ NEW: Fetch a specific CTO application by ID (Admin/HR View)
-export const fetchCtoApplicationById = async (applicationId) => {
-  try {
-    const res = await API.get(
-      `/cto/applications/${applicationId}`,
-      withCreds(),
-    );
-    return unwrap(res)?.application ?? unwrap(res);
-  } catch (err) {
-    safeError(err, "Failed to fetch CTO application details");
   }
 };
 
@@ -179,7 +166,11 @@ export const followUpCtoApplicationRequest = async (applicationId) => {
   }
 };
 
-// ✅ NEW: Fetch Revocation Requests for HR Dashboard
+/* =========================
+   REVOCATIONS
+========================= */
+
+// ✅ Fetch Revocation Requests for HR Dashboard
 export const fetchRevocationRequests = async (params = {}) => {
   try {
     const res = await API.get(
@@ -192,13 +183,29 @@ export const fetchRevocationRequests = async (params = {}) => {
   }
 };
 
+// ✅ Fetch a specific CTO Revocation application by ID (Admin/HR View)
+export const fetchCtoApplicationById = async (applicationId) => {
+  try {
+    const res = await API.get(
+      `/cto/revocation/applications/${applicationId}`,
+      withCreds(),
+    );
+    return unwrap(res)?.application ?? unwrap(res);
+  } catch (err) {
+    safeError(err, "Failed to fetch CTO application details");
+  }
+};
+
 // ✅ Step 1 - Employee requests revocation
-export const requestRevocation = async (applicationId, payload) => {
+export const requestRevocation = async (applicationId, formData) => {
   try {
     const res = await API.post(
-      `/cto/applications/${applicationId}/revoke-request`,
-      payload, // expects { reason, attachmentUrl }
-      { withCredentials: true },
+      `/cto/revocation/applications/${applicationId}/revoke-request`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" }, // Required for multer
+        withCredentials: true,
+      },
     );
     return unwrap(res);
   } catch (err) {
@@ -210,7 +217,7 @@ export const requestRevocation = async (applicationId, payload) => {
 export const processRevocationRequest = async (applicationId, payload) => {
   try {
     const res = await API.patch(
-      `/cto/applications/${applicationId}/revoke-process`,
+      `/cto/revocation/applications/${applicationId}/revoke-process`,
       payload, // expects { action: "APPROVE" | "REJECT", remarks }
       { withCredentials: true },
     );
@@ -291,10 +298,11 @@ export const cancelOrganicApplicationRequest = async (applicationId) => {
    APPROVALS (CTO)
 ========================= */
 
+// ✅ Updated to align with approvers/my-approvals flow
 export const approveApplicationRequest = async (applicationId) => {
   try {
     const res = await API.post(
-      `/cto/applications/approver/${applicationId}/approve`,
+      `/cto/applications/approvers/my-approvals/${applicationId}/approve`,
       {},
       { withCredentials: true },
     );
@@ -304,10 +312,11 @@ export const approveApplicationRequest = async (applicationId) => {
   }
 };
 
+// ✅ Updated to align with approvers/my-approvals flow
 export const rejectApplicationRequest = async (applicationId, remarks) => {
   try {
     const res = await API.put(
-      `/cto/applications/approver/${applicationId}/reject`,
+      `/cto/applications/approvers/my-approvals/${applicationId}/reject`,
       { remarks },
       { withCredentials: true },
     );
@@ -320,7 +329,7 @@ export const rejectApplicationRequest = async (applicationId, remarks) => {
 export const fetchMyCtoApplicationsApprovals = async (params = {}) => {
   try {
     const res = await API.get(
-      "cto/applications/approvers/my-approvals",
+      "/cto/applications/approvers/my-approvals",
       withCreds(params),
     );
     return unwrap(res);
@@ -329,11 +338,13 @@ export const fetchMyCtoApplicationsApprovals = async (params = {}) => {
   }
 };
 
-export const getCtoApplicationById = async (id) => {
+// ✅ Fetch specific application for approver view
+export const getCtoApplicationById = async (applicationId) => {
   try {
-    const res = await API.get(`cto/applications/${id}`, {
-      withCredentials: true,
-    });
+    const res = await API.get(
+      `/cto/applications/approvers/my-approvals/${applicationId}`,
+      { withCredentials: true },
+    );
     return unwrap(res)?.data ?? unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch application details");
@@ -405,7 +416,7 @@ export const fetchEmployeeDetails = async (employeeId) => {
 
 export const fetchMyCtoMemos = async () => {
   try {
-    const res = await API.get("employee/memos/me", { withCredentials: true });
+    const res = await API.get("/employee/memos/me", { withCredentials: true });
     return unwrap(res);
   } catch (err) {
     safeError(err, "Failed to fetch my CTO memos");
