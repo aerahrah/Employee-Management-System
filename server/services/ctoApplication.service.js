@@ -16,6 +16,7 @@ const {
   ctoApprovalEmail,
   ctoFollowUpEmail,
   ctoRevocationRequestEmail,
+  ctoRevocationCancelledEmail, // Make sure to import this if used
   ctoRevocationApprovedEmail,
   ctoRevocationRejectedEmail,
 } = require("../utils/emailTemplates");
@@ -925,15 +926,29 @@ const requestRevocationCtoApplicationService = async ({
 
   await app.save();
 
-  // ✅ Send Email Notifications to HR
+  // ✅ Send Notifications to HR
   try {
-    const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REQUEST);
-    if (emailEnabled) {
-      const employee =
-        await Employee.findById(userId).select("firstName lastName");
-      const hrEmails = await getRevocationApproverEmails();
+    const employee =
+      await Employee.findById(userId).select("firstName lastName");
+    const hrEmails = await getRevocationApproverEmails();
+    let hrIds = [];
 
-      if (hrEmails && hrEmails.length > 0) {
+    if (hrEmails && hrEmails.length > 0) {
+      // 1. Send in-app notifications
+      const hrEmployees = await Employee.find({
+        email: { $in: hrEmails },
+      }).select("_id");
+      hrIds = hrEmployees.map((emp) => emp._id);
+
+      await NotificationService.notifyHrOnCtoRevocationRequest({
+        hrIds,
+        employee,
+        ctoApplication: app,
+      });
+
+      // 2. Send emails
+      const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REQUEST);
+      if (emailEnabled) {
         const tpl = ctoRevocationRequestEmail({
           hrName: "HR Team",
           employeeName:
@@ -943,16 +958,17 @@ const requestRevocationCtoApplicationService = async ({
           link: `${process.env.FRONTEND_URL}/dashboard/hr/revocations/${app._id}`,
         });
 
-        // ✅ PRO-TIP: Send all emails concurrently for a faster API response
         const emailPromises = hrEmails.map((hrEmail) =>
           safeSendEmail(hrEmail, tpl.subject, tpl.html),
         );
-
         await Promise.all(emailPromises);
       }
     }
   } catch (err) {
-    console.error("Failed to send CTO revocation request email:", err?.message);
+    console.error(
+      "Failed to send CTO revocation request notifications:",
+      err?.message,
+    );
   }
 
   return populateApplicationById(app._id);
@@ -966,9 +982,10 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let application;
+
   try {
-    const application =
-      await CtoApplication.findById(applicationId).session(session);
+    application = await CtoApplication.findById(applicationId).session(session);
 
     if (!application) {
       throw createServiceError("Application not found.", 404);
@@ -1015,13 +1032,56 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
 
     await session.commitTransaction();
     session.endSession();
-
-    return populateApplicationById(application._id);
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
     throw err;
   }
+
+  // ✅ Send Notifications to HR indicating the employee withdrew the request
+  try {
+    const employee =
+      await Employee.findById(userId).select("firstName lastName");
+    const hrEmails = await getRevocationApproverEmails();
+    let hrIds = [];
+
+    if (hrEmails && hrEmails.length > 0) {
+      // 1. Send in-app notifications
+      const hrEmployees = await Employee.find({
+        email: { $in: hrEmails },
+      }).select("_id");
+      hrIds = hrEmployees.map((emp) => emp._id);
+
+      await NotificationService.notifyHrOnCtoRevocationCancelled({
+        hrIds,
+        employee,
+        ctoApplication: application,
+      });
+
+      // 2. Send Emails
+      const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_CANCELLED);
+      if (emailEnabled) {
+        const tpl = ctoRevocationCancelledEmail({
+          hrName: "HR Team",
+          employeeName:
+            `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim(),
+          requestedHours: application.requestedHours,
+        });
+
+        const emailPromises = hrEmails.map((hrEmail) =>
+          safeSendEmail(hrEmail, tpl.subject, tpl.html),
+        );
+        await Promise.all(emailPromises);
+      }
+    }
+  } catch (err) {
+    console.error(
+      "Failed to send CTO revocation cancellation notifications:",
+      err?.message,
+    );
+  }
+
+  return populateApplicationById(application._id);
 };
 
 // ✅ STEP 2: HR APPROVES OR REJECTS THE REVOCATION REQUEST
@@ -1055,6 +1115,8 @@ const processRevocationRequestService = async ({
   if (!["APPROVE", "REJECT"].includes(safeAction)) {
     throw createServiceError("Action must be either APPROVE or REJECT.", 400);
   }
+
+  const hrAdmin = await Employee.findById(adminId).select("firstName lastName");
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1170,7 +1232,7 @@ const processRevocationRequestService = async ({
     throw err;
   }
 
-  // ✅ Send Email Notifications to Employee
+  // ✅ Send Notifications to Employee
   try {
     const emp = application.employee;
     if (emp && emp.email) {
@@ -1178,6 +1240,15 @@ const processRevocationRequestService = async ({
       const requestedHours = strictNumber(application.requestedHours);
 
       if (safeAction === "APPROVE") {
+        // 1. Send in-app notification
+        await NotificationService.notifyEmployeeOnCtoRevocationApproved({
+          employeeId: emp._id,
+          hrEmployee: hrAdmin,
+          ctoApplication: application,
+          restoredHours: requestedHours,
+        });
+
+        // 2. Send email
         const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_APPROVED);
         if (emailEnabled) {
           const tpl = ctoRevocationApprovedEmail({
@@ -1188,6 +1259,15 @@ const processRevocationRequestService = async ({
           await safeSendEmail(emp.email, tpl.subject, tpl.html);
         }
       } else if (safeAction === "REJECT") {
+        // 1. Send in-app notification
+        await NotificationService.notifyEmployeeOnCtoRevocationRejected({
+          employeeId: emp._id,
+          hrEmployee: hrAdmin,
+          ctoApplication: application,
+          remarks: safeRemarks,
+        });
+
+        // 2. Send email
         const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REJECTED);
         if (emailEnabled) {
           const tpl = ctoRevocationRejectedEmail({
@@ -1199,7 +1279,10 @@ const processRevocationRequestService = async ({
       }
     }
   } catch (err) {
-    console.error("Failed to send CTO revocation process email:", err?.message);
+    console.error(
+      "Failed to send CTO revocation process notifications:",
+      err?.message,
+    );
   }
 
   return application;

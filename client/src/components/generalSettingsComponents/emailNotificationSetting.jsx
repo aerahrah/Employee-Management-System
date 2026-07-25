@@ -15,7 +15,7 @@ import {
   ShieldAlert,
   Info,
   Sparkles,
-  HeartPulse, // ✅ Added for Wellness icon
+  HeartPulse,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -358,7 +358,8 @@ const GROUPS = [
   {
     title: "CTO Applications",
     icon: Bell,
-    description: "Notifications for CTO request approvals and outcomes.",
+    description:
+      "Notifications for CTO request approvals, revocations, and outcomes.",
     items: [
       {
         key: "cto_approval",
@@ -380,6 +381,26 @@ const GROUPS = [
         label: "Rejection",
         hint: "Sent to the employee when an approver rejects the request.",
       },
+      {
+        key: "cto_revocation_request",
+        label: "Revocation request",
+        hint: "Sent to HR when an employee requests to revoke an approved CTO.",
+      },
+      {
+        key: "cto_revocation_cancelled",
+        label: "Revocation withdrawn",
+        hint: "Sent to HR when an employee withdraws their pending CTO revocation.",
+      },
+      {
+        key: "cto_revocation_approved",
+        label: "Revocation approved",
+        hint: "Sent to the employee when HR approves a CTO revocation request.",
+      },
+      {
+        key: "cto_revocation_rejected",
+        label: "Revocation rejected",
+        hint: "Sent to the employee when HR rejects a CTO revocation request.",
+      },
     ],
   },
   {
@@ -399,12 +420,11 @@ const GROUPS = [
       },
     ],
   },
-  // ✅ Added Wellness Leave Approvals
   {
     title: "Wellness Leaves",
     icon: HeartPulse,
     description:
-      "Notifications for Wellness leave request approvals and outcomes.",
+      "Notifications for Wellness leave request approvals, revocations, and outcomes.",
     items: [
       {
         key: "wellness_approval",
@@ -426,9 +446,28 @@ const GROUPS = [
         label: "Rejection",
         hint: "Sent to the employee when an approver rejects the wellness leave.",
       },
+      {
+        key: "wellness_revocation_request",
+        label: "Revocation request",
+        hint: "Sent to HR when an employee requests to revoke an approved Wellness Leave.",
+      },
+      {
+        key: "wellness_revocation_cancelled",
+        label: "Revocation withdrawn",
+        hint: "Sent to HR when an employee withdraws their Wellness Leave revocation request.",
+      },
+      {
+        key: "wellness_revocation_approved",
+        label: "Revocation approved",
+        hint: "Sent to the employee when HR approves a Wellness Leave revocation.",
+      },
+      {
+        key: "wellness_revocation_rejected",
+        label: "Revocation rejected",
+        hint: "Sent to the employee when HR rejects a Wellness Leave revocation.",
+      },
     ],
   },
-  // ✅ Added Wellness Credits
   {
     title: "Wellness Credits",
     icon: Sparkles,
@@ -444,6 +483,23 @@ const GROUPS = [
         key: "wellness_credit_rolled_back",
         label: "Credit rolled back",
         hint: "Sent when Wellness day changes are reverted/rolled back.",
+      },
+    ],
+  },
+  {
+    title: "Leave Credits (VL/SL)",
+    icon: Sparkles,
+    description: "Notifications for Vacation and Sick Leave credit changes.",
+    items: [
+      {
+        key: "leave_credit_added",
+        label: "Credit added",
+        hint: "Sent when new VL/SL credits are added for an employee.",
+      },
+      {
+        key: "leave_credit_rolled_back",
+        label: "Credit rolled back",
+        hint: "Sent when VL/SL credit changes are reverted/rolled back.",
       },
     ],
   },

@@ -20,12 +20,15 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       enum: [
         // CTO Applications
-        "CTO_APPLICATION_SUBMITTED",
         "CTO_APPROVAL_REQUIRED",
         "CTO_APPLICATION_APPROVED",
         "CTO_APPLICATION_REJECTED",
         "CTO_APPLICATION_CANCELLED",
         "CTO_FOLLOW_UP",
+        "CTO_REVOCATION_REQUESTED", // ✅ Added
+        "CTO_REVOCATION_APPROVED", // ✅ Added
+        "CTO_REVOCATION_REJECTED", // ✅ Added
+        "CTO_REVOCATION_CANCELLED", // ✅ Added
 
         // CTO Credits
         "CTO_CREDITED",
@@ -37,6 +40,10 @@ const notificationSchema = new mongoose.Schema(
         "WELLNESS_APPLICATION_REJECTED",
         "WELLNESS_APPLICATION_CANCELLED",
         "WELLNESS_FOLLOW_UP",
+        "WELLNESS_REVOCATION_REQUESTED", // ✅ Added
+        "WELLNESS_REVOCATION_APPROVED", // ✅ Added
+        "WELLNESS_REVOCATION_REJECTED", // ✅ Added
+        "WELLNESS_REVOCATION_CANCELLED", // ✅ Added
 
         // Wellness Credits
         "WELLNESS_CREDITED",

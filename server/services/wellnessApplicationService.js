@@ -15,9 +15,10 @@ const { isEmailEnabled } = require("../utils/emailNotificationSettings");
 const {
   wellnessApprovalEmail,
   wellnessFollowUpEmail,
-  wellnessRevocationRequestEmail, // ✅ Added for revocation request
-  wellnessRevocationApprovedEmail, // ✅ Added for revocation approval
-  wellnessRevocationRejectedEmail, // ✅ Added for revocation rejection
+  wellnessRevocationRequestEmail,
+  wellnessRevocationApprovedEmail,
+  wellnessRevocationRejectedEmail,
+  wellnessRevocationCancelledEmail, // ✅ Added for revocation cancellation
 } = require("../utils/emailTemplates");
 const { getRevocationApproverEmails } = require("../utils/getHrEmails");
 
@@ -980,15 +981,31 @@ const requestRevocationWellnessApplicationService = async ({
 
   await app.save();
 
-  // ✅ Send Email Notifications to HR
+  // ✅ Send System Notifications & Emails to HR
   try {
-    const emailEnabled = await canSend(EMAIL_KEYS.WELLNESS_REVOCATION_REQUEST);
-    if (emailEnabled) {
-      const employee =
-        await Employee.findById(userId).select("firstName lastName");
-      const hrEmails = await getRevocationApproverEmails();
+    const employee =
+      await Employee.findById(userId).select("firstName lastName");
+    const hrEmails = await getRevocationApproverEmails();
+    let hrIds = [];
 
-      if (hrEmails && hrEmails.length > 0) {
+    if (hrEmails && hrEmails.length > 0) {
+      // 1. Send in-app notification
+      const hrEmployees = await Employee.find({
+        email: { $in: hrEmails },
+      }).select("_id");
+      hrIds = hrEmployees.map((emp) => emp._id);
+
+      await NotificationService.notifyHrOnWellnessRevocationRequest({
+        hrIds,
+        employee,
+        wellnessApplication: app,
+      });
+
+      // 2. Send emails
+      const emailEnabled = await canSend(
+        EMAIL_KEYS.WELLNESS_REVOCATION_REQUEST,
+      );
+      if (emailEnabled) {
         const tpl = wellnessRevocationRequestEmail({
           hrName: "HR Team",
           employeeName:
@@ -998,7 +1015,7 @@ const requestRevocationWellnessApplicationService = async ({
             .map((d) => new Date(d).toLocaleDateString())
             .join(", "),
           reason: safeReason,
-          link: `${process.env.FRONTEND_URL}/dashboard/hr/revocations/${app._id}?type=WELLNESS`,
+          link: `${process.env.FRONTEND_URL}/app/leave-revocations/${app._id}?type=WELLNESS`,
         });
 
         // Broadcast to all authorized HRs concurrently
@@ -1010,7 +1027,7 @@ const requestRevocationWellnessApplicationService = async ({
     }
   } catch (err) {
     console.error(
-      "Failed to send Wellness revocation request email:",
+      "Failed to send Wellness revocation request notifications:",
       err?.message,
     );
   }
@@ -1057,6 +1074,8 @@ const processRevocationWellnessRequestService = async ({
       status: 400,
     });
   }
+
+  const hrAdmin = await Employee.findById(adminId).select("firstName lastName");
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1136,13 +1155,22 @@ const processRevocationWellnessRequestService = async ({
     throw err;
   }
 
-  // ✅ Send Email Notifications to Employee
+  // ✅ Send System Notifications & Emails to Employee
   try {
     const emp = application.employee;
     if (emp && emp.email) {
       const empName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
 
       if (safeAction === "APPROVE") {
+        // 1. Send in-app notification
+        await NotificationService.notifyEmployeeOnWellnessRevocationApproved({
+          employeeId: emp._id,
+          hrEmployee: hrAdmin,
+          wellnessApplication: application,
+          restoredDays: application.totalDays,
+        });
+
+        // 2. Send email
         const emailEnabled = await canSend(
           EMAIL_KEYS.WELLNESS_REVOCATION_APPROVED,
         );
@@ -1158,6 +1186,15 @@ const processRevocationWellnessRequestService = async ({
           await safeSendEmail(emp.email, tpl.subject, tpl.html);
         }
       } else if (safeAction === "REJECT") {
+        // 1. Send in-app notification
+        await NotificationService.notifyEmployeeOnWellnessRevocationRejected({
+          employeeId: emp._id,
+          hrEmployee: hrAdmin,
+          wellnessApplication: application,
+          remarks: safeRemarks,
+        });
+
+        // 2. Send email
         const emailEnabled = await canSend(
           EMAIL_KEYS.WELLNESS_REVOCATION_REJECTED,
         );
@@ -1172,7 +1209,7 @@ const processRevocationWellnessRequestService = async ({
     }
   } catch (err) {
     console.error(
-      "Failed to send Wellness revocation process email:",
+      "Failed to send Wellness revocation process notifications:",
       err?.message,
     );
   }
@@ -1334,8 +1371,10 @@ const cancelRevocationWellnessRequestService = async ({
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let application;
+
   try {
-    const application =
+    application =
       await WellnessApplication.findById(applicationId).session(session);
 
     if (!application) {
@@ -1385,13 +1424,63 @@ const cancelRevocationWellnessRequestService = async ({
 
     await session.commitTransaction();
     session.endSession();
-
-    return populateApplicationById(application._id);
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
     throw err;
   }
+
+  // ✅ Send System Notifications & Emails to HR indicating the employee withdrew the request
+  try {
+    const employee =
+      await Employee.findById(userId).select("firstName lastName");
+    const hrEmails = await getRevocationApproverEmails();
+    let hrIds = [];
+
+    if (hrEmails && hrEmails.length > 0) {
+      // 1. Send in-app notification
+      const hrEmployees = await Employee.find({
+        email: { $in: hrEmails },
+      }).select("_id");
+      hrIds = hrEmployees.map((emp) => emp._id);
+
+      await NotificationService.notifyHrOnWellnessRevocationCancelled({
+        hrIds,
+        employee,
+        wellnessApplication: application,
+      });
+
+      // 2. Send Emails
+      const emailEnabled = await canSend(
+        EMAIL_KEYS.WELLNESS_REVOCATION_CANCELLED,
+      );
+      if (emailEnabled) {
+        const tpl = wellnessRevocationCancelledEmail({
+          hrName: "HR Team",
+          employeeName:
+            `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim(),
+          requestedDays: application.totalDays,
+          inclusiveDates: application.inclusiveDates
+            .map((d) => new Date(d).toLocaleDateString())
+            .join(", "),
+        });
+
+        // Send all emails concurrently
+        const emailPromises = hrEmails.map((hrEmail) =>
+          safeSendEmail(hrEmail, tpl.subject, tpl.html),
+        );
+
+        await Promise.all(emailPromises);
+      }
+    }
+  } catch (err) {
+    console.error(
+      "Failed to send Wellness revocation cancellation notifications:",
+      err?.message,
+    );
+  }
+
+  return populateApplicationById(application._id);
 };
 
 module.exports = {

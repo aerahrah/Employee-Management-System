@@ -189,7 +189,7 @@ class NotificationService {
     const notifications = uniqueApproverIds.map((approverId) => ({
       recipient: approverId,
       actor: employee._id,
-      type: "CTO_APPLICATION_REQUIRED",
+      type: "CTO_APPROVAL_REQUIRED", // Fixed to match enum
       title: "New CTO Application",
       message: `${fullName} submitted a CTO application for approval.`,
       link: `/app/cto-approvals/${ctoApplication._id}`,
@@ -219,7 +219,7 @@ class NotificationService {
     return this.createNotification({
       recipient: approverId,
       actor: employee?._id || null,
-      type: "CTO_APPLICATION_REQUIRED",
+      type: "CTO_APPROVAL_REQUIRED", // Fixed to match enum
       title: "CTO Application Needs Approval",
       message: `${fullName} submitted a CTO application that needs your approval.`,
       link: `/app/cto-approvals/${ctoApplication._id}`,
@@ -238,7 +238,7 @@ class NotificationService {
     return this.createNotification({
       recipient: employee._id,
       actor: employee._id,
-      type: "CTO_APPLICATION_REQUIRED",
+      type: "CTO_APPROVAL_REQUIRED", // Fixed to match enum
       title: "CTO Application Submitted",
       message: "Your CTO application was submitted successfully.",
       link: `/app/cto-apply`,
@@ -424,6 +424,114 @@ class NotificationService {
           rolledBackHours,
           memoNo: ctoCredit.memoNo,
         },
+      },
+    });
+  }
+
+  // =========================
+  // CTO Revocations (NEW)
+  // =========================
+
+  static async notifyHrOnCtoRevocationRequest({
+    hrIds = [],
+    employee,
+    ctoApplication,
+  }) {
+    if (!hrIds.length) return [];
+    const fullName = `${employee.firstName} ${employee.lastName}`;
+    const uniqueHrIds = [...new Set(hrIds.map(String))].filter((id) =>
+      mongoose.isValidObjectId(id),
+    );
+
+    const notifications = uniqueHrIds.map((hrId) => ({
+      recipient: hrId,
+      actor: employee._id,
+      type: "CTO_REVOCATION_REQUESTED",
+      title: "CTO Revocation Request",
+      message: `${fullName} requested to revoke an approved CTO application.`,
+      link: `/app/leave-revocations/${ctoApplication._id}`,
+      priority: "HIGH",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId: employee._id,
+      },
+    }));
+    return this.createManyNotifications(notifications);
+  }
+
+  static async notifyHrOnCtoRevocationCancelled({
+    hrIds = [],
+    employee,
+    ctoApplication,
+  }) {
+    if (!hrIds.length) return [];
+    const fullName = `${employee.firstName} ${employee.lastName}`;
+    const uniqueHrIds = [...new Set(hrIds.map(String))].filter((id) =>
+      mongoose.isValidObjectId(id),
+    );
+
+    const notifications = uniqueHrIds.map((hrId) => ({
+      recipient: hrId,
+      actor: employee._id,
+      type: "CTO_REVOCATION_CANCELLED",
+      title: "CTO Revocation Withdrawn",
+      message: `${fullName} withdrew their CTO revocation request.`,
+      link: `/app/leave-revocations`,
+      priority: "MEDIUM",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId: employee._id,
+      },
+    }));
+    return this.createManyNotifications(notifications);
+  }
+
+  static async notifyEmployeeOnCtoRevocationApproved({
+    employeeId,
+    hrEmployee,
+    ctoApplication,
+    restoredHours,
+  }) {
+    const hrName = hrEmployee
+      ? `${hrEmployee.firstName} ${hrEmployee.lastName}`
+      : "HR";
+    return this.createNotification({
+      recipient: employeeId,
+      actor: hrEmployee?._id || null,
+      type: "CTO_REVOCATION_APPROVED",
+      title: "CTO Revocation Approved",
+      message: `${hrName} approved your CTO revocation. ${restoredHours} hour(s) have been restored.`,
+      link: `/app/cto-apply`,
+      priority: "HIGH",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId,
+      },
+    });
+  }
+
+  static async notifyEmployeeOnCtoRevocationRejected({
+    employeeId,
+    hrEmployee,
+    ctoApplication,
+    remarks,
+  }) {
+    const hrName = hrEmployee
+      ? `${hrEmployee.firstName} ${hrEmployee.lastName}`
+      : "HR";
+    return this.createNotification({
+      recipient: employeeId,
+      actor: hrEmployee?._id || null,
+      type: "CTO_REVOCATION_REJECTED",
+      title: "CTO Revocation Rejected",
+      message: remarks
+        ? `${hrName} rejected your CTO revocation request. Reason: ${remarks}`
+        : `${hrName} rejected your CTO revocation request.`,
+      link: `/app/cto-apply`,
+      priority: "HIGH",
+      metadata: {
+        ctoApplicationId: ctoApplication._id,
+        employeeId,
       },
     });
   }
@@ -645,6 +753,114 @@ class NotificationService {
         extra: {
           rolledBackDays,
         },
+      },
+    });
+  }
+
+  // =========================
+  // Wellness Revocations (NEW)
+  // =========================
+
+  static async notifyHrOnWellnessRevocationRequest({
+    hrIds = [],
+    employee,
+    wellnessApplication,
+  }) {
+    if (!hrIds.length) return [];
+    const fullName = `${employee.firstName} ${employee.lastName}`;
+    const uniqueHrIds = [...new Set(hrIds.map(String))].filter((id) =>
+      mongoose.isValidObjectId(id),
+    );
+
+    const notifications = uniqueHrIds.map((hrId) => ({
+      recipient: hrId,
+      actor: employee._id,
+      type: "WELLNESS_REVOCATION_REQUESTED",
+      title: "Wellness Revocation Request",
+      message: `${fullName} requested to revoke an approved Wellness Leave.`,
+      link: `/app/leave-revocations/${wellnessApplication._id}?type=WELLNESS`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId: employee._id,
+      },
+    }));
+    return this.createManyNotifications(notifications);
+  }
+
+  static async notifyHrOnWellnessRevocationCancelled({
+    hrIds = [],
+    employee,
+    wellnessApplication,
+  }) {
+    if (!hrIds.length) return [];
+    const fullName = `${employee.firstName} ${employee.lastName}`;
+    const uniqueHrIds = [...new Set(hrIds.map(String))].filter((id) =>
+      mongoose.isValidObjectId(id),
+    );
+
+    const notifications = uniqueHrIds.map((hrId) => ({
+      recipient: hrId,
+      actor: employee._id,
+      type: "WELLNESS_REVOCATION_CANCELLED",
+      title: "Wellness Revocation Withdrawn",
+      message: `${fullName} withdrew their Wellness Leave revocation request.`,
+      link: `/app/leave-revocations`,
+      priority: "MEDIUM",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId: employee._id,
+      },
+    }));
+    return this.createManyNotifications(notifications);
+  }
+
+  static async notifyEmployeeOnWellnessRevocationApproved({
+    employeeId,
+    hrEmployee,
+    wellnessApplication,
+    restoredDays,
+  }) {
+    const hrName = hrEmployee
+      ? `${hrEmployee.firstName} ${hrEmployee.lastName}`
+      : "HR";
+    return this.createNotification({
+      recipient: employeeId,
+      actor: hrEmployee?._id || null,
+      type: "WELLNESS_REVOCATION_APPROVED",
+      title: "Wellness Revocation Approved",
+      message: `${hrName} approved your Wellness revocation. ${restoredDays} day(s) have been restored.`,
+      link: `/app/wellness-apply`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId,
+      },
+    });
+  }
+
+  static async notifyEmployeeOnWellnessRevocationRejected({
+    employeeId,
+    hrEmployee,
+    wellnessApplication,
+    remarks,
+  }) {
+    const hrName = hrEmployee
+      ? `${hrEmployee.firstName} ${hrEmployee.lastName}`
+      : "HR";
+    return this.createNotification({
+      recipient: employeeId,
+      actor: hrEmployee?._id || null,
+      type: "WELLNESS_REVOCATION_REJECTED",
+      title: "Wellness Revocation Rejected",
+      message: remarks
+        ? `${hrName} rejected your Wellness revocation request. Reason: ${remarks}`
+        : `${hrName} rejected your Wellness revocation request.`,
+      link: `/app/wellness-apply`,
+      priority: "HIGH",
+      metadata: {
+        wellnessApplicationId: wellnessApplication._id,
+        employeeId,
       },
     });
   }
