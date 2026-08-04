@@ -16,7 +16,7 @@ const {
   ctoApprovalEmail,
   ctoFollowUpEmail,
   ctoRevocationRequestEmail,
-  ctoRevocationCancelledEmail, // Make sure to import this if used
+  ctoRevocationCancelledEmail,
   ctoRevocationApprovedEmail,
   ctoRevocationRejectedEmail,
 } = require("../utils/emailTemplates");
@@ -64,6 +64,22 @@ function sanitizeText(str, limit = 1000) {
 function strictNumber(val, fallback = 0) {
   const parsed = Number(val);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+// ✅ NEW HELPER: Extracts the rejection remarks from the ApprovalStep array
+// so the frontend can easily access it via `app.remarks`
+function extractRemarks(app) {
+  if (!app || !Array.isArray(app.approvals)) return app?.revokeReason || "";
+
+  const rejectedStep = app.approvals.find(
+    (step) => step.status === "REJECTED" || step.status === "CANCELLED",
+  );
+
+  if (rejectedStep && rejectedStep.remarks) {
+    return rejectedStep.remarks;
+  }
+
+  return app.revokeReason || "";
 }
 
 async function safeSendEmail(to, subject, html) {
@@ -194,6 +210,104 @@ async function notifyApproversOfCancellation({
       e?.message || e,
     );
   }
+}
+
+/* =========================
+   Ledger Generator 
+========================= */
+// Note: Date filtering provides snapshot logic
+async function generateEmployeeLedger(employeeId, asOfDate = null) {
+  // 1. Fetch Credits (Deposits)
+  const credits = await CtoCredit.find({
+    "employees.employee": employeeId,
+  }).lean();
+
+  // 2. Fetch Applications (Withdrawals/Debits)
+  const applications = await CtoApplication.find({
+    employee: employeeId,
+    overallStatus: { $in: ["APPROVED", "REVOKED"] },
+  }).lean();
+
+  let transactions = [];
+
+  // Add Credits to the timeline
+  credits.forEach((credit) => {
+    const empRec = credit.employees?.find(
+      (e) => String(e.employee) === String(employeeId),
+    );
+    if (empRec) {
+      // Calculate total earned
+      const earned =
+        strictNumber(empRec.totalHours) ||
+        strictNumber(empRec.remainingHours) +
+          strictNumber(empRec.usedHours) +
+          strictNumber(empRec.reservedHours);
+
+      if (earned > 0) {
+        transactions.push({
+          date: credit.dateEarned || credit.creditDate || credit.createdAt,
+          type: "ACCRUAL",
+          description: `CTO Earned - Memo ${credit.memoNo || "N/A"}`,
+          amount: earned,
+          referenceId: credit._id,
+        });
+      }
+    }
+  });
+
+  // Add Applications to the timeline
+  applications.forEach((app) => {
+    if (app.overallStatus === "APPROVED") {
+      transactions.push({
+        date: app.approvedAt || app.updatedAt || app.createdAt,
+        type: "APPLICATION",
+        description: `CTO Used - ${app.reason || "Application"}`,
+        amount: -strictNumber(app.requestedHours),
+        referenceId: app._id,
+      });
+    } else if (app.overallStatus === "REVOKED") {
+      // For revoked, we show the initial usage, and then the refund
+      transactions.push({
+        date: app.approvedAt || app.createdAt,
+        type: "APPLICATION",
+        description: `CTO Used (Later Revoked) - ${app.reason}`,
+        amount: -strictNumber(app.requestedHours),
+        referenceId: app._id,
+      });
+      transactions.push({
+        date: app.revokedAt || app.updatedAt,
+        type: "REVOCATION_RESTORED",
+        description: `CTO Restored - Revocation Approved`,
+        amount: strictNumber(app.requestedHours),
+        referenceId: app._id,
+      });
+    }
+  });
+
+  // Filter out any transactions that happened AFTER the asOfDate
+  if (asOfDate) {
+    const cutoffDate = new Date(asOfDate);
+    transactions = transactions.filter((t) => new Date(t.date) <= cutoffDate);
+  }
+
+  // 3. Sort Chronologically
+  transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // 4. Calculate Running Balance
+  let runningBalance = 0;
+  const ledgerTransactions = transactions.map((t) => {
+    runningBalance += t.amount;
+    return {
+      ...t,
+      runningBalance,
+    };
+  });
+
+  return {
+    balanceForwarded: 0,
+    transactions: ledgerTransactions,
+    endingBalance: runningBalance,
+  };
 }
 
 /* =========================
@@ -946,7 +1060,7 @@ const requestRevocationCtoApplicationService = async ({
         ctoApplication: app,
       });
 
-      // 2. Send emails
+      // 2. Send emails (Match updated frontend routing)
       const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REQUEST);
       if (emailEnabled) {
         const tpl = ctoRevocationRequestEmail({
@@ -955,7 +1069,7 @@ const requestRevocationCtoApplicationService = async ({
             `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim(),
           requestedHours: app.requestedHours,
           reason: safeReason,
-          link: `${process.env.FRONTEND_URL}/dashboard/hr/revocations/${app._id}`,
+          link: `${process.env.FRONTEND_URL}/app/leave-revocations/${app._id}`,
         });
 
         const emailPromises = hrEmails.map((hrEmail) =>
@@ -1366,6 +1480,7 @@ const getRevocationRequestsService = async (
       approver1: approvals[0]?.approver || null,
       approver2: approvals[1]?.approver || null,
       approver3: approvals[2]?.approver || null,
+      remarks: extractRemarks(app), // ✅ Appended remarks at root for the frontend
     };
   });
 
@@ -1478,6 +1593,7 @@ const getAllCtoApplicationsService = async (
       approver1: approvals[0]?.approver || null,
       approver2: approvals[1]?.approver || null,
       approver3: approvals[2]?.approver || null,
+      remarks: extractRemarks(app), // ✅ Appended remarks at root for the frontend
     };
   });
 
@@ -1507,6 +1623,12 @@ const getAllCtoApplicationsService = async (
     if (s._id) statusCounts[s._id] = s.count;
   });
 
+  let ledger = null;
+  if (filters.employeeId) {
+    // Current up-to-date ledger
+    ledger = await generateEmployeeLedger(filters.employeeId);
+  }
+
   return {
     data: transformed,
     pagination: {
@@ -1516,6 +1638,7 @@ const getAllCtoApplicationsService = async (
       totalPages: Math.ceil(total / limit),
     },
     statusCounts,
+    ledger,
   };
 };
 
@@ -1687,6 +1810,7 @@ const getCtoApplicationsByEmployeeService = async (
 
   applications = applications.map((app) => {
     app.category = app.employeeType;
+    app.remarks = extractRemarks(app); // ✅ Appended remarks at root for the frontend
 
     if (app.memo && Array.isArray(app.memo)) {
       const memoMap = (app.memoDetails || []).reduce((acc, md) => {
@@ -1742,6 +1866,9 @@ const getCtoApplicationsByEmployeeService = async (
     if (s._id) statusCounts[s._id] = s.count;
   });
 
+  // Current up-to-date ledger
+  const ledger = await generateEmployeeLedger(employeeId);
+
   return {
     data: applications,
     pagination: {
@@ -1751,17 +1878,32 @@ const getCtoApplicationsByEmployeeService = async (
       totalPages: Math.ceil(total / limit),
     },
     statusCounts,
+    ledger,
   };
 };
 
-// ✅ NEW: GET APPLICATION BY ID SERVICE
+// ✅ GET APPLICATION BY ID SERVICE UPDATED
 const getCtoRevocationByIdService = async (applicationId) => {
   assertObjectId(applicationId, "Application ID");
   const app = await populateApplicationById(applicationId);
   if (!app) {
     throw createServiceError("Application not found.", 404);
   }
-  return app;
+
+  // Generate point-in-time ledger stopping at the exact date this app was created
+  const asOfDate = app.createdAt || new Date();
+
+  // App employee might be populated object or just an ObjectId string
+  const employeeId = app.employee?._id || app.employee;
+  const ledger = await generateEmployeeLedger(employeeId, asOfDate);
+
+  // Return combined object
+  const appObj = app.toObject ? app.toObject() : app;
+  return {
+    ...appObj,
+    remarks: extractRemarks(appObj), // ✅ Appended remarks at root for the frontend
+    ledger,
+  };
 };
 
 module.exports = {
@@ -1771,7 +1913,7 @@ module.exports = {
   getCtoApplicationsByEmployeeService,
   followUpCtoApplicationService,
   requestRevocationCtoApplicationService,
-  cancelRevocationCtoRequestService, // ✅ Exported the new cancel revocation service
+  cancelRevocationCtoRequestService,
   processRevocationRequestService,
   getRevocationRequestsService,
   getCtoRevocationByIdService,

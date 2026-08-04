@@ -2,7 +2,11 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import FullHeightCardContainer from "../../pageContainer";
 import { StatusBadge } from "../../statusUtils";
-import { fetchAllCtoApplications } from "../../../api/cto";
+// ✅ IMPORT fetchCtoApplicationById here
+import {
+  fetchAllCtoApplications,
+  fetchCtoApplicationById,
+} from "../../../api/cto";
 import Modal from "../../modal";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -17,7 +21,6 @@ import {
   Calendar,
   FileText,
   Inbox,
-  MoreVertical,
   LayoutGrid,
   AlertCircle,
   CheckCircle2,
@@ -29,6 +32,7 @@ import {
   ArrowUp,
   FileBadge,
   ChevronDown,
+  Loader2, // ✅ Added Loader for the PDF fetching state
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
@@ -38,9 +42,7 @@ import CtoApplicationPdfModal from "./ctoApplicationPDFModal";
 import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 
 import { useAuth } from "../../../store/authStore";
-
-// ✅ Import Reusable Status Tabs
-import StatusTabs from "../../statusTabs"; // Adjust import path as needed
+import StatusTabs from "../../statusTabs";
 
 const pageSizeOptions = [20, 50, 100];
 
@@ -54,7 +56,7 @@ const useDebouncedValue = (value, delay = 500) => {
   return debounced;
 };
 
-/* ------------------ Resolve theme (no tailwind dark class dependency) ------------------ */
+/* ------------------ Resolve theme ------------------ */
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
     const systemDark =
@@ -64,7 +66,6 @@ function resolveTheme(prefTheme) {
   return prefTheme === "dark" ? "dark" : "light";
 }
 
-/* ✅ Reactive resolved theme for system mode (prevents skeleton flashing light) */
 function useResolvedTheme(prefTheme) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined")
@@ -97,7 +98,7 @@ function useResolvedTheme(prefTheme) {
 }
 
 /* =========================
-   StatCard (dark-mode ready)
+   StatCard
 ========================= */
 const StatCard = ({
   title,
@@ -164,7 +165,7 @@ const StatCard = ({
 };
 
 /* =========================
-   Per-row action menu (table) - dark-mode ready
+   Per-row action menu
 ========================= */
 const ApplicationActionMenu = ({
   app,
@@ -174,6 +175,7 @@ const ApplicationActionMenu = ({
   onViewMemos,
   isOrganicApp,
   borderColor,
+  isPdfLoading, // ✅ Receive loading state
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -255,21 +257,30 @@ const ApplicationActionMenu = ({
             <Eye size={14} /> View Details
           </button>
 
+          {/* ✅ Check if PDF is loading */}
           <button
             type="button"
+            disabled={isPdfLoading}
             onClick={() => handle(onViewPdf)}
-            className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left"
+            className="w-full px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors text-left disabled:opacity-50"
             style={{ color: "var(--app-muted)" }}
             onMouseEnter={(e) => {
+              if (isPdfLoading) return;
               e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
               e.currentTarget.style.color = "var(--accent)";
             }}
             onMouseLeave={(e) => {
+              if (isPdfLoading) return;
               e.currentTarget.style.backgroundColor = "transparent";
               e.currentTarget.style.color = "var(--app-muted)";
             }}
           >
-            <FileDown size={14} /> View General PDF
+            {isPdfLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <FileDown size={14} />
+            )}
+            {isPdfLoading ? "Loading PDF..." : "View General PDF"}
           </button>
 
           {isOrganicApp && (
@@ -316,7 +327,7 @@ const ApplicationActionMenu = ({
 };
 
 /* =========================
-   Cards (dark-mode ready)
+   Cards 
 ========================= */
 const ApplicationCard = ({
   app,
@@ -327,6 +338,7 @@ const ApplicationCard = ({
   onViewMemos,
   isOrganicApp,
   borderColor,
+  isPdfLoading, // ✅ Receive loading state
 }) => {
   const memoLabel =
     Array.isArray(app?.memo) && app.memo.length
@@ -527,24 +539,32 @@ const ApplicationCard = ({
             Details
           </button>
 
+          {/* ✅ Added Loader for Gen PDF Button */}
           <button
             type="button"
+            disabled={isPdfLoading}
             onClick={onViewPdf}
-            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border transition-colors duration-200 ease-out"
+            className="flex-1 min-w-[80px] inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-bold border disabled:opacity-50 transition-colors duration-200 ease-out"
             style={{
               backgroundColor: "var(--app-surface)",
               borderColor: borderColor,
               color: "var(--app-text)",
             }}
             onMouseEnter={(e) => {
+              if (isPdfLoading) return;
               e.currentTarget.style.backgroundColor = "var(--app-surface-2)";
             }}
             onMouseLeave={(e) => {
+              if (isPdfLoading) return;
               e.currentTarget.style.backgroundColor = "var(--app-surface)";
             }}
           >
-            <FileDown className="w-4 h-4" />
-            Gen PDF
+            {isPdfLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileDown className="w-4 h-4" />
+            )}
+            {isPdfLoading ? "Loading" : "Gen PDF"}
           </button>
 
           {isOrganicApp && (
@@ -629,7 +649,7 @@ const getTabsConfig = (statusCounts = {}, totalFallback = 0) => {
 };
 
 /* =========================
-   Compact Pagination (dark-mode ready)
+   Compact Pagination
 ========================= */
 const CompactPagination = ({
   page,
@@ -795,9 +815,10 @@ const AllCtoApplicationsHistory = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [memoModal, setMemoModal] = useState({ isOpen: false, memos: [] });
 
-  // ✅ PDF modal state
+  // ✅ PDF modal state & LOADING State
   const [pdfApp, setPdfApp] = useState(null);
   const [organicPdfApp, setOrganicPdfApp] = useState(null);
+  const [pdfLoadingId, setPdfLoadingId] = useState(null);
 
   // ---- Filters / pagination ----
   const [statusFilter, setStatusFilter] = useState("");
@@ -895,7 +916,7 @@ const AllCtoApplicationsHistory = () => {
   const isFiltered =
     statusFilter !== "" || debouncedSearch !== "" || employeeTypeFilter !== "";
 
-  // ✅ left strip class
+  // ✅ Left strip class
   const getStatusStripClass = useCallback((status) => {
     switch (String(status || "").toUpperCase()) {
       case "APPROVED":
@@ -910,6 +931,27 @@ const AllCtoApplicationsHistory = () => {
         return "border-l-4 border-l-slate-300";
     }
   }, []);
+
+  // ✅ New function to fetch full application before opening PDF
+  const handleViewPdf = async (app) => {
+    try {
+      setPdfLoadingId(app._id);
+
+      // Fetch the full details from backend (which includes the ledger)
+      const response = await fetchCtoApplicationById(app._id);
+
+      // Since response might be { message, application: {...} } or just the object
+      const fullApp = response?.application || response;
+
+      setPdfApp(fullApp);
+    } catch (error) {
+      console.error("Failed to fetch full application for PDF:", error);
+      // Fallback to basic row data if API fails
+      setPdfApp(app);
+    } finally {
+      setPdfLoadingId(null);
+    }
+  };
 
   const statusCounts = data?.statusCounts || {};
 
@@ -1302,11 +1344,12 @@ const AllCtoApplicationsHistory = () => {
                                   app={app}
                                   borderColor={borderColor}
                                   isOrganicApp={isAppOrganic}
+                                  isPdfLoading={pdfLoadingId === app._id} // ✅ Pass loading state
                                   leftStripClassName={getStatusStripClass(
                                     app.overallStatus,
                                   )}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewPdf={() => handleViewPdf(app)} // ✅ Updated to fetch full data
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                 />
@@ -1351,11 +1394,12 @@ const AllCtoApplicationsHistory = () => {
                                   app={app}
                                   borderColor={borderColor}
                                   isOrganicApp={isAppOrganic}
+                                  isPdfLoading={pdfLoadingId === app._id} // ✅ Pass loading state
                                   leftStripClassName={getStatusStripClass(
                                     app.overallStatus,
                                   )}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewPdf={() => handleViewPdf(app)} // ✅ Updated to fetch full data
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                   onViewMemos={() => openMemoModal(app.memo)}
                                 />
@@ -1533,10 +1577,11 @@ const AllCtoApplicationsHistory = () => {
                                         app={app}
                                         borderColor={borderColor}
                                         isOrganicApp={isAppOrganic}
+                                        isPdfLoading={pdfLoadingId === app._id} // ✅ Pass loading state
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
-                                        onViewPdf={() => setPdfApp(app)}
+                                        onViewPdf={() => handleViewPdf(app)} // ✅ Updated to fetch full data
                                         onViewCscForm6={() =>
                                           setOrganicPdfApp(app)
                                         }

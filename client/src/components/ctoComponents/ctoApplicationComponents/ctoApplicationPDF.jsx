@@ -6,6 +6,8 @@ import {
   View,
   StyleSheet,
   Image,
+  Svg,
+  Path,
 } from "@react-pdf/renderer";
 
 import { buildApiUrl } from "../../../config/env";
@@ -19,6 +21,17 @@ function fmtDateLong(d) {
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("en-US", {
     month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function fmtDateShort(d) {
+  if (!d) return "";
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
     day: "numeric",
     year: "numeric",
   });
@@ -108,31 +121,6 @@ function getFullApproverName(profile) {
   return `${pre}${f}${m}${l}${ext}${post}`.toUpperCase();
 }
 
-function memoRowLabel(memoItem) {
-  const memo = memoItem?.memoId || {};
-  const hours =
-    memo?.hoursEarned ??
-    memo?.earnedHours ??
-    memo?.totalHours ??
-    memoItem?.appliedHours ??
-    "";
-  const date =
-    memo?.earnedDate ||
-    memo?.creditDate ||
-    memo?.dateEarned ||
-    memo?.createdAt ||
-    "";
-  const dateStr = date
-    ? new Date(date).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      })
-    : "";
-  const hrsStr = hours !== "" ? `${hours} hrs` : "";
-  if (!dateStr && !hrsStr) return "";
-  return [dateStr, hrsStr].filter(Boolean).join(" – ");
-}
-
 /* =========================
    Styles 
 ========================= */
@@ -142,10 +130,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Helvetica",
     lineHeight: 1.25,
-    position: "relative", // Needed for absolute positioning of watermark
+    position: "relative",
   },
-
-  /* --- Watermark Styles --- */
   watermarkContainer: {
     position: "absolute",
     top: 0,
@@ -157,13 +143,12 @@ const styles = StyleSheet.create({
     zIndex: 999999,
   },
   watermarkText: {
-    color: "rgba(220, 38, 38, 0.25)", // Translucent Red
+    color: "rgba(220, 38, 38, 0.25)",
     fontSize: 100,
     fontFamily: "Helvetica-Bold",
-    transform: "rotate(-45deg)", // Diagonal rotation
+    transform: "rotate(-45deg)",
     letterSpacing: 5,
   },
-
   header: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
   logo: { width: 190, height: 55, objectFit: "contain" },
   formTitle: {
@@ -196,8 +181,6 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   underlineText: { fontSize: 10, paddingHorizontal: 2, zIndex: 2 },
-
-  /* --- Signatures --- */
   sigBlock: {
     alignItems: "center",
     marginTop: 15,
@@ -237,8 +220,8 @@ const styles = StyleSheet.create({
   },
   initialsContainer: {
     position: "absolute",
-    top: "110%", // Exactly beneath the sigLine border
-    right: 0, // Aligns to the right side of the signature line
+    top: "110%",
+    right: 0,
     flexDirection: "row",
     paddingTop: 2,
   },
@@ -263,7 +246,6 @@ const styles = StyleSheet.create({
     lineHeight: 1.1,
     marginBottom: 4,
   },
-
   actionTitle: { fontWeight: "bold", textAlign: "center", marginBottom: 10 },
   actionRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   checkbox: {
@@ -275,7 +257,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  checkmark: { fontSize: 12, fontWeight: "bold" },
   actionText: { flexDirection: "row", alignItems: "flex-end", flex: 1 },
   approvalLabelLeft: { marginTop: 18, marginBottom: 2 },
   detachRow: { marginTop: 10, marginBottom: 6 },
@@ -310,17 +291,21 @@ const styles = StyleSheet.create({
     borderBottomColor: "#000",
     padding: 5,
   },
-  col1: { width: "28%" },
-  col2: { width: "20%" },
-  col3: { width: "16%" },
-  col4: { width: "18%" },
-  col5: { width: "18%", borderRightWidth: 0 },
+
+  colDate: { width: "16%" },
+  colPart: { width: "26%" },
+  colEarned: { width: "16%" },
+  colAvail: { width: "16%" },
+  colBal: { width: "13%" },
+  colRem: { width: "13%", borderRightWidth: 0 },
+  colMerged: { width: "74%" },
+
   certFooter: {
     minHeight: 120,
     padding: 15,
-    paddingRight: 30, // ✅ Slightly padding the right side so it's not directly on the edge
+    paddingRight: 30,
     flexDirection: "row",
-    justifyContent: "flex-end", // ✅ Indents the entire block to the right
+    justifyContent: "flex-end",
     alignItems: "flex-end",
   },
   footerBlock: { width: 180, alignItems: "center" },
@@ -330,8 +315,11 @@ const styles = StyleSheet.create({
     width: 150,
     height: 14,
     marginTop: 10,
+    justifyContent: "flex-end",
   },
   footerDateLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
+  boldText: { fontWeight: "bold" },
+  textCenter: { textAlign: "center" },
 });
 
 /* =========================
@@ -442,7 +430,6 @@ const SlotSignatures = ({
 
         <Text style={styles.sigName}>{mainName}</Text>
 
-        {/* ✅ Render initials UNDER the underline */}
         {initialsToRender.length > 0 && (
           <View style={styles.initialsContainer}>
             {initialsToRender.map((appr, idx) => {
@@ -490,7 +477,6 @@ export default function CtoApplicationPdf({
 
   const position = applicantSnap.position || emp.position || "";
 
-  // Extract officeDivision, handling variations
   const officeDivision =
     applicantSnap.division ||
     applicantSnap.officeDivision ||
@@ -517,7 +503,6 @@ export default function CtoApplicationPdf({
 
   const approvals = app?.approvals || [];
 
-  // EXACT ROLE MAPPINGS
   const recInitial = approvals.find(
     (a) => a.role === "Recommending Approval Initial",
   );
@@ -526,13 +511,12 @@ export default function CtoApplicationPdf({
   );
   const afdInitial = approvals.find((a) => a.role === "AFD Chief Initial");
   const afdSignature = approvals.find((a) => a.role === "AFD Chief Signature");
-  const hrSignature = approvals.find((a) => a.role === "HR Signature"); // ✅ Extracted HR Signature
+  const hrSignature = approvals.find((a) => a.role === "HR Signature");
   const ardSignature = approvals.find((a) => a.role === "ARD Signature");
   const rdSignature = approvals.find(
     (a) => a.role === "Regional Director Signature",
   );
 
-  // Check if applicant is from AFD to adapt Recommending Approval role
   const isAfdDivision =
     officeDivision.toUpperCase().includes("AFD") ||
     officeDivision.toUpperCase().includes("ADMIN");
@@ -543,22 +527,45 @@ export default function CtoApplicationPdf({
     ? adminFinanceLabel
     : recommendingApproverLabel;
 
-  const memos = Array.isArray(app?.memo) ? app.memo : [];
-  const rows = memos.length
-    ? memos.map((m) => ({
-        col1: memoRowLabel(m),
-        col2: inclusiveDates || "",
-        col3: m?.appliedHours != null ? String(m.appliedHours) : "",
-        col4: m?.memoId?.remainingHours ?? m?.memoId?.remaining ?? "",
-        col5: m?.memoId?.remarks ?? "",
-      }))
-    : new Array(6)
-        .fill(null)
-        .map(() => ({ col1: "", col2: "", col3: "", col4: "", col5: "" }));
-
-  // ✅ Strictly verify if the document is revoked (case-insensitive check)
   const isRevoked =
     String(app?.overallStatus || "").toUpperCase() === "REVOKED";
+
+  // ✅ Check if fully approved (or revoked later) to show checkmarks
+  const isApprovedStatus = [
+    "APPROVED",
+    "REVOKED",
+    "REVOCATION_REQUESTED",
+  ].includes(String(app?.overallStatus || "").toUpperCase());
+
+  const getSigDate = (sig) =>
+    sig?.status === "APPROVED"
+      ? sig?.actionDate || sig?.updatedAt || sig?.createdAt
+      : null;
+
+  // ✅ Prioritizes the action date of the Final Approver (RD or ARD)
+  const rawApprovalDate =
+    getSigDate(rdSignature) ||
+    getSigDate(ardSignature) ||
+    app?.approvedAt ||
+    (isApprovedStatus ? app?.updatedAt : null);
+
+  const formattedApprovalDate = rawApprovalDate
+    ? fmtDateLong(rawApprovalDate)
+    : "";
+
+  const ledger = app?.ledger || {
+    balanceForwarded: 0,
+    transactions: [],
+    endingBalance: 0,
+  };
+  const transactions = ledger.transactions || [];
+  const balanceForwarded = safeNumber(ledger.balanceForwarded);
+  const endingBalance = safeNumber(ledger.endingBalance);
+
+  const paddedTransactions = [...transactions];
+  while (paddedTransactions.length < 2) {
+    paddedTransactions.push({ isEmpty: true });
+  }
 
   return (
     <Document title={`CTO Application - ${lastName || "Applicant"}`}>
@@ -630,20 +637,25 @@ export default function CtoApplicationPdf({
 
           <View style={styles.topRight}>
             <Text style={styles.actionTitle}>ACTION OF APPLICATION</Text>
+
+            {/* ✅ SVG Checkbox for Guaranteed Rendering */}
             <View style={styles.actionRow}>
               <View style={styles.checkbox}>
-                {app?.overallStatus !== "REJECTED" && dayCount ? (
-                  <Text style={styles.checkmark}>✓</Text>
+                {isApprovedStatus && dayCount ? (
+                  <Svg viewBox="0 0 24 24" width={14} height={14}>
+                    <Path
+                      d="M20 6L9 17l-5-5"
+                      stroke="black"
+                      strokeWidth="2.5"
+                      fill="none"
+                    />
+                  </Svg>
                 ) : null}
               </View>
               <View style={styles.actionText}>
                 <Text>Approval for </Text>
                 <UnderlineBox
-                  value={
-                    app?.overallStatus !== "REJECTED" && dayCount
-                      ? String(dayCount)
-                      : ""
-                  }
+                  value={isApprovedStatus && dayCount ? String(dayCount) : ""}
                   width={20}
                   flex={1}
                   align="center"
@@ -656,7 +668,14 @@ export default function CtoApplicationPdf({
             <View style={styles.actionRow}>
               <View style={styles.checkbox}>
                 {app?.overallStatus === "REJECTED" ? (
-                  <Text style={styles.checkmark}>✓</Text>
+                  <Svg viewBox="0 0 24 24" width={14} height={14}>
+                    <Path
+                      d="M20 6L9 17l-5-5"
+                      stroke="black"
+                      strokeWidth="2.5"
+                      fill="none"
+                    />
+                  </Svg>
                 ) : null}
               </View>
               <View style={styles.actionText}>
@@ -670,7 +689,6 @@ export default function CtoApplicationPdf({
               </View>
             </View>
 
-            {/* ✅ Recommending Approval: Dynamically adapts if applicant is from AFD */}
             <Text style={[styles.approvalLabelLeft, { marginBottom: 25 }]}>
               Recommending Approval:
             </Text>
@@ -683,7 +701,6 @@ export default function CtoApplicationPdf({
               lineWidth="95%"
             />
 
-            {/* ✅ Approved (Regional Director): Main Signature + AFD Signature Under as Initial */}
             <Text style={[styles.approvalLabelLeft, { marginTop: 25 }]}>
               Approved:
             </Text>
@@ -708,47 +725,112 @@ export default function CtoApplicationPdf({
         </Text>
 
         <View style={styles.certBox}>
-          <View style={styles.gridRow}>
-            <View style={[styles.gridHeaderCell, styles.col1]}>
-              <Text>Total No. of Hours Earned...</Text>
+          <View style={styles.gridRow} wrap={false}>
+            <View style={[styles.gridHeaderCell, styles.colDate]}>
+              <Text>Date</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col2]}>
-              <Text>Date of CTO</Text>
+            <View style={[styles.gridHeaderCell, styles.colPart]}>
+              <Text>Particulars</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col3]}>
-              <Text>Used COCs</Text>
+            <View style={[styles.gridHeaderCell, styles.colEarned]}>
+              <Text>
+                Compensatory{"\n"}Overtime{"\n"}Credits
+              </Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col4]}>
-              <Text>Remaining COCs</Text>
+            <View style={[styles.gridHeaderCell, styles.colAvail]}>
+              <Text>Number of{"\n"}CTO Availed</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col5]}>
+            <View style={[styles.gridHeaderCell, styles.colBal]}>
+              <Text>COC{"\n"}Balance</Text>
+            </View>
+            <View style={[styles.gridHeaderCell, styles.colRem]}>
               <Text>Remarks</Text>
             </View>
           </View>
 
-          {rows.map((r, idx) => (
-            <View style={styles.gridRow} key={idx}>
-              <View style={[styles.gridCell, styles.col1]}>
-                <Text>{r.col1}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col2]}>
-                <Text>{r.col2}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col3]}>
-                <Text>{r.col3 ? `${r.col3} Hours` : ""}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col4]}>
-                <Text>{r.col4}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col5]}>
-                <Text>{r.col5}</Text>
-              </View>
+          <View style={styles.gridRow} wrap={false}>
+            <View style={[styles.gridCell, styles.colMerged]}>
+              <Text style={styles.boldText}>Balance Forwarded</Text>
             </View>
-          ))}
+            <View style={[styles.gridCell, styles.colBal, styles.textCenter]}>
+              <Text>{balanceForwarded} Hrs.</Text>
+            </View>
+            <View style={[styles.gridCell, styles.colRem]}>
+              <Text> </Text>
+            </View>
+          </View>
 
-          <View style={styles.certFooter}>
+          {paddedTransactions.map((t, idx) => {
+            if (t.isEmpty) {
+              return (
+                <View style={styles.gridRow} key={`empty-${idx}`} wrap={false}>
+                  <View style={[styles.gridCell, styles.colDate]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colPart]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colEarned]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colAvail]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colBal]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colRem]}>
+                    <Text> </Text>
+                  </View>
+                </View>
+              );
+            }
+
+            const isAccrual = t.amount > 0;
+            return (
+              <View style={styles.gridRow} key={idx} wrap={false}>
+                <View style={[styles.gridCell, styles.colDate]}>
+                  <Text>{fmtDateShort(t.date)}</Text>
+                </View>
+                <View style={[styles.gridCell, styles.colPart]}>
+                  <Text>{t.description}</Text>
+                </View>
+                <View
+                  style={[styles.gridCell, styles.colEarned, styles.textCenter]}
+                >
+                  <Text>{isAccrual ? `${t.amount} Hrs.` : ""}</Text>
+                </View>
+                <View
+                  style={[styles.gridCell, styles.colAvail, styles.textCenter]}
+                >
+                  <Text>{!isAccrual ? `${Math.abs(t.amount)} Hrs.` : ""}</Text>
+                </View>
+                <View
+                  style={[styles.gridCell, styles.colBal, styles.textCenter]}
+                >
+                  <Text>{t.runningBalance} Hrs.</Text>
+                </View>
+                <View style={[styles.gridCell, styles.colRem]}>
+                  <Text> </Text>
+                </View>
+              </View>
+            );
+          })}
+
+          <View style={styles.gridRow} wrap={false}>
+            <View style={[styles.gridCell, styles.colMerged]}>
+              <Text style={styles.boldText}>Ending Balance</Text>
+            </View>
+            <View style={[styles.gridCell, styles.colBal, styles.textCenter]}>
+              <Text>{endingBalance} Hrs.</Text>
+            </View>
+            <View style={[styles.gridCell, styles.colRem]}>
+              <Text> </Text>
+            </View>
+          </View>
+
+          <View style={styles.certFooter} wrap={false}>
             <View style={styles.footerBlock}>
-              {/* ✅ Bottom Footer: AFD Chief Signature with HR Signature as the Initial */}
               <SlotSignatures
                 mainApprover={afdSignature}
                 initialApprovers={[hrSignature]}
@@ -758,14 +840,15 @@ export default function CtoApplicationPdf({
                 lineWidth="100%"
               />
               <View style={styles.footerDateLine}>
-                <Text />
+                <Text style={{ textAlign: "center", fontSize: 9 }}>
+                  {formattedApprovalDate}
+                </Text>
               </View>
               <Text style={styles.footerDateLabel}>Date</Text>
             </View>
           </View>
         </View>
 
-        {/* ✅ Render Watermark last so it draws OVER the content */}
         {isRevoked && (
           <View style={styles.watermarkContainer}>
             <Text style={styles.watermarkText}>REVOKED</Text>
