@@ -7,6 +7,7 @@ import {
   Calendar,
   X,
   AlertCircle,
+  Briefcase,
 } from "lucide-react";
 import Select from "react-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -174,6 +175,8 @@ const AddCtoCreditForm = () => {
     () => ({
       employees: [],
       duration: { hours: "", minutes: "" },
+      inclusiveDates: { startDate: "", endDate: "" },
+      purpose: "",
       memoNo: "",
       memoFile: null,
       dateApproved: "",
@@ -267,6 +270,15 @@ const AddCtoCreditForm = () => {
       return;
     }
 
+    // Handle inclusive dates
+    if (name === "startDate" || name === "endDate") {
+      setFormData((prev) => ({
+        ...prev,
+        inclusiveDates: { ...prev.inclusiveDates, [name]: value },
+      }));
+      return;
+    }
+
     if (name === "memoFile") {
       const file = files?.[0] || null;
       setFormData((prev) => ({ ...prev, memoFile: file }));
@@ -324,6 +336,28 @@ const AddCtoCreditForm = () => {
       return { ok: false, msg: "Date approved cannot be in the future." };
     }
 
+    // ✅ Validate inclusiveDates with strict Future-Date constraints
+    const { startDate, endDate } = formData.inclusiveDates;
+    if (!startDate || !endDate) {
+      return {
+        ok: false,
+        msg: "Please select the Date Overtime Rendered (Start) Date Overtime Rendered (End).",
+      };
+    }
+    if (startDate > endDate) {
+      return { ok: false, msg: "End date cannot be earlier than start date." };
+    }
+    const today = todayISO();
+    if (startDate > today || endDate > today) {
+      return { ok: false, msg: "Overtime dates cannot be in the future." };
+    }
+
+    // Validate purpose
+    const purpose = String(formData.purpose || "").trim();
+    if (!purpose) {
+      return { ok: false, msg: "Please specify the purpose or activity done." };
+    }
+
     const memoNo = String(formData.memoNo || "")
       .trim()
       .slice(0, 100);
@@ -358,6 +392,8 @@ const AddCtoCreditForm = () => {
     payload.append("dateApproved", dateApproved);
     payload.append("employees", JSON.stringify(employees));
     payload.append("duration", JSON.stringify({ hours, minutes }));
+    payload.append("purpose", purpose);
+    payload.append("inclusiveDates", JSON.stringify({ startDate, endDate }));
     payload.append("clientRequestId", makeClientRequestId());
 
     return { ok: true, payload };
@@ -677,7 +713,7 @@ const AddCtoCreditForm = () => {
               </div>
             </div>
 
-            {/* Duration & Date */}
+            {/* Duration & Date Approved */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
               <div className="space-y-2">
                 <div
@@ -771,6 +807,119 @@ const AddCtoCreditForm = () => {
                   }}
                 />
               </div>
+            </div>
+
+            {/* Inclusive Dates */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+              <div className="space-y-2">
+                <div
+                  className="flex items-center gap-2 text-sm font-medium"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center border"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  Date Overtime Rendered (Start)
+                </div>
+                {/* ✅ ADDED max={todayISO()} to prevent future dates */}
+                <input
+                  type="date"
+                  name="startDate"
+                  value={formData.inclusiveDates.startDate}
+                  onChange={handleChange}
+                  max={todayISO()}
+                  disabled={isBusy}
+                  className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-[16px] sm:text-sm"
+                  style={{
+                    backgroundColor: isBusy
+                      ? "var(--app-surface-2)"
+                      : "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div
+                  className="flex items-center gap-2 text-sm font-medium"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center border"
+                    style={{
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                      color: "var(--app-muted)",
+                    }}
+                  >
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  Date Overtime Rendered (End)
+                </div>
+                {/* ✅ ADDED max={todayISO()} to prevent future dates */}
+                <input
+                  type="date"
+                  name="endDate"
+                  value={formData.inclusiveDates.endDate}
+                  onChange={handleChange}
+                  min={formData.inclusiveDates.startDate || undefined}
+                  max={todayISO()}
+                  disabled={isBusy}
+                  className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out text-[16px] sm:text-sm"
+                  style={{
+                    backgroundColor: isBusy
+                      ? "var(--app-surface-2)"
+                      : "var(--app-surface)",
+                    borderColor: borderColor,
+                    color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Purpose */}
+            <div className="space-y-2">
+              <div
+                className="flex items-center gap-2 text-sm font-medium"
+                style={{ color: "var(--app-text)" }}
+              >
+                <div
+                  className="w-7 h-7 rounded-md flex items-center justify-center border"
+                  style={{
+                    backgroundColor: "var(--app-surface-2)",
+                    borderColor: borderColor,
+                    color: "var(--app-muted)",
+                  }}
+                >
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                Purpose / Activity
+              </div>
+              <input
+                type="text"
+                name="purpose"
+                value={formData.purpose}
+                onChange={handleChange}
+                placeholder="e.g. To conduct interview and deliberation"
+                maxLength={200}
+                disabled={isBusy}
+                className="w-full h-11 sm:h-10 px-3 rounded-lg outline-none border transition-colors duration-200 ease-out"
+                style={{
+                  backgroundColor: isBusy
+                    ? "var(--app-surface-2)"
+                    : "var(--app-surface)",
+                  borderColor: borderColor,
+                  color: isBusy ? "var(--app-muted)" : "var(--app-text)",
+                }}
+              />
             </div>
 
             {/* Memo Number */}

@@ -1,4 +1,3 @@
-// services/ctoCredit.service.js
 const mongoose = require("mongoose");
 const CtoCredit = require("../models/ctoCreditModel");
 const Employee = require("../models/employeeModel");
@@ -35,10 +34,6 @@ function assertObjectId(id, label = "ID") {
   }
 }
 
-/**
- * Sanitizes input strings by removing null bytes and escaping regex characters.
- * Limits length to prevent ReDoS (Regular Expression Denial of Service).
- */
 function sanitizeSearch(str, limit = 100) {
   return String(str || "")
     .replace(/\0/g, "") // Prevent Null Byte Injection
@@ -46,20 +41,13 @@ function sanitizeSearch(str, limit = 100) {
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Safely strips out null bytes from standard string inputs like file paths or memos.
- */
 function sanitizeString(str) {
   return String(str || "")
     .replace(/\0/g, "")
     .trim();
 }
 
-/**
- * Strictly parses duration to prevent NoSQL injection via objects.
- */
 function toHours(duration = {}) {
-  // Explicitly cast to numbers, rejecting injected MongoDB operator objects
   const h = Number(duration.hours || 0);
   const m = Number(duration.minutes || 0);
 
@@ -90,6 +78,8 @@ async function canSend(key) {
 async function addCredit({
   employees,
   duration,
+  inclusiveDates, // ✅ added
+  purpose, // ✅ added
   memoNo,
   dateApproved,
   userId,
@@ -103,14 +93,28 @@ async function addCredit({
   }
 
   const safeMemoNo = sanitizeString(memoNo);
-  if (!safeMemoNo) {
-    throw createServiceError("memoNo is required.", 400);
+  if (!safeMemoNo) throw createServiceError("memoNo is required.", 400);
+
+  const safePurpose = sanitizeString(purpose);
+  if (!safePurpose) throw createServiceError("purpose is required.", 400);
+
+  if (!inclusiveDates || !inclusiveDates.startDate || !inclusiveDates.endDate) {
+    throw createServiceError(
+      "inclusiveDates (startDate and endDate) are required.",
+      400,
+    );
+  }
+
+  const startDate = new Date(inclusiveDates.startDate);
+  const endDate = new Date(inclusiveDates.endDate);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    throw createServiceError("Invalid inclusiveDates format.", 400);
   }
 
   const safeFilePath = sanitizeString(filePath);
   assertObjectId(userId, "userId");
 
-  const employeeIds = [...new Set(employees.map(String))]; // Remove duplicates
+  const employeeIds = [...new Set(employees.map(String))];
   employeeIds.forEach((id) => assertObjectId(id, "employeeId"));
 
   const totalHours = toHours(duration);
@@ -155,10 +159,12 @@ async function addCredit({
             memoNo: safeMemoNo,
             dateApproved: approvedDate,
             uploadedMemo: safeFilePath,
+            inclusiveDates: { startDate, endDate }, // ✅ added
+            purpose: safePurpose, // ✅ added
             duration: {
               hours: Number(duration.hours || 0),
               minutes: Number(duration.minutes || 0),
-            }, // Strict structure
+            },
             employees: employeeObjs,
             creditedBy: userId,
             status: CTO_STATUS.CREDITED,
@@ -260,7 +266,6 @@ async function rollbackCredit({ creditId, userId }) {
         );
       }
 
-      // Deduct balances from employees
       const ops = credit.employees.map((e) => ({
         updateOne: {
           filter: { _id: e.employee },
@@ -272,7 +277,6 @@ async function rollbackCredit({ creditId, userId }) {
         await Employee.bulkWrite(ops, { session });
       }
 
-      // Mark each employee record as rolled back
       credit.employees = credit.employees.map((e) => ({
         ...e.toObject(),
         status: CTO_STATUS.ROLLEDBACK,
@@ -280,7 +284,6 @@ async function rollbackCredit({ creditId, userId }) {
         reservedHours: 0,
       }));
 
-      // Mark credit document as rolled back
       credit.status = CTO_STATUS.ROLLEDBACK;
       credit.dateRolledBack = new Date();
       credit.rolledBackBy = userId;
@@ -377,6 +380,7 @@ async function getAllCredits({
 
     query.$or = [
       { memoNo: { $regex: safe, $options: "i" } },
+      { purpose: { $regex: safe, $options: "i" } }, // ✅ Allow search by purpose
       { "employees.employee": { $in: employeeIds } },
     ];
   }
@@ -477,7 +481,14 @@ async function getEmployeeCredits(
         ...(filters.status ? { status: sanitizeString(filters.status) } : {}),
       },
     },
-    ...(safeSearch ? { memoNo: { $regex: safeSearch, $options: "i" } } : {}),
+    ...(safeSearch
+      ? {
+          $or: [
+            { memoNo: { $regex: safeSearch, $options: "i" } },
+            { purpose: { $regex: safeSearch, $options: "i" } }, // ✅ Allows search by purpose
+          ],
+        }
+      : {}),
   };
 
   const [totalCount, credits, statusAggregation] = await Promise.all([
@@ -514,6 +525,8 @@ async function getEmployeeCredits(
       memoNo: credit.memoNo,
       dateApproved: credit.dateApproved,
       uploadedMemo: credit.uploadedMemo,
+      inclusiveDates: credit.inclusiveDates, // ✅ added
+      purpose: credit.purpose, // ✅ added
       creditedHours: empData?.creditedHours ?? 0,
       duration: credit.duration,
       usedHours: empData?.usedHours || 0,

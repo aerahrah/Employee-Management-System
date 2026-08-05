@@ -170,7 +170,6 @@ export const followUpCtoApplicationRequest = async (applicationId) => {
    REVOCATIONS
 ========================= */
 
-// ✅ Fetch Revocation Requests for HR Dashboard
 export const fetchRevocationRequests = async (params = {}) => {
   try {
     const res = await API.get(
@@ -183,7 +182,6 @@ export const fetchRevocationRequests = async (params = {}) => {
   }
 };
 
-// ✅ Fetch a specific CTO Revocation application by ID (Admin/HR View)
 export const fetchCtoApplicationById = async (applicationId) => {
   try {
     const res = await API.get(
@@ -196,14 +194,13 @@ export const fetchCtoApplicationById = async (applicationId) => {
   }
 };
 
-// ✅ Step 1 - Employee requests revocation
 export const requestRevocation = async (applicationId, formData) => {
   try {
     const res = await API.post(
       `/cto/revocation/applications/${applicationId}/revoke-request`,
       formData,
       {
-        headers: { "Content-Type": "multipart/form-data" }, // Required for multer
+        headers: { "Content-Type": "multipart/form-data" },
         withCredentials: true,
       },
     );
@@ -213,7 +210,6 @@ export const requestRevocation = async (applicationId, formData) => {
   }
 };
 
-// ✅ Employee cancels their pending revocation request
 export const cancelRevocationCtoRequest = async (applicationId) => {
   try {
     const res = await API.patch(
@@ -227,12 +223,11 @@ export const cancelRevocationCtoRequest = async (applicationId) => {
   }
 };
 
-// ✅ Step 2 - HR approves or rejects revocation request
 export const processRevocationRequest = async (applicationId, payload) => {
   try {
     const res = await API.patch(
       `/cto/revocation/applications/${applicationId}/revoke-process`,
-      payload, // expects { action: "APPROVE" | "REJECT", remarks }
+      payload,
       { withCredentials: true },
     );
     return unwrap(res);
@@ -350,7 +345,6 @@ export const fetchMyCtoApplicationsApprovals = async (params = {}) => {
   }
 };
 
-// ✅ Fetch specific application for approver view
 export const getCtoApplicationById = async (applicationId) => {
   try {
     const res = await API.get(

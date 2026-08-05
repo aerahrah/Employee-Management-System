@@ -66,8 +66,7 @@ function strictNumber(val, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-// ✅ NEW HELPER: Extracts the rejection remarks from the ApprovalStep array
-// so the frontend can easily access it via `app.remarks`
+// ✅ HELPER: Extracts the rejection remarks from the ApprovalStep array
 function extractRemarks(app) {
   if (!app || !Array.isArray(app.approvals)) return app?.revokeReason || "";
 
@@ -80,6 +79,31 @@ function extractRemarks(app) {
   }
 
   return app.revokeReason || "";
+}
+
+// ✅ HELPER: Formats inclusive dates into a short readable string for the ledger
+function formatLedgerDates(dates) {
+  if (!Array.isArray(dates) || dates.length === 0) return "";
+
+  // Filter out invalid dates safely
+  const validDates = dates.filter((d) => d && !isNaN(new Date(d).getTime()));
+  if (validDates.length === 0) return "";
+
+  const sorted = validDates.map((d) => new Date(d)).sort((a, b) => a - b);
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+
+  const fmt = (date) =>
+    date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  if (start.getTime() === end.getTime()) {
+    return fmt(start);
+  }
+  return `${fmt(start)} to ${fmt(end)}`;
 }
 
 async function safeSendEmail(to, subject, html) {
@@ -215,28 +239,29 @@ async function notifyApproversOfCancellation({
 /* =========================
    Ledger Generator 
 ========================= */
-// Note: Date filtering provides snapshot logic
 async function generateEmployeeLedger(employeeId, asOfDate = null) {
-  // 1. Fetch Credits (Deposits)
   const credits = await CtoCredit.find({
     "employees.employee": employeeId,
   }).lean();
 
-  // 2. Fetch Applications (Withdrawals/Debits)
+  // ✅ NEW: Added PENDING and REVOCATION_REQUESTED to the ledger inclusion filter
   const applications = await CtoApplication.find({
     employee: employeeId,
-    overallStatus: { $in: ["APPROVED", "REVOKED"] },
+    overallStatus: {
+      $in: ["APPROVED", "REVOKED", "PENDING", "REVOCATION_REQUESTED"],
+    },
   }).lean();
 
   let transactions = [];
 
-  // Add Credits to the timeline
+  // -------------------------
+  // 1. ADD CREDITS
+  // -------------------------
   credits.forEach((credit) => {
     const empRec = credit.employees?.find(
       (e) => String(e.employee) === String(employeeId),
     );
     if (empRec) {
-      // Calculate total earned
       const earned =
         strictNumber(empRec.totalHours) ||
         strictNumber(empRec.remainingHours) +
@@ -244,56 +269,129 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
           strictNumber(empRec.reservedHours);
 
       if (earned > 0) {
+        // Chronological Math Date
+        const accrualDate =
+          credit.createdAt || credit.dateCredited || credit.dateApproved;
+
+        // Visual Frontend Date (Inclusive OT Dates)
+        let displayDate = "N/A";
+        if (credit.inclusiveDates?.startDate) {
+          const datesArr = [credit.inclusiveDates.startDate];
+          if (credit.inclusiveDates.endDate)
+            datesArr.push(credit.inclusiveDates.endDate);
+          displayDate = formatLedgerDates(datesArr);
+        } else if (credit.dateApproved) {
+          displayDate = formatLedgerDates([credit.dateApproved]);
+        }
+
+        // Description / Particulars
+        let description = "N/A";
+        if (credit.purpose) {
+          description = `${credit.purpose} (Please see attached memo)`;
+        } else if (credit.memoNo) {
+          description = `Memo ${credit.memoNo}`;
+        }
+
         transactions.push({
-          date: credit.dateEarned || credit.creditDate || credit.createdAt,
+          date: accrualDate, // Math & sorting reference
+          displayDate: displayDate, // Explicit OT dates for the UI frontend
           type: "ACCRUAL",
-          description: `CTO Earned - Memo ${credit.memoNo || "N/A"}`,
+          description: description,
           amount: earned,
           referenceId: credit._id,
+          sortPriority: 0,
         });
       }
     }
   });
 
-  // Add Applications to the timeline
+  // -------------------------
+  // 2. ADD APPLICATIONS
+  // -------------------------
   applications.forEach((app) => {
-    if (app.overallStatus === "APPROVED") {
+    const datesCovered = formatLedgerDates(app.inclusiveDates);
+    const descriptionBase = datesCovered
+      ? `Compensatory Time Off (${datesCovered})`
+      : "Compensatory Time Off";
+
+    // Chronological Math Date
+    const transactionDate = app.createdAt;
+
+    // Visual Frontend Date (Inclusive Usage Dates)
+    const displayDate = datesCovered || "N/A";
+
+    // ✅ Process PENDING, REVOCATION_REQUESTED, and APPROVED as valid deductions
+    if (
+      ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
+        app.overallStatus,
+      )
+    ) {
+      let statusSuffix = "";
+      if (app.overallStatus === "PENDING") statusSuffix = " (Pending)";
+      if (app.overallStatus === "REVOCATION_REQUESTED")
+        statusSuffix = " (Revocation Requested)";
+
       transactions.push({
-        date: app.approvedAt || app.updatedAt || app.createdAt,
+        date: transactionDate,
+        displayDate: displayDate,
         type: "APPLICATION",
-        description: `CTO Used - ${app.reason || "Application"}`,
+        description: `${descriptionBase}${statusSuffix}`,
         amount: -strictNumber(app.requestedHours),
         referenceId: app._id,
+        sortPriority: 1,
       });
     } else if (app.overallStatus === "REVOKED") {
-      // For revoked, we show the initial usage, and then the refund
+      // Original Usage Deduction
       transactions.push({
-        date: app.approvedAt || app.createdAt,
+        date: transactionDate,
+        displayDate: displayDate,
         type: "APPLICATION",
-        description: `CTO Used (Later Revoked) - ${app.reason}`,
+        description: descriptionBase,
         amount: -strictNumber(app.requestedHours),
         referenceId: app._id,
+        sortPriority: 1,
       });
+
+      // Revocation / Refund
+      let revokeDate = new Date(app.revokedAt || app.updatedAt);
+      if (revokeDate.getTime() < new Date(transactionDate).getTime()) {
+        revokeDate = new Date(new Date(transactionDate).getTime() + 1000);
+      }
+
       transactions.push({
-        date: app.revokedAt || app.updatedAt,
+        date: revokeDate,
+        displayDate: displayDate, // Keeps the same context as the original usage
         type: "REVOCATION_RESTORED",
-        description: `CTO Restored - Revocation Approved`,
+        description: `${descriptionBase} - Revoked`,
         amount: strictNumber(app.requestedHours),
         referenceId: app._id,
+        sortPriority: 2,
       });
     }
   });
 
-  // Filter out any transactions that happened AFTER the asOfDate
+  // Filter out any transactions that happened AFTER the snapshot date
   if (asOfDate) {
     const cutoffDate = new Date(asOfDate);
     transactions = transactions.filter((t) => new Date(t.date) <= cutoffDate);
   }
 
-  // 3. Sort Chronologically
-  transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+  // -------------------------
+  // 3. SORT CHRONOLOGICALLY
+  // -------------------------
+  transactions.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
 
-  // 4. Calculate Running Balance
+    if (dateA === dateB) {
+      return (a.sortPriority || 0) - (b.sortPriority || 0);
+    }
+    return dateA - dateB;
+  });
+
+  // -------------------------
+  // 4. CALCULATE BALANCE
+  // -------------------------
   let runningBalance = 0;
   const ledgerTransactions = transactions.map((t) => {
     runningBalance += t.amount;
@@ -1480,7 +1578,7 @@ const getRevocationRequestsService = async (
       approver1: approvals[0]?.approver || null,
       approver2: approvals[1]?.approver || null,
       approver3: approvals[2]?.approver || null,
-      remarks: extractRemarks(app), // ✅ Appended remarks at root for the frontend
+      remarks: extractRemarks(app),
     };
   });
 
@@ -1593,7 +1691,7 @@ const getAllCtoApplicationsService = async (
       approver1: approvals[0]?.approver || null,
       approver2: approvals[1]?.approver || null,
       approver3: approvals[2]?.approver || null,
-      remarks: extractRemarks(app), // ✅ Appended remarks at root for the frontend
+      remarks: extractRemarks(app),
     };
   });
 
@@ -1625,7 +1723,6 @@ const getAllCtoApplicationsService = async (
 
   let ledger = null;
   if (filters.employeeId) {
-    // Current up-to-date ledger
     ledger = await generateEmployeeLedger(filters.employeeId);
   }
 
@@ -1690,6 +1787,8 @@ const getCtoApplicationsByEmployeeService = async (
             uploadedMemo: 1,
             duration: 1,
             totalHours: 1,
+            inclusiveDates: 1,
+            purpose: 1,
           },
         },
         {
@@ -1810,7 +1909,7 @@ const getCtoApplicationsByEmployeeService = async (
 
   applications = applications.map((app) => {
     app.category = app.employeeType;
-    app.remarks = extractRemarks(app); // ✅ Appended remarks at root for the frontend
+    app.remarks = extractRemarks(app);
 
     if (app.memo && Array.isArray(app.memo)) {
       const memoMap = (app.memoDetails || []).reduce((acc, md) => {
@@ -1866,7 +1965,6 @@ const getCtoApplicationsByEmployeeService = async (
     if (s._id) statusCounts[s._id] = s.count;
   });
 
-  // Current up-to-date ledger
   const ledger = await generateEmployeeLedger(employeeId);
 
   return {
@@ -1882,7 +1980,6 @@ const getCtoApplicationsByEmployeeService = async (
   };
 };
 
-// ✅ GET APPLICATION BY ID SERVICE UPDATED
 const getCtoRevocationByIdService = async (applicationId) => {
   assertObjectId(applicationId, "Application ID");
   const app = await populateApplicationById(applicationId);
@@ -1890,18 +1987,15 @@ const getCtoRevocationByIdService = async (applicationId) => {
     throw createServiceError("Application not found.", 404);
   }
 
-  // Generate point-in-time ledger stopping at the exact date this app was created
   const asOfDate = app.createdAt || new Date();
 
-  // App employee might be populated object or just an ObjectId string
   const employeeId = app.employee?._id || app.employee;
   const ledger = await generateEmployeeLedger(employeeId, asOfDate);
 
-  // Return combined object
   const appObj = app.toObject ? app.toObject() : app;
   return {
     ...appObj,
-    remarks: extractRemarks(appObj), // ✅ Appended remarks at root for the frontend
+    remarks: extractRemarks(appObj),
     ledger,
   };
 };

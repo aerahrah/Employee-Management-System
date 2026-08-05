@@ -11,6 +11,7 @@ import {
   Copy,
   Download,
   AlertCircle,
+  Briefcase,
 } from "lucide-react";
 import { StatusBadge, StatusIcon } from "../../statusUtils";
 import { buildApiUrl } from "../../../config/env";
@@ -283,6 +284,18 @@ const CtoCreditDetails = ({ credit }) => {
         })
       : "-";
 
+  // Helper for inclusive overtime dates to prevent duplicate same-day printing
+  const formatOvertimeDates = (start, end) => {
+    if (!start && !end) return "-";
+    const formattedStart = formatDate(start);
+    const formattedEnd = formatDate(end);
+
+    if (formattedStart === formattedEnd) {
+      return formattedStart;
+    }
+    return `${formattedStart} to ${formattedEnd}`;
+  };
+
   const PDF_URL = credit.uploadedMemo
     ? buildApiUrl(credit.uploadedMemo.replace(/\\/g, "/"))
     : "";
@@ -503,6 +516,74 @@ const CtoCreditDetails = ({ credit }) => {
               </p>
               <p className="text-xs" style={{ color: ui.muted }}>
                 Approved: {formatDate(credit.dateApproved)}
+              </p>
+            </div>
+          </div>
+
+          {/* ✅ NEW: Overtime Dates */}
+          <div
+            className="flex items-start gap-4 rounded-xl border p-4 transition-colors duration-300 ease-out"
+            style={{
+              backgroundColor: ui.surface2,
+              borderColor: ui.borderSoft,
+            }}
+          >
+            <div
+              className="rounded-lg border p-2 transition-colors duration-300 ease-out shrink-0"
+              style={{
+                backgroundColor: ui.surface,
+                borderColor: ui.border,
+                color: ui.muted,
+              }}
+            >
+              <Calendar size={20} />
+            </div>
+            <div className="min-w-0">
+              <p
+                className="mb-1 text-xs font-bold uppercase tracking-wider"
+                style={{ color: ui.muted }}
+              >
+                Overtime Rendered
+              </p>
+              <p className="text-sm font-bold" style={{ color: ui.text }}>
+                {formatOvertimeDates(
+                  credit.inclusiveDates?.startDate,
+                  credit.inclusiveDates?.endDate,
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* ✅ NEW: Purpose/Activity (Spans 2 columns to allow for long text) */}
+          <div
+            className="md:col-span-2 flex items-start gap-4 rounded-xl border p-4 transition-colors duration-300 ease-out"
+            style={{
+              backgroundColor: ui.surface2,
+              borderColor: ui.borderSoft,
+            }}
+          >
+            <div
+              className="rounded-lg border p-2 transition-colors duration-300 ease-out shrink-0"
+              style={{
+                backgroundColor: ui.surface,
+                borderColor: ui.border,
+                color: ui.muted,
+              }}
+            >
+              <Briefcase size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p
+                className="mb-1 text-xs font-bold uppercase tracking-wider"
+                style={{ color: ui.muted }}
+              >
+                Purpose / Activity
+              </p>
+              <p
+                className="text-sm font-bold leading-snug"
+                style={{ color: ui.text }}
+              >
+                {credit.purpose || "-"}
               </p>
             </div>
           </div>

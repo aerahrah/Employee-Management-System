@@ -46,22 +46,35 @@ const addCtoCreditRequest = async (req, res) => {
   try {
     const userId = getUserIdOrThrow(req);
 
-    const { employees, duration, memoNo, dateApproved } = req.body;
+    console.log("--- INCOMING REQUEST BODY ---");
+    console.log(req.body);
+
+    // ✅ Added inclusiveDates and purpose
+    const {
+      employees,
+      duration,
+      memoNo,
+      dateApproved,
+      inclusiveDates,
+      purpose,
+    } = req.body;
 
     // robust parsing (supports form-data string OR JSON body)
     const employeesArray = parseJsonMaybe(employees, employees);
     const durationObj = parseJsonMaybe(duration, duration);
+    const inclusiveDatesObj = parseJsonMaybe(inclusiveDates, inclusiveDates);
 
     // ✅ normalize req.body too (helps audit middleware if it reads req.body)
     req.body.employees = employeesArray;
     req.body.duration = durationObj;
+    req.body.inclusiveDates = inclusiveDatesObj;
 
     if (!memoNo) {
       return res.status(400).json({ message: "memoNo is required" });
     }
 
-    let fileName = null; // just "xxx.pdf"
-    let filePath = null; // "/uploads/cto_memos/xxx.pdf" (what we store)
+    let fileName = null;
+    let filePath = null;
 
     // If a file was uploaded via multer
     if (req.file?.path && req.file?.originalname) {
@@ -93,16 +106,18 @@ const addCtoCreditRequest = async (req, res) => {
       filePath = `/uploads/cto_memos/${fileName}`;
     }
 
+    // ✅ Pass new fields to service
     const creditRequest = await ctoCreditService.addCredit({
       employees: employeesArray,
       duration: durationObj,
+      inclusiveDates: inclusiveDatesObj,
+      purpose,
       memoNo,
       dateApproved,
       userId,
       filePath,
     });
 
-    // ✅ BEST: provide DB doc for audit summary (duration + employees objects)
     res.locals.auditAfter = creditRequest;
 
     return res.status(201).json({
@@ -121,7 +136,6 @@ const rollbackCreditedRequest = async (req, res) => {
 
     const credit = await ctoCreditService.rollbackCredit({ creditId, userId });
 
-    // ✅ provide updated doc to audit builder (has memoNo + employees + creditedHours)
     res.locals.auditAfter = credit;
 
     return res.json({

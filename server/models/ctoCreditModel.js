@@ -7,6 +7,15 @@ const ctoCreditSchema = new mongoose.Schema(
     dateApproved: { type: Date, required: true },
     uploadedMemo: { type: String, required: true },
 
+    // NEW: Inclusive dates of the overtime (handles single or multi-day)
+    inclusiveDates: {
+      startDate: { type: Date, required: true },
+      endDate: { type: Date, required: true },
+    },
+
+    // NEW: Generalized description of the activity/task performed
+    purpose: { type: String, required: true },
+
     duration: {
       hours: { type: Number, required: true },
       minutes: { type: Number, required: true },
@@ -49,7 +58,7 @@ const ctoCreditSchema = new mongoose.Schema(
     creditedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
     rolledBackBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("CtoCredit", ctoCreditSchema);

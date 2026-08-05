@@ -292,8 +292,8 @@ const styles = StyleSheet.create({
     padding: 5,
   },
 
-  colDate: { width: "16%" },
-  colPart: { width: "26%" },
+  colDate: { width: "20%" }, // Adjusted slightly for longer date strings
+  colPart: { width: "22%" },
   colEarned: { width: "16%" },
   colAvail: { width: "16%" },
   colBal: { width: "13%" },
@@ -787,10 +787,18 @@ export default function CtoApplicationPdf({
             }
 
             const isAccrual = t.amount > 0;
+
+            // ✅ Prioritize the formatted displayDate from the backend,
+            // fallback to formatting the chronological date if missing.
+            const dateToShow =
+              t.displayDate && t.displayDate !== "N/A"
+                ? t.displayDate
+                : fmtDateShort(t.date);
+
             return (
               <View style={styles.gridRow} key={idx} wrap={false}>
                 <View style={[styles.gridCell, styles.colDate]}>
-                  <Text>{fmtDateShort(t.date)}</Text>
+                  <Text>{dateToShow}</Text>
                 </View>
                 <View style={[styles.gridCell, styles.colPart]}>
                   <Text>{t.description}</Text>

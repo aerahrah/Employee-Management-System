@@ -1,6 +1,12 @@
 // CtoMemoModalContent.jsx
 import React, { memo, useMemo } from "react";
-import { FileText, Clipboard, Calendar, ExternalLink } from "lucide-react";
+import {
+  FileText,
+  Clipboard,
+  Calendar,
+  ExternalLink,
+  Briefcase,
+} from "lucide-react";
 import { API_BASE_URL } from "../../../config/env";
 
 /**
@@ -55,6 +61,27 @@ const tone = {
     text: "var(--app-muted, #64748b)",
     border: "var(--app-border, rgba(15,23,42,0.10))",
   },
+};
+
+// Date Formatting Helpers
+const formatDate = (iso) =>
+  iso
+    ? new Date(iso).toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "-";
+
+const formatOvertimeDates = (start, end) => {
+  if (!start && !end) return "-";
+  const formattedStart = formatDate(start);
+  const formattedEnd = formatDate(end);
+
+  if (formattedStart === formattedEnd) {
+    return formattedStart;
+  }
+  return `${formattedStart} to ${formattedEnd}`;
 };
 
 const CtoMemoModalContent = memo(function CtoMemoModalContent({
@@ -164,9 +191,12 @@ const CtoMemoModalContent = memo(function CtoMemoModalContent({
                 style={{ color: ui.muted }}
               >
                 <Calendar size={10} />
-                {memo.dateApproved
-                  ? new Date(memo.dateApproved).toLocaleDateString()
-                  : "-"}
+                <span>
+                  Approved:{" "}
+                  {memo.dateApproved
+                    ? new Date(memo.dateApproved).toLocaleDateString()
+                    : "-"}
+                </span>
               </div>
             </div>
 
@@ -208,6 +238,39 @@ const CtoMemoModalContent = memo(function CtoMemoModalContent({
                   View PDF
                 </a>
               )}
+            </div>
+          </div>
+
+          {/* ✅ NEW: Overtime Details Block */}
+          <div
+            className="mb-3 mt-2 border-t pt-2 transition-colors duration-300 ease-out"
+            style={{ borderColor: ui.borderSoft }}
+          >
+            <div
+              className="flex items-start gap-1.5 text-xs transition-colors duration-300 ease-out"
+              style={{ color: ui.text }}
+            >
+              <Briefcase
+                size={12}
+                className="mt-0.5 shrink-0"
+                style={{ color: ui.muted }}
+              />
+              <span className="font-medium leading-relaxed">
+                {memo.purpose || "No purpose specified"}
+              </span>
+            </div>
+            <div
+              className="mt-1 flex items-center gap-1.5 text-[11px] transition-colors duration-300 ease-out"
+              style={{ color: ui.muted }}
+            >
+              <Calendar size={12} className="shrink-0" />
+              <span>
+                Rendered:{" "}
+                {formatOvertimeDates(
+                  memo.inclusiveDates?.startDate,
+                  memo.inclusiveDates?.endDate,
+                )}
+              </span>
             </div>
           </div>
 
