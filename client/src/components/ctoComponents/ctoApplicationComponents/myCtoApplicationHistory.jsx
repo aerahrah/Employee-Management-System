@@ -11,10 +11,10 @@ import {
   cancelCtoApplicationRequest,
   followUpCtoApplicationRequest,
   requestRevocation,
-  cancelRevocationCtoRequest, // ✅ Imported newly added endpoint
+  cancelRevocationCtoRequest,
 } from "../../../api/cto";
 
-// ✅ Import settings API
+// Import settings API
 import { fetchRevocationSettings } from "../../../api/revocationApprover";
 
 import Modal from "../../modal";
@@ -56,7 +56,7 @@ import OrganicApplicationPdfModal from "./organicApplicationPDFModal";
 import { useAuth } from "../../../store/authStore";
 import { usePermissions } from "../../../hooks/usePermissions";
 
-// ✅ Import your RevokeRequestModal
+// Import your RevokeRequestModal
 import RevokeRequestModal from "../../revocationComponents/revokeRequestModal";
 
 const pageSizeOptions = [20, 50, 100];
@@ -208,8 +208,8 @@ const ApplicationActionMenu = ({
   onFollowUp,
   followingUp,
   onRequestRevoke,
-  onCancelRevoke, // ✅ Pass handler down
-  cancellingRevoke, // ✅ Pass loading state down
+  onCancelRevoke,
+  cancellingRevoke,
   isOrganicApp,
   canRequestRevocation,
   borderColor,
@@ -241,7 +241,7 @@ const ApplicationActionMenu = ({
   const status = String(app?.overallStatus || "").toUpperCase();
   const isPending = status === "PENDING";
   const isApproved = status === "APPROVED";
-  const isRevocationRequested = status === "REVOCATION_REQUESTED"; // ✅ Track active revocation
+  const isRevocationRequested = status === "REVOCATION_REQUESTED";
   const hasMemos = Array.isArray(app?.memo) && app.memo.length > 0;
 
   return (
@@ -392,7 +392,6 @@ const ApplicationActionMenu = ({
             </button>
           )}
 
-          {/* ✅ New action to cancel a pending revocation */}
           {isRevocationRequested && canRequestRevocation && (
             <button
               disabled={cancellingRevoke}
@@ -450,8 +449,8 @@ const ApplicationCard = ({
   onFollowUp,
   followingUp,
   onRequestRevoke,
-  onCancelRevoke, // ✅ Pass down
-  cancellingRevoke, // ✅ Pass down
+  onCancelRevoke,
+  cancellingRevoke,
   isOrganicApp,
   canRequestRevocation,
   borderColor,
@@ -480,6 +479,8 @@ const ApplicationCard = ({
   const coveredCount = Array.isArray(app?.inclusiveDates)
     ? app.inclusiveDates.length
     : 0;
+
+  const hasMemos = Array.isArray(app?.memo) && app.memo.length > 0;
 
   return (
     <div
@@ -1026,7 +1027,7 @@ const MyCtoApplications = () => {
     return () => clearTimeout(searchTimeout.current);
   }, [searchInput]);
 
-  const appQueryKey = "ctoApplications";
+  const appQueryKey = "myCtoApplications";
   const balanceQueryKey = "myCtoBalanceHours";
 
   const { data, isLoading, refetch } = useQuery({
@@ -1543,7 +1544,6 @@ const MyCtoApplications = () => {
                         </span>
                       )}
                     </div>
-
                     <button
                       type="button"
                       onClick={handleResetFilters}
@@ -1669,8 +1669,15 @@ const MyCtoApplications = () => {
                                   isOrganicApp={isAppOrganic}
                                   canRequestRevocation={canRequestRevocation}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
-                                  onViewCscForm6={() => setOrganicPdfApp(app)}
+                                  onViewPdf={() =>
+                                    setPdfApp({ ...app, ledger: data?.ledger })
+                                  }
+                                  onViewCscForm6={() =>
+                                    setOrganicPdfApp({
+                                      ...app,
+                                      ledger: data?.ledger,
+                                    })
+                                  }
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
                                   onFollowUp={() => openFollowUpModal(app)}
@@ -1740,8 +1747,15 @@ const MyCtoApplications = () => {
                                   isOrganicApp={isAppOrganic}
                                   canRequestRevocation={canRequestRevocation}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
-                                  onViewCscForm6={() => setOrganicPdfApp(app)}
+                                  onViewPdf={() =>
+                                    setPdfApp({ ...app, ledger: data?.ledger })
+                                  }
+                                  onViewCscForm6={() =>
+                                    setOrganicPdfApp({
+                                      ...app,
+                                      ledger: data?.ledger,
+                                    })
+                                  }
                                   onViewMemos={() => openMemoModal(app.memo)}
                                   onCancel={() => openCancelModal(app)}
                                   onFollowUp={() => openFollowUpModal(app)}
@@ -1906,9 +1920,17 @@ const MyCtoApplications = () => {
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
-                                        onViewPdf={() => setPdfApp(app)}
+                                        onViewPdf={() =>
+                                          setPdfApp({
+                                            ...app,
+                                            ledger: data?.ledger,
+                                          })
+                                        }
                                         onViewCscForm6={() =>
-                                          setOrganicPdfApp(app)
+                                          setOrganicPdfApp({
+                                            ...app,
+                                            ledger: data?.ledger,
+                                          })
                                         }
                                         onViewMemos={() =>
                                           openMemoModal(app.memo)
@@ -1938,6 +1960,7 @@ const MyCtoApplications = () => {
                 )}
               </div>
 
+              {/* Pagination */}
               <CompactPagination
                 page={pagination.page}
                 totalPages={pagination.totalPages}
@@ -1971,7 +1994,25 @@ const MyCtoApplications = () => {
             </button>
           )}
 
-          {/* Details Modal */}
+          {/* ✅ General PDF Modal (controlled by !!pdfApp state) */}
+          {pdfApp && (
+            <CtoApplicationPdfModal
+              app={pdfApp}
+              isOpen={!!pdfApp}
+              onClose={() => setPdfApp(null)}
+            />
+          )}
+
+          {/* ✅ Organic PDF Modal (controlled by !!organicPdfApp state) */}
+          {organicPdfApp && (
+            <OrganicApplicationPdfModal
+              app={organicPdfApp}
+              isOpen={!!organicPdfApp}
+              onClose={() => setOrganicPdfApp(null)}
+            />
+          )}
+
+          {/* Details modal */}
           {selectedApp && (
             <Modal
               isOpen={!!selectedApp}

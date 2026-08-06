@@ -6,6 +6,8 @@ import {
   View,
   StyleSheet,
   Image,
+  Svg,
+  Path,
 } from "@react-pdf/renderer";
 
 import { buildApiUrl } from "../../../config/env";
@@ -257,7 +259,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  checkmark: { fontSize: 12, fontWeight: "bold" },
   actionText: { flexDirection: "row", alignItems: "flex-end", flex: 1 },
   approvalLabelLeft: { marginTop: 18, marginBottom: 2 },
   detachRow: { marginTop: 10, marginBottom: 6 },
@@ -312,6 +313,7 @@ const styles = StyleSheet.create({
     width: 150,
     height: 14,
     marginTop: 10,
+    justifyContent: "flex-end", // ✅ Added for date centering at bottom
   },
   footerDateLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
 });
@@ -402,15 +404,19 @@ const SlotSignatures = ({
     return null;
   };
 
+  // ✅ Ensures the name is shown even if pending
   const mainName = mainApprover?.approverSnapshot
     ? getFullApproverName(mainApprover.approverSnapshot)
     : mainApprover?.approver
       ? getFullApproverName(mainApprover.approver)
-      : fallbackName;
+      : mainApprover?.employee
+        ? getFullApproverName(mainApprover.employee)
+        : fallbackName;
 
   const mainRole =
     mainApprover?.approverSnapshot?.position ||
     mainApprover?.approver?.position ||
+    mainApprover?.employee?.position ||
     fallbackRole;
 
   const mainSigUrl = getSigUrl(mainApprover);
@@ -532,6 +538,29 @@ export default function WellnessLeavePdf({
   const activeRecFallbackRole = isAfdDivision
     ? adminFinanceLabel
     : recommendingApproverLabel;
+
+  // ✅ Check if fully approved (or revoked later) to show checkmarks
+  const isApprovedStatus = [
+    "APPROVED",
+    "REVOKED",
+    "REVOCATION_REQUESTED",
+  ].includes(String(app?.overallStatus || "").toUpperCase());
+
+  const getSigDate = (sig) =>
+    sig?.status === "APPROVED"
+      ? sig?.actionDate || sig?.updatedAt || sig?.createdAt
+      : null;
+
+  // ✅ Prioritizes the action date of the Final Approver (RD or ARD)
+  const rawApprovalDate =
+    getSigDate(rdSignature) ||
+    getSigDate(ardSignature) ||
+    app?.approvedAt ||
+    (isApprovedStatus ? app?.updatedAt : null);
+
+  const formattedApprovalDate = rawApprovalDate
+    ? fmtDateLong(rawApprovalDate)
+    : "";
 
   // Focus primarily on wellness arrays/records
   const ledgerItems = Array.isArray(app?.wellness)
@@ -659,20 +688,25 @@ export default function WellnessLeavePdf({
 
           <View style={styles.topRight}>
             <Text style={styles.actionTitle}>ACTION OF APPLICATION</Text>
+
+            {/* ✅ SVG Checkbox for Guaranteed Rendering */}
             <View style={styles.actionRow}>
               <View style={styles.checkbox}>
-                {app?.overallStatus !== "REJECTED" && dayCount ? (
-                  <Text style={styles.checkmark}>✓</Text>
+                {isApprovedStatus && dayCount ? (
+                  <Svg viewBox="0 0 24 24" width={14} height={14}>
+                    <Path
+                      d="M20 6L9 17l-5-5"
+                      stroke="black"
+                      strokeWidth="2.5"
+                      fill="none"
+                    />
+                  </Svg>
                 ) : null}
               </View>
               <View style={styles.actionText}>
                 <Text>Approval for </Text>
                 <UnderlineBox
-                  value={
-                    app?.overallStatus !== "REJECTED" && dayCount
-                      ? String(dayCount)
-                      : ""
-                  }
+                  value={isApprovedStatus && dayCount ? String(dayCount) : ""}
                   width={20}
                   flex={1}
                   align="center"
@@ -685,7 +719,14 @@ export default function WellnessLeavePdf({
             <View style={styles.actionRow}>
               <View style={styles.checkbox}>
                 {app?.overallStatus === "REJECTED" ? (
-                  <Text style={styles.checkmark}>✓</Text>
+                  <Svg viewBox="0 0 24 24" width={14} height={14}>
+                    <Path
+                      d="M20 6L9 17l-5-5"
+                      stroke="black"
+                      strokeWidth="2.5"
+                      fill="none"
+                    />
+                  </Svg>
                 ) : null}
               </View>
               <View style={styles.actionText}>
@@ -787,7 +828,9 @@ export default function WellnessLeavePdf({
                 lineWidth="100%"
               />
               <View style={styles.footerDateLine}>
-                <Text />
+                <Text style={{ textAlign: "center", fontSize: 9 }}>
+                  {formattedApprovalDate}
+                </Text>
               </View>
               <Text style={styles.footerDateLabel}>Date</Text>
             </View>

@@ -86,6 +86,35 @@ const getEffectiveStatusForApprover = (app, myStep) => {
 const clampPage = (v) => Math.max(parseInt(v, 10) || 1, 1);
 const clampLimit = (v) => Math.min(Math.max(parseInt(v, 10) || 10, 1), 100);
 
+function strictNumber(val, fallback = 0) {
+  const parsed = Number(val);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function formatLedgerDates(dates) {
+  if (!Array.isArray(dates) || dates.length === 0) return "";
+
+  // Filter out invalid dates safely
+  const validDates = dates.filter((d) => d && !isNaN(new Date(d).getTime()));
+  if (validDates.length === 0) return "";
+
+  const sorted = validDates.map((d) => new Date(d)).sort((a, b) => a - b);
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+
+  const fmt = (date) =>
+    date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  if (start.getTime() === end.getTime()) {
+    return fmt(start);
+  }
+  return `${fmt(start)} to ${fmt(end)}`;
+}
+
 async function safeSendEmail(to, subject, html) {
   try {
     await sendEmail(to, subject, html);
@@ -100,6 +129,167 @@ async function safeSendEmail(to, subject, html) {
 
 async function canSend(key) {
   return await isEmailEnabled(key);
+}
+
+/* =========================
+   Ledger Generator 
+========================= */
+async function generateEmployeeLedger(employeeId, asOfDate = null) {
+  const credits = await CtoCredit.find({
+    "employees.employee": employeeId,
+  }).lean();
+
+  const applications = await CtoApplication.find({
+    employee: employeeId,
+    overallStatus: {
+      $in: ["APPROVED", "REVOKED", "PENDING", "REVOCATION_REQUESTED"],
+    },
+  }).lean();
+
+  let transactions = [];
+
+  // 1. ADD CREDITS
+  credits.forEach((credit) => {
+    const empRec = credit.employees?.find(
+      (e) => String(e.employee) === String(employeeId),
+    );
+    if (empRec) {
+      const earned =
+        strictNumber(empRec.totalHours) ||
+        strictNumber(empRec.remainingHours) +
+          strictNumber(empRec.usedHours) +
+          strictNumber(empRec.reservedHours);
+
+      if (earned > 0) {
+        // Chronological Math Date
+        const accrualDate =
+          credit.createdAt || credit.dateCredited || credit.dateApproved;
+
+        // Visual Frontend Date (Inclusive OT Dates)
+        let displayDate = "N/A";
+        if (credit.inclusiveDates?.startDate) {
+          const datesArr = [credit.inclusiveDates.startDate];
+          if (credit.inclusiveDates.endDate)
+            datesArr.push(credit.inclusiveDates.endDate);
+          displayDate = formatLedgerDates(datesArr);
+        } else if (credit.dateApproved) {
+          displayDate = formatLedgerDates([credit.dateApproved]);
+        }
+
+        // Description / Particulars
+        let description = "N/A";
+        if (credit.purpose) {
+          description = `${credit.purpose} (Please see attached memo)`;
+        } else if (credit.memoNo) {
+          description = `Memo ${credit.memoNo}`;
+        }
+
+        transactions.push({
+          date: accrualDate,
+          displayDate: displayDate,
+          type: "ACCRUAL",
+          description: description,
+          amount: earned,
+          referenceId: credit._id,
+          sortPriority: 0,
+        });
+      }
+    }
+  });
+
+  // 2. ADD APPLICATIONS
+  applications.forEach((app) => {
+    const datesCovered = formatLedgerDates(app.inclusiveDates);
+    const descriptionBase = datesCovered
+      ? `Compensatory Time Off (${datesCovered})`
+      : "Compensatory Time Off";
+
+    // Chronological Math Date
+    const transactionDate = app.createdAt;
+    // Visual Frontend Date (Inclusive Usage Dates)
+    const displayDate = datesCovered || "N/A";
+
+    if (
+      ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
+        app.overallStatus,
+      )
+    ) {
+      let statusSuffix = "";
+      if (app.overallStatus === "PENDING") statusSuffix = " (Pending)";
+      if (app.overallStatus === "REVOCATION_REQUESTED")
+        statusSuffix = " (Revocation Requested)";
+
+      transactions.push({
+        date: transactionDate,
+        displayDate: displayDate,
+        type: "APPLICATION",
+        description: `${descriptionBase}${statusSuffix}`,
+        amount: -strictNumber(app.requestedHours),
+        referenceId: app._id,
+        sortPriority: 1,
+      });
+    } else if (app.overallStatus === "REVOKED") {
+      // Original Usage Deduction
+      transactions.push({
+        date: transactionDate,
+        displayDate: displayDate,
+        type: "APPLICATION",
+        description: descriptionBase,
+        amount: -strictNumber(app.requestedHours),
+        referenceId: app._id,
+        sortPriority: 1,
+      });
+
+      // Revocation / Refund
+      let revokeDate = new Date(app.revokedAt || app.updatedAt);
+      if (revokeDate.getTime() < new Date(transactionDate).getTime()) {
+        revokeDate = new Date(new Date(transactionDate).getTime() + 1000);
+      }
+
+      transactions.push({
+        date: revokeDate,
+        displayDate: displayDate, // Keeps the same context as the original usage
+        type: "REVOCATION_RESTORED",
+        description: `${descriptionBase} - Revoked`,
+        amount: strictNumber(app.requestedHours),
+        referenceId: app._id,
+        sortPriority: 2,
+      });
+    }
+  });
+
+  // Filter out any transactions that happened AFTER the snapshot date
+  if (asOfDate) {
+    const cutoffDate = new Date(asOfDate);
+    transactions = transactions.filter((t) => new Date(t.date) <= cutoffDate);
+  }
+
+  // 3. SORT CHRONOLOGICALLY
+  transactions.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+
+    if (dateA === dateB) {
+      return (a.sortPriority || 0) - (b.sortPriority || 0);
+    }
+    return dateA - dateB;
+  });
+
+  // 4. CALCULATE BALANCE
+  let runningBalance = 0;
+  const ledgerTransactions = transactions.map((t) => {
+    runningBalance += t.amount;
+    return {
+      ...t,
+      runningBalance,
+    };
+  });
+
+  return {
+    balanceForwarded: 0,
+    transactions: ledgerTransactions,
+    endingBalance: runningBalance,
+  };
 }
 
 /* =========================
@@ -325,6 +515,13 @@ const getCtoApplicationByIdService = async (ctoApplicationId) => {
   if (!application) throw createServiceError("CTO Application not found", 404);
 
   application.type = "CTO";
+
+  // === LEDGER INTEGRATION ===
+  const asOfDate = application.createdAt || new Date();
+  const employeeId = application.employee?._id || application.employee;
+  const ledger = await generateEmployeeLedger(employeeId, asOfDate);
+  application.ledger = ledger;
+
   return application;
 };
 
