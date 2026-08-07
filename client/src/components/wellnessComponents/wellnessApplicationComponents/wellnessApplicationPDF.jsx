@@ -26,6 +26,17 @@ function fmtDateLong(d) {
   });
 }
 
+function fmtDateShort(d) {
+  if (!d) return "";
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function toMidnight(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -110,34 +121,6 @@ function getFullApproverName(profile) {
   return `${pre}${f}${m}${l}${ext}${post}`.toUpperCase();
 }
 
-function ledgerRowLabel(item) {
-  const record = item?.wellnessId || item?.recordId || item || {};
-  const days =
-    record?.daysEarned ??
-    record?.earnedDays ??
-    record?.totalDays ??
-    item?.appliedDays ??
-    "";
-
-  const date =
-    record?.earnedDate ||
-    record?.creditDate ||
-    record?.dateEarned ||
-    record?.createdAt ||
-    "";
-
-  const dateStr = date
-    ? new Date(date).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      })
-    : "";
-
-  const daysStr = days !== "" ? `${days} days` : "";
-  if (!dateStr && !daysStr) return "";
-  return [dateStr, daysStr].filter(Boolean).join(" – ");
-}
-
 /* =========================
    Styles 
 ========================= */
@@ -147,6 +130,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Helvetica",
     lineHeight: 1.25,
+    position: "relative",
   },
   header: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
   logo: { width: 190, height: 55, objectFit: "contain" },
@@ -293,11 +277,16 @@ const styles = StyleSheet.create({
     borderBottomColor: "#000",
     padding: 5,
   },
-  col1: { width: "28%" },
-  col2: { width: "20%" },
-  col3: { width: "16%" },
-  col4: { width: "18%" },
-  col5: { width: "18%", borderRightWidth: 0 },
+
+  // ✅ Updated Ledger Columns matching CTO
+  colDate: { width: "20%" },
+  colPart: { width: "22%" },
+  colEarned: { width: "16%" },
+  colAvail: { width: "16%" },
+  colBal: { width: "13%" },
+  colRem: { width: "13%", borderRightWidth: 0 },
+  colMerged: { width: "74%" },
+
   certFooter: {
     minHeight: 120,
     padding: 15,
@@ -316,6 +305,25 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end", // ✅ Added for date centering at bottom
   },
   footerDateLabel: { textAlign: "center", fontSize: 9, marginTop: 2 },
+  boldText: { fontWeight: "bold" },
+  textCenter: { textAlign: "center" },
+  watermarkContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999999,
+  },
+  watermarkText: {
+    color: "rgba(220, 38, 38, 0.25)",
+    fontSize: 100,
+    fontFamily: "Helvetica-Bold",
+    transform: "rotate(-45deg)",
+    letterSpacing: 5,
+  },
 });
 
 /* =========================
@@ -491,7 +499,6 @@ export default function WellnessLeavePdf({
 
   const dateOfFiling = fmtDateLong(app?.createdAt) || "";
 
-  // ✅ Pulling "Used Days" from app.totalDays
   const totalDaysUsed = safeNumber(app?.totalDays);
   const inclusiveDates = formatInclusiveDates(app?.inclusiveDates) || "";
   const reason = app?.reason || "";
@@ -546,6 +553,9 @@ export default function WellnessLeavePdf({
     "REVOCATION_REQUESTED",
   ].includes(String(app?.overallStatus || "").toUpperCase());
 
+  const isRevoked =
+    String(app?.overallStatus || "").toUpperCase() === "REVOKED";
+
   const getSigDate = (sig) =>
     sig?.status === "APPROVED"
       ? sig?.actionDate || sig?.updatedAt || sig?.createdAt
@@ -562,61 +572,22 @@ export default function WellnessLeavePdf({
     ? fmtDateLong(rawApprovalDate)
     : "";
 
-  // Focus primarily on wellness arrays/records
-  const ledgerItems = Array.isArray(app?.wellness)
-    ? app.wellness
-    : Array.isArray(app?.ledger)
-      ? app.ledger
-      : [];
-
   // ==========================================
-  // TABLE ROW GENERATION LOGIC
+  // LEDGER DATA EXTRACTION (Match CTO)
   // ==========================================
+  const ledger = app?.ledger || {
+    balanceForwarded: 0,
+    transactions: [],
+    endingBalance: 0,
+  };
+  const transactions = ledger.transactions || [];
+  const balanceForwarded = safeNumber(ledger.balanceForwarded);
+  const endingBalance = safeNumber(ledger.endingBalance);
 
-  // Gets Total Wellness Leave Balance specifically from the snapshot
-  const snapBalance =
-    applicantSnap.wellnessBalance ?? emp.balances?.wellnessDays;
-  const hasSnapBalance = snapBalance !== undefined && snapBalance !== null;
-
-  let generatedRows = [];
-
-  if (ledgerItems.length > 0) {
-    // If we have specific ledger history, populate it
-    generatedRows = ledgerItems.map((m) => {
-      const record = m?.wellnessId || m?.recordId || m || {};
-      return {
-        col1:
-          ledgerRowLabel(m) || (hasSnapBalance ? `${snapBalance} Day(s)` : ""),
-        col2: inclusiveDates || "",
-        col3: m?.appliedDays != null ? String(m.appliedDays) : "",
-        col4:
-          record?.remainingDays != null ? `${record.remainingDays} Day(s)` : "",
-        col5: record?.remarks ?? m?.remarks ?? "",
-      };
-    });
-  } else {
-    // ✅ Calculate Remaining Balance: Total Balance - Used Days (app.totalDays)
-    const remainingCalc =
-      hasSnapBalance && totalDaysUsed
-        ? Math.max(0, snapBalance - totalDaysUsed)
-        : hasSnapBalance
-          ? snapBalance
-          : "";
-
-    generatedRows.push({
-      col1: hasSnapBalance ? `${snapBalance} Day(s)` : "",
-      col2: inclusiveDates || "",
-      col3: totalDaysUsed ? String(totalDaysUsed) : "", // Number renders with "Day(s)" below
-      col4: remainingCalc !== "" ? `${remainingCalc} Day(s)` : "",
-      col5: app?.overallStatus === "REJECTED" ? "Rejected" : "",
-    });
+  const paddedTransactions = [...transactions];
+  while (paddedTransactions.length < 2) {
+    paddedTransactions.push({ isEmpty: true });
   }
-
-  // Pad the array up to exactly 6 empty rows to keep the layout looking neat
-  while (generatedRows.length < 6) {
-    generatedRows.push({ col1: "", col2: "", col3: "", col4: "", col5: "" });
-  }
-  const rows = generatedRows.slice(0, 6);
 
   return (
     <Document title={`Wellness Leave Application - ${lastName || "Applicant"}`}>
@@ -778,45 +749,120 @@ export default function WellnessLeavePdf({
         </Text>
 
         <View style={styles.certBox}>
-          <View style={styles.gridRow}>
-            <View style={[styles.gridHeaderCell, styles.col1]}>
-              <Text>Total Wellness Leave Balance</Text>
+          {/* Header Row */}
+          <View style={styles.gridRow} wrap={false}>
+            <View style={[styles.gridHeaderCell, styles.colDate]}>
+              <Text>Date</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col2]}>
-              <Text>Date of Leave</Text>
+            <View style={[styles.gridHeaderCell, styles.colPart]}>
+              <Text>Particulars</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col3]}>
-              <Text>Used Days</Text>
+            <View style={[styles.gridHeaderCell, styles.colEarned]}>
+              <Text>Wellness Leave{"\n"}Credits</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col4]}>
-              <Text>Remaining Days</Text>
+            <View style={[styles.gridHeaderCell, styles.colAvail]}>
+              <Text>Number of{"\n"}Wellness Availed</Text>
             </View>
-            <View style={[styles.gridHeaderCell, styles.col5]}>
+            <View style={[styles.gridHeaderCell, styles.colBal]}>
+              <Text>Leave{"\n"}Balance</Text>
+            </View>
+            <View style={[styles.gridHeaderCell, styles.colRem]}>
               <Text>Remarks</Text>
             </View>
           </View>
 
-          {rows.map((r, idx) => (
-            <View style={styles.gridRow} key={idx}>
-              <View style={[styles.gridCell, styles.col1]}>
-                <Text>{r.col1}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col2]}>
-                <Text>{r.col2}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col3]}>
-                <Text>{r.col3 ? `${r.col3} Day(s)` : ""}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col4]}>
-                <Text>{r.col4}</Text>
-              </View>
-              <View style={[styles.gridCell, styles.col5]}>
-                <Text>{r.col5}</Text>
-              </View>
+          {/* Balance Forwarded Row */}
+          <View style={styles.gridRow} wrap={false}>
+            <View style={[styles.gridCell, styles.colMerged]}>
+              <Text style={styles.boldText}>Balance Forwarded</Text>
             </View>
-          ))}
+            <View style={[styles.gridCell, styles.colBal, styles.textCenter]}>
+              <Text>{balanceForwarded} Day(s)</Text>
+            </View>
+            <View style={[styles.gridCell, styles.colRem]}>
+              <Text> </Text>
+            </View>
+          </View>
 
-          <View style={styles.certFooter}>
+          {/* Dynamic Transaction Rows */}
+          {paddedTransactions.map((t, idx) => {
+            if (t.isEmpty) {
+              return (
+                <View style={styles.gridRow} key={`empty-${idx}`} wrap={false}>
+                  <View style={[styles.gridCell, styles.colDate]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colPart]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colEarned]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colAvail]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colBal]}>
+                    <Text> </Text>
+                  </View>
+                  <View style={[styles.gridCell, styles.colRem]}>
+                    <Text> </Text>
+                  </View>
+                </View>
+              );
+            }
+
+            const isAccrual = t.amount > 0;
+            const dateToShow =
+              t.displayDate && t.displayDate !== "N/A"
+                ? t.displayDate
+                : fmtDateShort(t.date);
+
+            return (
+              <View style={styles.gridRow} key={idx} wrap={false}>
+                <View style={[styles.gridCell, styles.colDate]}>
+                  <Text>{dateToShow}</Text>
+                </View>
+                <View style={[styles.gridCell, styles.colPart]}>
+                  <Text>{t.description}</Text>
+                </View>
+                <View
+                  style={[styles.gridCell, styles.colEarned, styles.textCenter]}
+                >
+                  <Text>{isAccrual ? `${t.amount} Day(s)` : ""}</Text>
+                </View>
+                <View
+                  style={[styles.gridCell, styles.colAvail, styles.textCenter]}
+                >
+                  <Text>
+                    {!isAccrual ? `${Math.abs(t.amount)} Day(s)` : ""}
+                  </Text>
+                </View>
+                <View
+                  style={[styles.gridCell, styles.colBal, styles.textCenter]}
+                >
+                  <Text>{t.runningBalance} Day(s)</Text>
+                </View>
+                <View style={[styles.gridCell, styles.colRem]}>
+                  <Text> </Text>
+                </View>
+              </View>
+            );
+          })}
+
+          {/* Ending Balance Row */}
+          <View style={styles.gridRow} wrap={false}>
+            <View style={[styles.gridCell, styles.colMerged]}>
+              <Text style={styles.boldText}>Ending Balance</Text>
+            </View>
+            <View style={[styles.gridCell, styles.colBal, styles.textCenter]}>
+              <Text>{endingBalance} Day(s)</Text>
+            </View>
+            <View style={[styles.gridCell, styles.colRem]}>
+              <Text> </Text>
+            </View>
+          </View>
+
+          <View style={styles.certFooter} wrap={false}>
             <View style={styles.footerBlock}>
               {/* ✅ Bottom Footer: AFD Chief Signature with HR Signature as the Initial */}
               <SlotSignatures
@@ -836,6 +882,12 @@ export default function WellnessLeavePdf({
             </View>
           </View>
         </View>
+
+        {isRevoked && (
+          <View style={styles.watermarkContainer}>
+            <Text style={styles.watermarkText}>REVOKED</Text>
+          </View>
+        )}
       </Page>
     </Document>
   );

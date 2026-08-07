@@ -4,10 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { StatusBadge } from "../../statusUtils";
 import {
   fetchMyWellnessApplications,
+  fetchWellnessApplicationById, // ✅ Added import here
   cancelWellnessApplicationRequest,
   followUpWellnessApplicationRequest,
   requestRevocationWellness,
-  cancelRevocationWellnessRequest, // ✅ Newly imported endpoint
+  cancelRevocationWellnessRequest,
 } from "../../../api/wellnessApplication";
 
 // ✅ Import Revocation Settings API
@@ -1041,6 +1042,17 @@ const MyWellnessApplications = () => {
 
   const isFiltered = statusFilter !== "" || searchFilter !== "";
 
+  // ✅ Add handleViewPdf here
+  const handleViewPdf = async (app) => {
+    try {
+      const fullAppDetails = await fetchWellnessApplicationById(app._id);
+      setPdfApp(fullAppDetails);
+    } catch (error) {
+      console.error("Failed to fetch full application details for PDF:", error);
+      setPdfApp(app);
+    }
+  };
+
   const statusCounts = data?.statusCounts || {};
   const totalCount =
     typeof statusCounts.total === "number"
@@ -1462,7 +1474,7 @@ const MyWellnessApplications = () => {
                                   cancellingRevoke={cancellingRevoke} // ✅ Passed prop
                                   isOrganicApp={isAppOrganic}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewPdf={() => handleViewPdf(app)} // ✅ Updated
                                   onViewOrganicForm={() =>
                                     setOrganicPdfApp(app)
                                   }
@@ -1621,7 +1633,7 @@ const MyWellnessApplications = () => {
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
-                                        onViewPdf={() => setPdfApp(app)}
+                                        onViewPdf={() => handleViewPdf(app)} // ✅ Updated
                                         onViewOrganicForm={() =>
                                           setOrganicPdfApp(app)
                                         }

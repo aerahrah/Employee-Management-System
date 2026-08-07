@@ -1,7 +1,10 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "../../statusUtils";
-import { fetchAllWellnessApplications } from "../../../api/wellnessApplication";
+import {
+  fetchAllWellnessApplications,
+  fetchWellnessApplicationById, // ✅ Added import
+} from "../../../api/wellnessApplication";
 import Modal from "../../modal";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -13,7 +16,6 @@ import {
   RotateCcw,
   CalendarDays,
   Inbox,
-  MoreVertical,
   LayoutGrid,
   AlertCircle,
   CheckCircle2,
@@ -34,8 +36,8 @@ import { useAuth } from "../../../store/authStore";
 import StatusTabs from "../../statusTabs";
 
 // ✅ PDF Modals
-import WellnessLeavePdfModal from "./wellnessApplicationModal"; // Assuming this is your wrapper modal name
-import OrganicWellnessLeavePdfModal from "./organicWellnessApplicationPDFModal"; // The CSC Form 6 Modal
+import WellnessLeavePdfModal from "./wellnessApplicationModal";
+import OrganicWellnessLeavePdfModal from "./organicWellnessApplicationPDFModal";
 
 const pageSizeOptions = [20, 50, 100];
 
@@ -859,6 +861,21 @@ const AllWellnessApplicationsHistory = () => {
     }
   }, []);
 
+  // ✅ NEW: Fetch the full application (with ledger) before opening the PDF
+  const handleViewPdf = async (app) => {
+    try {
+      // Fetch full details using the specific ID
+      const fullAppDetails = await fetchWellnessApplicationById(app._id);
+
+      // Set the modal state with the full data containing the ledger
+      setPdfApp(fullAppDetails);
+    } catch (error) {
+      console.error("Failed to fetch full application details for PDF:", error);
+      // Fallback to the shallow app just in case
+      setPdfApp(app);
+    }
+  };
+
   const statusCounts = data?.statusCounts || {};
 
   const totalRequests =
@@ -1245,7 +1262,7 @@ const AllWellnessApplicationsHistory = () => {
                                     app.overallStatus,
                                   )}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewPdf={() => handleViewPdf(app)} // ✅ Updated
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                 />
                               );
@@ -1294,7 +1311,7 @@ const AllWellnessApplicationsHistory = () => {
                                     app.overallStatus,
                                   )}
                                   onViewDetails={() => setSelectedApp(app)}
-                                  onViewPdf={() => setPdfApp(app)}
+                                  onViewPdf={() => handleViewPdf(app)} // ✅ Updated
                                   onViewCscForm6={() => setOrganicPdfApp(app)}
                                 />
                               );
@@ -1459,7 +1476,7 @@ const AllWellnessApplicationsHistory = () => {
                                         onViewDetails={() =>
                                           setSelectedApp(app)
                                         }
-                                        onViewPdf={() => setPdfApp(app)}
+                                        onViewPdf={() => handleViewPdf(app)} // ✅ Updated
                                         onViewCscForm6={() =>
                                           setOrganicPdfApp(app)
                                         }

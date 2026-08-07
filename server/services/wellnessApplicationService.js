@@ -41,6 +41,31 @@ function sanitizeText(str, limit = 1000) {
     .slice(0, limit);
 }
 
+// ✅ HELPER: Formats inclusive dates into a short readable string for the ledger
+function formatLedgerDates(dates) {
+  if (!Array.isArray(dates) || dates.length === 0) return "";
+
+  // Filter out invalid dates safely
+  const validDates = dates.filter((d) => d && !isNaN(new Date(d).getTime()));
+  if (validDates.length === 0) return "";
+
+  const sorted = validDates.map((d) => new Date(d)).sort((a, b) => a - b);
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+
+  const fmt = (date) =>
+    date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  if (start.getTime() === end.getTime()) {
+    return fmt(start);
+  }
+  return `${fmt(start)} to ${fmt(end)}`;
+}
+
 async function safeSendEmail(to, subject, html) {
   try {
     await sendEmail(to, subject, html);
@@ -131,6 +156,144 @@ const notifyApproversOfCancellation = async ({
     );
   }
 };
+
+/* =========================
+   Ledger Generator 
+========================= */
+async function generateEmployeeLedger(employeeId, asOfDate = null) {
+  // 1. Fetch the employee's absolute real-time balance
+  const employee = await Employee.findById(employeeId)
+    .select("balances")
+    .lean();
+  const currentBalance = Number(employee?.balances?.wellnessDays || 0);
+
+  const applications = await WellnessApplication.find({
+    employee: employeeId,
+    overallStatus: {
+      $in: ["APPROVED", "REVOKED", "PENDING", "REVOCATION_REQUESTED"],
+    },
+  }).lean();
+
+  // 2. Mathematically derive the Total Credited Days
+  // Total Credited Days = Current Remaining Balance + Total Days Ever Used
+  let totalUsedAllTime = 0;
+  applications.forEach((app) => {
+    if (
+      ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
+        app.overallStatus,
+      )
+    ) {
+      totalUsedAllTime += Number(app.totalDays || 0);
+    }
+  });
+
+  // This serves as our starting total sum of credited days
+  const totalCreditedDays = currentBalance + totalUsedAllTime;
+
+  let transactions = [];
+
+  // -------------------------
+  // 3. ADD APPLICATIONS (Usage & Revocations)
+  // -------------------------
+  applications.forEach((app) => {
+    const datesCovered = formatLedgerDates(app.inclusiveDates);
+    const descriptionBase = datesCovered
+      ? `Wellness Leave (${datesCovered})`
+      : "Wellness Leave";
+
+    // Chronological Math Date
+    const transactionDate = app.createdAt;
+
+    // Visual Frontend Date (Inclusive Usage Dates)
+    const displayDate = datesCovered || "N/A";
+
+    // Process PENDING, REVOCATION_REQUESTED, and APPROVED as valid deductions
+    if (
+      ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
+        app.overallStatus,
+      )
+    ) {
+      let statusSuffix = "";
+      if (app.overallStatus === "PENDING") statusSuffix = " (Pending)";
+      if (app.overallStatus === "REVOCATION_REQUESTED")
+        statusSuffix = " (Revocation Requested)";
+
+      transactions.push({
+        date: transactionDate,
+        displayDate: displayDate,
+        type: "APPLICATION",
+        description: `${descriptionBase}${statusSuffix}`,
+        amount: -Number(app.totalDays),
+        referenceId: app._id,
+        sortPriority: 1,
+      });
+    } else if (app.overallStatus === "REVOKED") {
+      // Original Usage Deduction
+      transactions.push({
+        date: transactionDate,
+        displayDate: displayDate,
+        type: "APPLICATION",
+        description: descriptionBase,
+        amount: -Number(app.totalDays),
+        referenceId: app._id,
+        sortPriority: 1,
+      });
+
+      // Revocation / Refund
+      let revokeDate = new Date(app.revokedAt || app.updatedAt);
+      if (revokeDate.getTime() < new Date(transactionDate).getTime()) {
+        revokeDate = new Date(new Date(transactionDate).getTime() + 1000);
+      }
+
+      transactions.push({
+        date: revokeDate,
+        displayDate: displayDate, // Keeps the same context as the original usage
+        type: "REVOCATION_RESTORED",
+        description: `${descriptionBase} - Revoked`,
+        amount: Number(app.totalDays),
+        referenceId: app._id,
+        sortPriority: 2,
+      });
+    }
+  });
+
+  // Filter out any transactions that happened AFTER the snapshot date
+  if (asOfDate) {
+    const cutoffDate = new Date(asOfDate);
+    transactions = transactions.filter((t) => new Date(t.date) <= cutoffDate);
+  }
+
+  // -------------------------
+  // 4. SORT CHRONOLOGICALLY
+  // -------------------------
+  transactions.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+
+    if (dateA === dateB) {
+      return (a.sortPriority || 0) - (b.sortPriority || 0);
+    }
+    return dateA - dateB;
+  });
+
+  // -------------------------
+  // 5. CALCULATE RUNNING BALANCE
+  // -------------------------
+  let runningBalance = totalCreditedDays;
+  const ledgerTransactions = transactions.map((t) => {
+    runningBalance += t.amount;
+    return {
+      ...t,
+      runningBalance,
+    };
+  });
+
+  return {
+    balanceForwarded: totalCreditedDays, // ✅ Accurately supplies total credited days
+    transactions: ledgerTransactions,
+    endingBalance: runningBalance,
+  };
+}
 
 /* =========================
    Services
@@ -630,6 +793,11 @@ const getAllWellnessApplicationsService = async (
     if (s._id) statusCounts[s._id] = s.count;
   });
 
+  let ledger = null;
+  if (filters.employeeId) {
+    ledger = await generateEmployeeLedger(filters.employeeId);
+  }
+
   return {
     data: transformed, // ✅ Returned transformed array
     pagination: {
@@ -639,6 +807,7 @@ const getAllWellnessApplicationsService = async (
       totalPages: Math.ceil(total / limit),
     },
     statusCounts,
+    ledger,
   };
 };
 
@@ -822,6 +991,8 @@ const getWellnessApplicationsByEmployeeService = async (
     if (s._id) statusCounts[s._id] = s.count;
   });
 
+  const ledger = await generateEmployeeLedger(employeeId);
+
   return {
     data: applications,
     pagination: {
@@ -831,6 +1002,7 @@ const getWellnessApplicationsByEmployeeService = async (
       totalPages: Math.ceil(total / limit),
     },
     statusCounts,
+    ledger,
   };
 };
 
@@ -1354,7 +1526,16 @@ const getWellnessRevocationByIdService = async (applicationId) => {
   if (!app) {
     throw Object.assign(new Error("Application not found."), { status: 404 });
   }
-  return app;
+
+  const asOfDate = app.createdAt || new Date();
+  const employeeId = app.employee?._id || app.employee;
+  const ledger = await generateEmployeeLedger(employeeId, asOfDate);
+
+  const appObj = app.toObject ? app.toObject() : app;
+  return {
+    ...appObj,
+    ledger,
+  };
 };
 
 const cancelRevocationWellnessRequestService = async ({

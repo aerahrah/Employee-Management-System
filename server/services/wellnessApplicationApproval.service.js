@@ -78,6 +78,164 @@ async function canSend(key) {
   return await isEmailEnabled(key);
 }
 
+// ✅ HELPER: Formats inclusive dates into a short readable string for the ledger
+function formatLedgerDates(dates) {
+  if (!Array.isArray(dates) || dates.length === 0) return "";
+
+  // Filter out invalid dates safely
+  const validDates = dates.filter((d) => d && !isNaN(new Date(d).getTime()));
+  if (validDates.length === 0) return "";
+
+  const sorted = validDates.map((d) => new Date(d)).sort((a, b) => a - b);
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+
+  const fmt = (date) =>
+    date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  if (start.getTime() === end.getTime()) {
+    return fmt(start);
+  }
+  return `${fmt(start)} to ${fmt(end)}`;
+}
+
+/* =========================
+   Ledger Generator 
+========================= */
+async function generateEmployeeLedger(employeeId, asOfDate = null) {
+  // 1. Fetch the employee's absolute real-time balance
+  const employee = await Employee.findById(employeeId)
+    .select("balances")
+    .lean();
+  const currentBalance = Number(employee?.balances?.wellnessDays || 0);
+
+  // 2. Determine the target year (either the year of the application, or current year)
+  const targetYear = asOfDate
+    ? new Date(asOfDate).getFullYear()
+    : new Date().getFullYear();
+  const startOfYear = new Date(`${targetYear}-01-01T00:00:00.000Z`);
+  const endOfYear = new Date(`${targetYear}-12-31T23:59:59.999Z`);
+
+  // 3. Only fetch applications from that specific year!
+  const applications = await WellnessApplication.find({
+    employee: employeeId,
+    overallStatus: {
+      $in: ["APPROVED", "REVOKED", "PENDING", "REVOCATION_REQUESTED"],
+    },
+    createdAt: { $gte: startOfYear, $lte: endOfYear },
+  }).lean();
+
+  // 4. Mathematically derive the Total Credited Days FOR THIS YEAR
+  let totalUsedThisYear = 0;
+  applications.forEach((app) => {
+    if (
+      ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
+        app.overallStatus,
+      )
+    ) {
+      totalUsedThisYear += Number(app.totalDays || 0);
+    }
+  });
+
+  // This serves as our starting total sum of credited days for the year
+  const totalCreditedDaysThisYear = currentBalance + totalUsedThisYear;
+
+  let transactions = [];
+
+  // -------------------------
+  // ADD APPLICATIONS (Usage & Revocations)
+  // -------------------------
+  applications.forEach((app) => {
+    const datesCovered = formatLedgerDates(app.inclusiveDates);
+    const descriptionBase = datesCovered
+      ? `Wellness Leave (${datesCovered})`
+      : "Wellness Leave";
+
+    const transactionDate = app.createdAt;
+    const displayDate = datesCovered || "N/A";
+
+    if (
+      ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
+        app.overallStatus,
+      )
+    ) {
+      let statusSuffix = "";
+      if (app.overallStatus === "PENDING") statusSuffix = " (Pending)";
+      if (app.overallStatus === "REVOCATION_REQUESTED")
+        statusSuffix = " (Revocation Requested)";
+
+      transactions.push({
+        date: transactionDate,
+        displayDate: displayDate,
+        type: "APPLICATION",
+        description: `${descriptionBase}${statusSuffix}`,
+        amount: -Number(app.totalDays),
+        referenceId: app._id,
+        sortPriority: 1,
+      });
+    } else if (app.overallStatus === "REVOKED") {
+      transactions.push({
+        date: transactionDate,
+        displayDate: displayDate,
+        type: "APPLICATION",
+        description: descriptionBase,
+        amount: -Number(app.totalDays),
+        referenceId: app._id,
+        sortPriority: 1,
+      });
+
+      let revokeDate = new Date(app.revokedAt || app.updatedAt);
+      if (revokeDate.getTime() < new Date(transactionDate).getTime()) {
+        revokeDate = new Date(new Date(transactionDate).getTime() + 1000);
+      }
+
+      transactions.push({
+        date: revokeDate,
+        displayDate: displayDate,
+        type: "REVOCATION_RESTORED",
+        description: `${descriptionBase} - Revoked`,
+        amount: Number(app.totalDays),
+        referenceId: app._id,
+        sortPriority: 2,
+      });
+    }
+  });
+
+  if (asOfDate) {
+    const cutoffDate = new Date(asOfDate);
+    transactions = transactions.filter((t) => new Date(t.date) <= cutoffDate);
+  }
+
+  transactions.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+
+    if (dateA === dateB) {
+      return (a.sortPriority || 0) - (b.sortPriority || 0);
+    }
+    return dateA - dateB;
+  });
+
+  let runningBalance = totalCreditedDaysThisYear;
+  const ledgerTransactions = transactions.map((t) => {
+    runningBalance += t.amount;
+    return {
+      ...t,
+      runningBalance,
+    };
+  });
+
+  return {
+    balanceForwarded: totalCreditedDaysThisYear,
+    transactions: ledgerTransactions,
+    endingBalance: runningBalance,
+  };
+}
+
 /* =========================
    Services
 ========================= */
@@ -260,6 +418,7 @@ const getWellnessApplicationsForApproverService = async (
   };
 };
 
+// ✅ ADDED THE LEDGER HERE
 const getWellnessApplicationByIdService = async (wellnessApplicationId) => {
   if (!wellnessApplicationId)
     throw httpError("Application ID is required.", 400);
@@ -283,8 +442,14 @@ const getWellnessApplicationByIdService = async (wellnessApplicationId) => {
 
   if (!application) throw httpError("Wellness Application not found", 404);
 
+  // ✅ Generate and attach Ledger
+  const asOfDate = application.createdAt || new Date();
+  const employeeId = application.employee?._id || application.employee;
+  const ledger = await generateEmployeeLedger(employeeId, asOfDate);
+
   const appObj = application.toObject ? application.toObject() : application;
   appObj.type = "WELLNESS";
+  appObj.ledger = ledger; // ✅ Attach Ledger Object
 
   return appObj;
 };

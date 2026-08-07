@@ -1467,19 +1467,46 @@ const CtoApplicationDetails = () => {
                 </h3>
               </div>
 
-              <p
-                className="leading-relaxed italic p-4 rounded-2xl border break-words"
-                style={{
-                  color: "var(--app-text)",
-                  backgroundColor: "var(--app-surface-2)",
-                  borderColor: borderColor,
-                }}
-              >
-                "
-                {application.reason ||
-                  "No specific reason provided by the applicant."}
-                "
-              </p>
+              <div className="space-y-4">
+                <div>
+                  <p
+                    className="text-[10px] font-bold uppercase mb-1"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    Purpose / Reason
+                  </p>
+                  <p
+                    className="leading-relaxed italic p-4 rounded-2xl border break-words"
+                    style={{
+                      color: "var(--app-text)",
+                      backgroundColor: "var(--app-surface-2)",
+                      borderColor: borderColor,
+                    }}
+                  >
+                    "
+                    {application.reason ||
+                      "No specific reason provided by the applicant."}
+                    "
+                  </p>
+                </div>
+
+                {isOrganicApp && (
+                  <div className="px-2">
+                    <p
+                      className="text-[10px] font-bold uppercase mb-1"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      Commutation Status
+                    </p>
+                    <p
+                      className="font-semibold text-sm"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      {application.commutation || "Not Requested"}
+                    </p>
+                  </div>
+                )}
+              </div>
             </section>
 
             <section
@@ -1596,8 +1623,6 @@ const CtoApplicationDetails = () => {
 
           {/* SIDEBAR */}
           <aside className="space-y-4 min-w-0">
-            <RequestedDatesCalendar dates={application?.inclusiveDates || []} />
-
             <div
               className="border rounded-xl p-2 sm:p-3 shadow-sm min-w-0"
               style={{
@@ -1638,7 +1663,6 @@ const CtoApplicationDetails = () => {
                   </span>
                   <span className="truncate">General Form</span>
                 </span>
-
                 <span
                   className="text-[9px] font-bold px-2 py-1 rounded-lg flex-none border"
                   style={{
@@ -1651,6 +1675,7 @@ const CtoApplicationDetails = () => {
                 </span>
               </button>
 
+              {/* CSC Form 6 PDF Button */}
               {isOrganicApp && (
                 <button
                   type="button"
@@ -1798,6 +1823,7 @@ const CtoApplicationDetails = () => {
                   : `View all memos (${memoCount})`}
               </button>
             </div>
+            <RequestedDatesCalendar dates={application?.inclusiveDates || []} />
           </aside>
         </div>
 

@@ -450,6 +450,22 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
     return cells;
   }, [viewMonth, requestedKeys]);
 
+  // Added logic to count requested days in the currently viewed month
+  const requestedCountThisMonth = useMemo(() => {
+    const y = viewMonth.getFullYear();
+    const m = viewMonth.getMonth();
+    let count = 0;
+    requestedKeys.forEach((k) => {
+      const [yy, mm] = k.split("-").map((x) => Number(x));
+      if (!yy || !mm) return;
+      const monthIdx = mm - 1;
+      if (yy === y && monthIdx === m) count += 1;
+    });
+    return count;
+  }, [requestedKeys, viewMonth]);
+
+  const hasAnyDates = requestedKeys.size > 0;
+
   return (
     <div
       className="border rounded-xl p-2 sm:p-3 shadow-sm min-w-0"
@@ -477,15 +493,17 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
         <div className="flex items-center gap-1.5 flex-none">
           <button
             onClick={() => setViewMonth((d) => addMonths(d, -1))}
-            className="h-9 w-9 rounded-xl border bg-[color:var(--app-surface)] hover:bg-[color:var(--app-surface-2)] flex items-center justify-center"
+            className="h-9 w-9 rounded-xl border bg-[color:var(--app-surface)] hover:bg-[color:var(--app-surface-2)] flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2"
             style={{ borderColor: "var(--app-border)" }}
+            title="Previous month"
           >
             <ChevronLeft size={16} />
           </button>
           <button
             onClick={() => setViewMonth((d) => addMonths(d, 1))}
-            className="h-9 w-9 rounded-xl border bg-[color:var(--app-surface)] hover:bg-[color:var(--app-surface-2)] flex items-center justify-center"
+            className="h-9 w-9 rounded-xl border bg-[color:var(--app-surface)] hover:bg-[color:var(--app-surface-2)] flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2"
             style={{ borderColor: "var(--app-border)" }}
+            title="Next month"
           >
             <ChevronRight size={16} />
           </button>
@@ -494,35 +512,76 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
             onClick={() =>
               earliestRequested && setViewMonth(startOfMonth(earliestRequested))
             }
-            className={`h-9 px-2.5 rounded-xl border inline-flex items-center gap-1.5 ${earliestRequested ? "bg-[color:var(--app-surface)] hover:bg-[color:var(--app-surface-2)]" : "bg-[color:var(--app-surface-2)] opacity-60"}`}
+            className={`h-9 px-2.5 rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 inline-flex items-center gap-1.5 ${
+              earliestRequested
+                ? "bg-[color:var(--app-surface)] hover:bg-[color:var(--app-surface-2)]"
+                : "bg-[color:var(--app-surface-2)] opacity-60 cursor-not-allowed"
+            }`}
             style={{
               borderColor: "var(--app-border)",
               color: earliestRequested ? "var(--app-text)" : "var(--app-muted)",
             }}
+            title="Jump to requested month"
           >
             <RotateCcw size={14} />
             <span className="text-[11px] font-bold">Reset</span>
           </button>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-2 min-w-0">
-        <span
-          className="h-9 w-9 rounded-xl flex items-center justify-center border flex-none"
-          style={{
-            backgroundColor: "var(--accent-soft)",
-            color: "var(--accent)",
-            borderColor: "var(--accent-soft2)",
-          }}
-        >
-          <CalendarDays size={16} />
-        </span>
-        <p
-          className="text-sm font-bold truncate"
-          style={{ color: "var(--app-text)" }}
-        >
-          {monthLabel}
-        </p>
+
+      {/* Added the flex structure back to support the dynamic subtext and legend */}
+      <div className="mt-3 flex md:flex-col items-center md:items-start justify-between gap-2">
+        <div className="inline-flex items-center gap-2 min-w-0">
+          <span
+            className="h-9 w-9 rounded-xl flex items-center justify-center border flex-none"
+            style={{
+              backgroundColor: "var(--accent-soft)",
+              color: "var(--accent)",
+              borderColor: "var(--accent-soft2)",
+            }}
+          >
+            <CalendarDays size={16} />
+          </span>
+          <div className="min-w-0">
+            <p
+              className="text-sm font-bold truncate"
+              style={{ color: "var(--app-text)" }}
+            >
+              {monthLabel}
+            </p>
+            {/* Added monthly requested dates count */}
+            <p
+              className="text-[11px] font-medium"
+              style={{ color: "var(--app-muted)" }}
+            >
+              {hasAnyDates
+                ? `${requestedCountThisMonth} requested day${
+                    requestedCountThisMonth === 1 ? "" : "s"
+                  } this month`
+                : "No requested dates"}
+            </p>
+          </div>
+        </div>
+
+        {/* Added legend pill */}
+        <div className="flex items-center gap-2 flex-none">
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-lg border"
+            style={{
+              color: "var(--app-muted)",
+              backgroundColor: "var(--app-surface-2)",
+              borderColor: "var(--app-border)",
+            }}
+          >
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: "var(--accent)" }}
+            />
+            Requested
+          </span>
+        </div>
       </div>
+
       <div className="mt-3">
         <div className="grid grid-cols-7 gap-1.5">
           {dayNames.map((dn) => (
@@ -555,12 +614,43 @@ const RequestedDatesCalendar = ({ dates = [] }) => {
                     ? "var(--accent)"
                     : "var(--app-border)",
                 }}
+                title={
+                  cell.isRequested
+                    ? "Requested date"
+                    : cell.isToday
+                      ? "Today"
+                      : ""
+                }
               >
-                <span className="relative">{cell.day}</span>
+                {/* Re-added the white absolute dot for requested dates */}
+                <span className="relative">
+                  {cell.day}
+                  {cell.isRequested ? (
+                    <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-white/90" />
+                  ) : null}
+                </span>
               </div>
             ),
           )}
         </div>
+
+        {/* Re-added the empty state styling when there are no dates */}
+        {!hasAnyDates ? (
+          <div
+            className="mt-3 rounded-xl border border-dashed px-3 py-3 text-center"
+            style={{
+              borderColor: "var(--app-border)",
+              backgroundColor: "var(--app-surface-2)",
+            }}
+          >
+            <p
+              className="text-xs font-medium"
+              style={{ color: "var(--app-muted)" }}
+            >
+              No dates to highlight
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1158,8 +1248,6 @@ const WellnessApplicationDetails = () => {
           </div>
 
           <aside className="space-y-4 min-w-0">
-            <RequestedDatesCalendar dates={application?.inclusiveDates || []} />
-
             <div
               className="border rounded-xl p-2 sm:p-3 shadow-sm min-w-0"
               style={{
@@ -1253,6 +1341,7 @@ const WellnessApplicationDetails = () => {
                 </button>
               )}
             </div>
+            <RequestedDatesCalendar dates={application?.inclusiveDates || []} />
           </aside>
         </div>
 
