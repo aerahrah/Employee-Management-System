@@ -271,6 +271,18 @@ const Sidebar = ({
             icon: <CirclePlus size={14} />,
             requiredPermission: "leave_credits.manage",
           },
+          {
+            name: "Leave Balances",
+            path: "/app/leave-credits",
+            icon: <PenLine size={14} />,
+            requiredPermission: "leave_credits.manage",
+          },
+          // {
+          //   name: "My Leave Records",
+          //   path: "/app/leave-my-credits",
+          //   icon: <FileClock size={14} />,
+          //   requiredPermission: "leave_credits.view_self",
+          // },
         ],
       },
       {

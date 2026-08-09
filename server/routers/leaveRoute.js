@@ -15,6 +15,7 @@ const {
 const {
   addLeaveCreditRequest,
   rollbackLeaveCreditRequest,
+  updateLeaveBalances,
   getAllLeaveCreditRequests,
   getEmployeeDetails,
   getEmployeeLeaveCredits,
@@ -47,6 +48,13 @@ router.put(
   "/:creditId/rollback",
   ...requirePerm("leave_credits.manage"),
   rollbackLeaveCreditRequest,
+);
+
+// Directly update/initialize leave balances for Organic employees
+router.put(
+  "/employee/:employeeId/balances",
+  ...requirePerm("leave_credits.manage"),
+  updateLeaveBalances,
 );
 
 // Get a list of all credited memos (Admin/HR view)

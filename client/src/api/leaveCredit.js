@@ -59,6 +59,19 @@ export const rollbackLeaveCreditRequest = async (creditId) => {
 };
 
 /**
+ * Update Leave Balances directly (Organic employees only)
+ * @param {string} employeeId
+ * @param {Object} payload - { vlDays: number, slDays: number }
+ */
+export const updateLeaveBalances = async (employeeId, payload) => {
+  const response = await API.put(
+    `${BASE_URL}/employee/${employeeId}/balances`,
+    payload,
+  );
+  return response.data;
+};
+
+/**
  * Get a list of all credited memos (Admin/HR view)
  * @param {Object} params - page, limit, search, status, leaveType
  */

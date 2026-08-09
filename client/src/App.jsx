@@ -56,6 +56,8 @@ import AddOrganicWellnessApplicationForm from "./components/wellnessComponents/w
 /* Leave Credit Components */
 import LeaveCreditHistory from "./components/leaveComponents/leaveCreditComponents/recentLeaveCreditHistory";
 import AddLeaveCreditForm from "./components/leaveComponents/leaveCreditComponents/forms/addLeaveCreditForm";
+import LeaveCreditsRecords from "./components/leaveComponents/updateLeaveComponents/LeaveCreditsRecords";
+import LeaveCreditsDetails from "./components/leaveComponents/updateLeaveComponents/LeaveCreditsDetails";
 
 /* Organic Leave Components */
 import AddOrganicLeaveApplicationForm from "./components/ctoComponents/ctoApplicationComponents/forms/addOrganicLeaveForm";
@@ -335,6 +337,11 @@ function App() {
           >
             <Route path="leave-credit" element={<LeaveCreditHistory />} />
             <Route path="leave-credit/add" element={<AddLeaveCreditForm />} />
+            {/* ✅ Newly Added Leave Balance Direct Edit Routes */}
+            <Route path="leave-credits" element={<LeaveCreditsRecords />}>
+              <Route index element={<EmployeeRecordsPlaceholder />} />
+              <Route path=":id" element={<LeaveCreditsDetails />} />
+            </Route>
           </Route>
 
           <Route

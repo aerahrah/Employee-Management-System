@@ -99,7 +99,6 @@ async function addCredit({
     throw createServiceError("Invalid dateApproved format.", 400);
   }
 
-  // NOTE: Ensure your Employee model has balances.vlDays / balances.slDays instead of hours
   const balanceField =
     leaveType === "VL" ? "balances.vlDays" : "balances.slDays";
 
@@ -148,7 +147,7 @@ async function addCredit({
 
       created = docs[0];
 
-      // 3. Update Employee Balances (Dynamically updates vlDays or slDays)
+      // 3. Update Employee Balances
       await Employee.updateMany(
         { _id: { $in: employeeIds } },
         { $inc: { [balanceField]: creditedDays } },
@@ -331,6 +330,68 @@ async function rollbackCredit({ creditId, userId }) {
     }
 
     return updated;
+  } finally {
+    await session.endSession();
+  }
+}
+
+// ✅ NEW SERVICE: Directly edit/initialize balances for Organic employees
+async function updateEmployeeLeaveBalances({
+  employeeId,
+  vlDays,
+  slDays,
+  userId,
+}) {
+  assertObjectId(employeeId, "employeeId");
+  assertObjectId(userId, "userId");
+
+  const session = await mongoose.startSession();
+  try {
+    let updatedEmployee;
+
+    await session.withTransaction(async () => {
+      const employee = await Employee.findById(employeeId).session(session);
+
+      if (!employee) {
+        throw createServiceError("Employee not found.", 404);
+      }
+
+      // Enforce business rule: only Organic employees can be initialized this way
+      if (employee.employeeType !== "Organic") {
+        throw createServiceError(
+          "Direct initialization of leave balances is only allowed for Organic employees.",
+          400,
+        );
+      }
+
+      // Update VL Days if explicitly provided
+      if (vlDays !== undefined && vlDays !== null) {
+        const parsedVl = Number(vlDays);
+        if (!Number.isFinite(parsedVl) || parsedVl < 0) {
+          throw createServiceError(
+            "VL days must be a valid positive number.",
+            400,
+          );
+        }
+        employee.balances.vlDays = parsedVl;
+      }
+
+      // Update SL Days if explicitly provided
+      if (slDays !== undefined && slDays !== null) {
+        const parsedSl = Number(slDays);
+        if (!Number.isFinite(parsedSl) || parsedSl < 0) {
+          throw createServiceError(
+            "SL days must be a valid positive number.",
+            400,
+          );
+        }
+        employee.balances.slDays = parsedSl;
+      }
+
+      updatedEmployee = await employee.save({ session });
+    });
+
+    return updatedEmployee;
   } finally {
     await session.endSession();
   }
@@ -543,6 +604,7 @@ async function getEmployeeCredits(
 module.exports = {
   addCredit,
   rollbackCredit,
+  updateEmployeeLeaveBalances,
   getAllCredits,
   getEmployeeDetails,
   getEmployeeCredits,

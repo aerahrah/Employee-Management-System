@@ -8,7 +8,6 @@ const addLeaveCreditRequest = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized." });
     }
 
-    // Changed 'hours' to 'days'
     const { employees, leaveType, days, dateApproved } = req.body;
 
     let parsedEmployees = [];
@@ -26,7 +25,7 @@ const addLeaveCreditRequest = async (req, res) => {
     const credit = await leaveCreditService.addCredit({
       employees: parsedEmployees,
       leaveType,
-      days, // Passed as days
+      days,
       dateApproved,
       userId,
     });
@@ -68,6 +67,41 @@ const rollbackLeaveCreditRequest = async (req, res) => {
       success: false,
       message:
         err.message || "An error occurred while rolling back leave credit.",
+    });
+  }
+};
+
+// ✅ NEW CONTROLLER: Handle direct balance updates for Organic employees
+const updateLeaveBalances = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized." });
+    }
+
+    const { employeeId } = req.params;
+    const { vlDays, slDays } = req.body;
+
+    const updatedEmployee =
+      await leaveCreditService.updateEmployeeLeaveBalances({
+        employeeId,
+        vlDays,
+        slDays,
+        userId,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message: "Employee leave balances successfully initialized/updated.",
+      data: {
+        balances: updatedEmployee.balances,
+      },
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({
+      success: false,
+      message:
+        err.message || "An error occurred while updating leave balances.",
     });
   }
 };
@@ -120,8 +154,6 @@ const getEmployeeDetails = async (req, res) => {
 
 const getEmployeeLeaveCredits = async (req, res) => {
   try {
-    // If an employeeId is explicitly passed in params (Admin view), use it.
-    // Otherwise, default to the currently logged in user (Self-service view).
     const targetEmployeeId =
       req.params.employeeId || req.user?.id || req.user?._id;
 
@@ -133,7 +165,7 @@ const getEmployeeLeaveCredits = async (req, res) => {
 
     const filters = {};
     if (status) filters.status = status;
-    if (leaveType) filters.leaveType = leaveType; // "VL" or "SL"
+    if (leaveType) filters.leaveType = leaveType;
 
     const result = await leaveCreditService.getEmployeeCredits(
       targetEmployeeId,
@@ -165,6 +197,7 @@ const getEmployeeLeaveCredits = async (req, res) => {
 module.exports = {
   addLeaveCreditRequest,
   rollbackLeaveCreditRequest,
+  updateLeaveBalances,
   getAllLeaveCreditRequests,
   getEmployeeDetails,
   getEmployeeLeaveCredits,
