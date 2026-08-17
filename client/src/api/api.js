@@ -4,7 +4,8 @@ import { emitSessionExpired } from "./sessionEvents";
 
 // Create the Axios instance
 const API = axios.create({
-  baseURL: "http://localhost:3000/api",
+  // ✅ Automatically switches between localhost and your cloud URL
+  baseURL: `${import.meta.env.VITE_API_BASE_URL}/api`,
   withCredentials: true,
 });
 

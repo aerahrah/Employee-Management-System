@@ -468,10 +468,26 @@ const addWellnessApplicationService = async ({
       applicationPayload.applicantSnapshot.salaryAmount =
         employee.salary?.amount;
 
-      if (certificationOfLeaveCredits) {
-        applicationPayload.certificationOfLeaveCredits =
-          certificationOfLeaveCredits;
-      }
+      // ✅ ADDED: Snapshot the SL and VL balances directly from the employee profile
+      // just like the CTO service to guarantee they appear in the PDF!
+      const currentVlDays = employee.balances?.vlDays || 0;
+      const currentSlDays = employee.balances?.slDays || 0;
+
+      applicationPayload.certificationOfLeaveCredits = {
+        ...(certificationOfLeaveCredits || {}),
+        asOfDate: certificationOfLeaveCredits?.asOfDate || new Date(),
+        vacationLeave: {
+          ...(certificationOfLeaveCredits?.vacationLeave || {}),
+          totalEarned: currentVlDays,
+          balance: currentVlDays,
+        },
+        sickLeave: {
+          ...(certificationOfLeaveCredits?.sickLeave || {}),
+          totalEarned: currentSlDays,
+          balance: currentSlDays,
+        },
+      };
+
       if (actionDetails) {
         applicationPayload.actionDetails = actionDetails;
       }

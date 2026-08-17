@@ -129,7 +129,7 @@ router.get(
 
 router.post(
   "/applications/apply",
-  ...requirePerm("cto.create"),
+  ...requirePerm("cto.manage_self"),
   addCtoApplicationRequest,
 );
 
@@ -142,13 +142,13 @@ router.get(
 
 router.patch(
   "/applications/:applicationId/cancel",
-  ...requirePerm("cto.view_self"),
+  ...requirePerm("cto.manage_self"),
   cancelCtoApplicationRequest,
 );
 
 router.post(
   "/applications/:applicationId/follow-up",
-  ...requirePerm("cto.view_self"),
+  ...requirePerm("cto.manage_self"),
   followUpCtoApplicationRequest,
 );
 

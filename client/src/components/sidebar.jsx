@@ -131,6 +131,7 @@ const Sidebar = ({
     queryKey: ["revocationSettings"],
     queryFn: fetchRevocationSettings,
     staleTime: 1000 * 60 * 5,
+    enabled: !!adminId,
   });
 
   const ctoPendingCount = Number(ctoPendingData || 0);

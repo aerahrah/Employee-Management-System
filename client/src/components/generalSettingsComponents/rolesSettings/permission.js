@@ -67,7 +67,7 @@ export const PERMISSION_GROUPS = [
         hint: "View personal CTO records.",
       },
       {
-        id: "cto.create",
+        id: "cto.manage_self",
         label: "Apply for CTO",
         hint: "Submit a CTO application.",
       },

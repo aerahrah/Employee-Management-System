@@ -22,7 +22,7 @@ const validPermissions = [
   // CTO & LEAVES
   // -------------------------
   "cto.view_self", // View own records
-  "cto.create", // Apply for leaves
+  "cto.manage_self", // Apply for leaves
   "cto.credits_manage", // Add/rollback credits
   "cto.credits_view", // Legacy/Broad view
   "cto.applications_view", // View global applications list

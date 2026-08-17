@@ -135,7 +135,7 @@ router.post(
 // Cancel Application
 router.patch(
   "/applications/:id/cancel",
-  ...requirePerm("wellness.manage"),
+  ...requirePerm("wellness.manage_self"),
   cancelWellnessApplicationRequest,
 );
 
