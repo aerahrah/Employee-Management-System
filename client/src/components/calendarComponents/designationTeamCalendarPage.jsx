@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAllCalendarEvents } from "../../api/calendar";
+import { getDesignationTeamEvents } from "../../api/calendar"; // Updated API import
 import SharedCalendarView from "./sharedCalendarView";
 import { toast } from "react-toastify";
 
@@ -38,7 +38,7 @@ const Card = ({ children, className = "", borderColor }) => (
   </div>
 );
 
-const CompanyCalendarPage = () => {
+const DesignationTeamCalendarPage = () => {
   // Theme State
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useMemo(() => resolveTheme(prefTheme), [prefTheme]);
@@ -55,9 +55,9 @@ const CompanyCalendarPage = () => {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["company-calendar-events"],
+    queryKey: ["designation-calendar-events"],
     queryFn: async () => {
-      const res = await getAllCalendarEvents();
+      const res = await getDesignationTeamEvents();
 
       return res.data.map((item) => {
         const nameString = item.title.split("- ")[1] || "Employee";
@@ -79,7 +79,7 @@ const CompanyCalendarPage = () => {
     try {
       await refetch();
     } catch (error) {
-      toast.error("Failed to refresh the company calendar.");
+      toast.error("Failed to refresh the designation team calendar.");
     }
   };
 
@@ -98,8 +98,8 @@ const CompanyCalendarPage = () => {
         <Breadcrumbs
           items={[
             {
-              label: "COMPANY CALENDAR",
-              to: "/app/company-calendar",
+              label: "DESIGNATION CALENDAR",
+              to: "/app/designation-calendar",
             },
           ]}
         />
@@ -111,15 +111,15 @@ const CompanyCalendarPage = () => {
               className="text-2xl md:text-3xl font-bold tracking-tight transition-colors duration-300 ease-out flex items-center gap-3"
               style={{ color: "var(--app-text)" }}
             >
-              All Personnel<span className="font-bold">Leave Calendar</span>
+              Designation Team <span className="font-bold">Leave Calendar</span>
             </h1>
 
             <p
               className="text-sm mt-1 transition-colors duration-300 ease-out"
               style={{ color: "var(--app-muted)" }}
             >
-              View approved, pending, and upcoming leave schedules across the
-              organization.
+              View approved, pending, and upcoming leave schedules for your
+              designation team.
             </p>
           </div>
 
@@ -160,7 +160,7 @@ const CompanyCalendarPage = () => {
                 className="text-sm font-semibold transition-colors duration-300 ease-out"
                 style={{ color: "var(--app-text)" }}
               >
-                All Personnel Leave Schedule
+                Designation Leave Schedule
               </div>
             </div>
 
@@ -168,7 +168,7 @@ const CompanyCalendarPage = () => {
               <SharedCalendarView
                 events={events}
                 variant="personal"
-                title="Company Leave Schedule"
+                title="Designation Leave Schedule"
                 isLoading={isLoading}
               />
             </div>
@@ -179,4 +179,4 @@ const CompanyCalendarPage = () => {
   );
 };
 
-export default CompanyCalendarPage;
+export default DesignationTeamCalendarPage;

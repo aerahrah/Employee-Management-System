@@ -65,6 +65,8 @@ import AddOrganicLeaveApplicationForm from "./components/ctoComponents/ctoApplic
 /* ✅ Calendar Components */
 import MyCalendarPage from "./components/calendarComponents/myCalendarPage";
 import CompanyCalendarPage from "./components/calendarComponents/allCalendarPage";
+import ProjectTeamCalendarPage from "./components/calendarComponents/ProjectTeamCalendarPage";
+import DesignationTeamCalendarPage from "./components/calendarComponents/DesignationTeamCalendarPage";
 
 import AddEmployeeForm from "./components/employeeDashboard/forms/addEmployeeForm";
 import EmployeeInformation from "./components/employeeDashboard/employeeInformation";
@@ -185,6 +187,30 @@ function App() {
             element={<ProtectedRoute requiredPermission="calendar.view_self" />}
           >
             <Route path="my-calendar" element={<MyCalendarPage />} />
+          </Route>
+
+          {/* ✅ Calendar: View Project Team */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="calendar.view_project" />
+            }
+          >
+            <Route
+              path="project-calendar"
+              element={<ProjectTeamCalendarPage />}
+            />
+          </Route>
+
+          {/* ✅ Calendar: View Designation Team */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission="calendar.view_designation" />
+            }
+          >
+            <Route
+              path="designation-calendar"
+              element={<DesignationTeamCalendarPage />}
+            />
           </Route>
 
           <Route

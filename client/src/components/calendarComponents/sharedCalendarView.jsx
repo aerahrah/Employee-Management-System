@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import { useQuery } from "@tanstack/react-query";
 import format from "date-fns/format";
@@ -24,7 +24,13 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// ------------------ Helper: Status Colors ------------------
+// ------------------ Helper: Formatter & Colors ------------------
+const formatStatusLabel = (status) => {
+  if (status === "REVOCATION_REQUESTED") return "Pending Revocation";
+  if (!status) return "Unknown";
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+};
+
 const getEventColor = (status) => {
   switch (status) {
     case "APPROVED":
@@ -34,7 +40,11 @@ const getEventColor = (status) => {
     case "REJECTED":
       return "#ef4444"; // Red
     case "CANCELLED":
-      return "#64748b"; // Gray
+      return "#94a3b8"; // Slate 400 (Lighter gray to distinguish from revoked)
+    case "REVOCATION_REQUESTED":
+      return "#9333ea"; // Purple
+    case "REVOKED":
+      return "#334155"; // Slate 700 (Dark solid gray)
     default:
       return "#3b82f6"; // Default Blue
   }
@@ -44,6 +54,10 @@ const getEventColor = (status) => {
 const CustomAgendaEvent = ({ event }) => {
   const backgroundColor = getEventColor(event.status);
 
+  // If this is a revocation or revoked event, we might want to prioritize the revocation reason
+  const displayReason =
+    event.details?.revocationReason || event.details?.reason;
+
   return (
     <div className="flex flex-col items-start justify-center">
       <div
@@ -52,12 +66,12 @@ const CustomAgendaEvent = ({ event }) => {
       >
         {event.title}
       </div>
-      {event.details?.reason && (
+      {displayReason && (
         <span
           className="text-xs mt-1 opacity-70"
           style={{ color: "var(--app-text)" }}
         >
-          {event.details.reason}
+          {displayReason}
         </span>
       )}
     </div>
@@ -71,7 +85,6 @@ const CalendarThemeStyles = () => (
       .rbc-calendar {
         font-family: inherit;
         color: var(--app-text);
-        /* ✅ FIX: Changed from min-height to height so the container knows when to start scrolling */
         height: 650px; 
       }
       
@@ -107,7 +120,6 @@ const CalendarThemeStyles = () => (
         border-left: 1px solid var(--app-border) !important;
       }
 
-      /* ✅ FIX: Separated the agenda view from the others so it can scroll independently */
       .rbc-month-view, .rbc-time-view, .rbc-day-view {
         border: 1px solid var(--app-border) !important;
         background-color: var(--app-surface);
@@ -115,7 +127,6 @@ const CalendarThemeStyles = () => (
         overflow: hidden;
       }
 
-      /* ✅ FIX: Agenda view explicitly set to scroll */
       .rbc-agenda-view {
         border: 1px solid var(--app-border) !important;
         background-color: var(--app-surface);
@@ -215,7 +226,7 @@ const CalendarThemeStyles = () => (
         color: var(--app-muted);
         background-color: var(--app-surface); 
         border-right: none !important;
-        position: sticky; /* Keeps the table header visible when scrolling */
+        position: sticky;
         top: 0;
         z-index: 10;
       }
@@ -331,8 +342,10 @@ const SharedCalendarView = ({ events = [], isLoading, variant = "all" }) => {
           {[
             { label: "Approved", color: "#16a34a" },
             { label: "Pending", color: "#d97706" },
+            { label: "Pending Revocation", color: "#9333ea" }, // ✅ Updated Label
             { label: "Rejected", color: "#ef4444" },
-            { label: "Cancelled", color: "#64748b" },
+            { label: "Cancelled", color: "#94a3b8" }, // ✅ Lighter Gray
+            { label: "Revoked", color: "#334155" }, // ✅ Darker Gray
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-2 text-sm">
               <span
@@ -411,11 +424,19 @@ const SharedCalendarView = ({ events = [], isLoading, variant = "all" }) => {
                 event: CustomAgendaEvent,
               },
             }}
-            tooltipAccessor={(event) =>
-              `${event.title}\nStatus: ${event.status}\nReason: ${
-                event.details?.reason || "N/A"
-              }`
-            }
+            tooltipAccessor={(event) => {
+              // Construct a tooltip prioritizing revocation info if applicable
+              const baseTip = `${event.title}\nStatus: ${formatStatusLabel(event.status)}`;
+              const reasonTip = `\nReason: ${event.details?.reason || "N/A"}`;
+              const revokeTip = event.details?.revocationReason
+                ? `\nRevocation Reason: ${event.details.revocationReason}`
+                : "";
+              const hrNoteTip = event.details?.revokeRemarks
+                ? `\nHR Note: ${event.details.revokeRemarks}`
+                : "";
+
+              return baseTip + reasonTip + revokeTip + hrNoteTip;
+            }}
           />
         )}
       </div>

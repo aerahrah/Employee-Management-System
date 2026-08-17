@@ -416,7 +416,8 @@ const signInEmployeeService = async (email, password) => {
   const employee = await Employee.findOne({ email: safeEmail })
     .select("+password +loginAttempts +lockUntil")
     .populate("role")
-    .populate("designation");
+    .populate("designation")
+    .populate("project");
 
   if (!employee) throw httpError("Invalid email or password", 401);
 
@@ -453,6 +454,7 @@ const signInEmployeeService = async (email, password) => {
     id: employee._id,
     email: employee.email,
     designation: employee.designation,
+    project: employee.project,
     role: employee.role,
     employeeType:
       employee.employeeType ||

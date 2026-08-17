@@ -168,7 +168,19 @@ const Sidebar = ({
             requiredPermission: "calendar.view_self",
           },
           {
-            name: "Company Calendar",
+            name: "Project Calendar",
+            path: "/app/project-calendar",
+            icon: <FolderKanban size={14} />,
+            requiredPermission: "calendar.view_project",
+          },
+          {
+            name: "Designation Calendar",
+            path: "/app/designation-calendar",
+            icon: <MapPin size={14} />,
+            requiredPermission: "calendar.view_designation",
+          },
+          {
+            name: "All Personnel Calendar",
             path: "/app/company-calendar",
             icon: <Users size={14} />,
             requiredPermission: "calendar.view_all",

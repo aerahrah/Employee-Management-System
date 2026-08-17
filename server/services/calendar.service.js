@@ -9,12 +9,14 @@ const WellnessApplication = require("../models/wellnessApplicationModel");
 const getCalendarEvents = async (queryOptions = {}) => {
   const ctos = await CtoApplication.find(queryOptions)
     .select(
-      "inclusiveDates overallStatus applicantSnapshot reason requestedHours",
+      "inclusiveDates overallStatus applicantSnapshot reason requestedHours revocationRequest revokeReason",
     )
     .lean();
 
   const wellness = await WellnessApplication.find(queryOptions)
-    .select("inclusiveDates overallStatus applicantSnapshot reason totalDays")
+    .select(
+      "inclusiveDates overallStatus applicantSnapshot reason totalDays revocationRequest revokeReason",
+    )
     .lean();
 
   const calendarEvents = [];
@@ -32,6 +34,8 @@ const getCalendarEvents = async (queryOptions = {}) => {
           reason: app.reason,
           duration: `${app.requestedHours} hours`,
           division: app.applicantSnapshot.division,
+          revocationReason: app.revocationRequest?.reason || null,
+          revokeRemarks: app.revokeReason || null,
         },
       });
     });
@@ -50,6 +54,8 @@ const getCalendarEvents = async (queryOptions = {}) => {
           reason: app.reason,
           duration: `${app.totalDays} days`,
           division: app.applicantSnapshot.division,
+          revocationReason: app.revocationRequest?.reason || null,
+          revokeRemarks: app.revokeReason || null,
         },
       });
     });

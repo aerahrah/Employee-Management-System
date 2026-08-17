@@ -206,6 +206,16 @@ export const PERMISSION_GROUPS = [
         label: "View Department Calendar",
         hint: "View leave dates specifically for the user's department.",
       },
+      {
+        id: "calendar.view_project",
+        label: "View Project Calendar",
+        hint: "View leave dates specifically for the user's project team.",
+      },
+      {
+        id: "calendar.view_designation",
+        label: "View Designation Calendar",
+        hint: "View leave dates specifically for the user's designation team.",
+      },
     ],
   },
   {
