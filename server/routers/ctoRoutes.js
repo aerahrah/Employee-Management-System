@@ -8,6 +8,10 @@ const uploadCtoRevocation = multer({
   dest: "upload/cto/revocation/attachments/",
 });
 
+const uploadCtoApplication = multer({
+  dest: "upload/cto/applications/attachments/",
+});
+
 const uploadCtoMemo = require("../middlewares/uploadCtoMemo.middleware.js");
 const {
   authenticateToken,
@@ -130,9 +134,9 @@ router.get(
 router.post(
   "/applications/apply",
   ...requirePerm("cto.manage_self"),
+  uploadCtoApplication.single("file"), // ✅ Add multer here
   addCtoApplicationRequest,
 );
-
 // Dynamic Routes Last
 router.get(
   "/applications/employee/:employeeId",

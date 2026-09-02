@@ -389,7 +389,7 @@ const getCtoApplicationsForApproverService = async (
     .populate({
       path: "ctoApplication",
       select:
-        "employee approvals overallStatus requestedHours inclusiveDates reason createdAt",
+        "employee approvals overallStatus requestedHours inclusiveDates reason createdAt lateFiling",
       populate: [
         {
           path: "employee",

@@ -5,6 +5,7 @@ const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
 const CtoCredit = require("../models/ctoCreditModel");
 const RevocationSetting = require("../models/revocationSettingModel");
+const GeneralSetting = require("../models/GeneralSetting"); // ✅ Imported General Setting
 
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const sendEmail = require("../utils/sendEmail");
@@ -66,7 +67,6 @@ function strictNumber(val, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-// ✅ HELPER: Extracts the rejection remarks from the ApprovalStep array
 function extractRemarks(app) {
   if (!app || !Array.isArray(app.approvals)) return app?.revokeReason || "";
 
@@ -81,11 +81,9 @@ function extractRemarks(app) {
   return app.revokeReason || "";
 }
 
-// ✅ HELPER: Formats inclusive dates into a short readable string for the ledger
 function formatLedgerDates(dates) {
   if (!Array.isArray(dates) || dates.length === 0) return "";
 
-  // Filter out invalid dates safely
   const validDates = dates.filter((d) => d && !isNaN(new Date(d).getTime()));
   if (validDates.length === 0) return "";
 
@@ -104,6 +102,28 @@ function formatLedgerDates(dates) {
     return fmt(start);
   }
   return `${fmt(start)} to ${fmt(end)}`;
+}
+
+// ✅ NEW HELPER: Calculate working days difference
+function getWorkingDaysLeadTime(startDate, endDate, activeWorkingDays) {
+  let current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  let workingDaysCount = 0;
+
+  if (current >= end) return 0;
+
+  while (current < end) {
+    current.setDate(current.getDate() + 1);
+    if (activeWorkingDays.includes(current.getDay())) {
+      workingDaysCount++;
+    }
+  }
+
+  return workingDaysCount;
 }
 
 async function safeSendEmail(to, subject, html) {
@@ -244,7 +264,6 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
     "employees.employee": employeeId,
   }).lean();
 
-  // ✅ NEW: Added PENDING and REVOCATION_REQUESTED to the ledger inclusion filter
   const applications = await CtoApplication.find({
     employee: employeeId,
     overallStatus: {
@@ -254,9 +273,6 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
 
   let transactions = [];
 
-  // -------------------------
-  // 1. ADD CREDITS
-  // -------------------------
   credits.forEach((credit) => {
     const empRec = credit.employees?.find(
       (e) => String(e.employee) === String(employeeId),
@@ -269,11 +285,9 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
           strictNumber(empRec.reservedHours);
 
       if (earned > 0) {
-        // Chronological Math Date
         const accrualDate =
           credit.createdAt || credit.dateCredited || credit.dateApproved;
 
-        // Visual Frontend Date (Inclusive OT Dates)
         let displayDate = "N/A";
         if (credit.inclusiveDates?.startDate) {
           const datesArr = [credit.inclusiveDates.startDate];
@@ -284,7 +298,6 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
           displayDate = formatLedgerDates([credit.dateApproved]);
         }
 
-        // Description / Particulars
         let description = "N/A";
         if (credit.purpose) {
           description = `${credit.purpose} (Please see attached memo)`;
@@ -293,8 +306,8 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
         }
 
         transactions.push({
-          date: accrualDate, // Math & sorting reference
-          displayDate: displayDate, // Explicit OT dates for the UI frontend
+          date: accrualDate,
+          displayDate: displayDate,
           type: "ACCRUAL",
           description: description,
           amount: earned,
@@ -305,22 +318,15 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
     }
   });
 
-  // -------------------------
-  // 2. ADD APPLICATIONS
-  // -------------------------
   applications.forEach((app) => {
     const datesCovered = formatLedgerDates(app.inclusiveDates);
     const descriptionBase = datesCovered
       ? `Compensatory Time Off (${datesCovered})`
       : "Compensatory Time Off";
 
-    // Chronological Math Date
     const transactionDate = app.createdAt;
-
-    // Visual Frontend Date (Inclusive Usage Dates)
     const displayDate = datesCovered || "N/A";
 
-    // ✅ Process PENDING, REVOCATION_REQUESTED, and APPROVED as valid deductions
     if (
       ["APPROVED", "PENDING", "REVOCATION_REQUESTED"].includes(
         app.overallStatus,
@@ -341,7 +347,6 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
         sortPriority: 1,
       });
     } else if (app.overallStatus === "REVOKED") {
-      // Original Usage Deduction
       transactions.push({
         date: transactionDate,
         displayDate: displayDate,
@@ -352,7 +357,6 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
         sortPriority: 1,
       });
 
-      // Revocation / Refund
       let revokeDate = new Date(app.revokedAt || app.updatedAt);
       if (revokeDate.getTime() < new Date(transactionDate).getTime()) {
         revokeDate = new Date(new Date(transactionDate).getTime() + 1000);
@@ -360,7 +364,7 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
 
       transactions.push({
         date: revokeDate,
-        displayDate: displayDate, // Keeps the same context as the original usage
+        displayDate: displayDate,
         type: "REVOCATION_RESTORED",
         description: `${descriptionBase} - Revoked`,
         amount: strictNumber(app.requestedHours),
@@ -370,15 +374,11 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
     }
   });
 
-  // Filter out any transactions that happened AFTER the snapshot date
   if (asOfDate) {
     const cutoffDate = new Date(asOfDate);
     transactions = transactions.filter((t) => new Date(t.date) <= cutoffDate);
   }
 
-  // -------------------------
-  // 3. SORT CHRONOLOGICALLY
-  // -------------------------
   transactions.sort((a, b) => {
     const dateA = new Date(a.date).getTime();
     const dateB = new Date(b.date).getTime();
@@ -389,9 +389,6 @@ async function generateEmployeeLedger(employeeId, asOfDate = null) {
     return dateA - dateB;
   });
 
-  // -------------------------
-  // 4. CALCULATE BALANCE
-  // -------------------------
   let runningBalance = 0;
   const ledgerTransactions = transactions.map((t) => {
     runningBalance += t.amount;
@@ -423,17 +420,10 @@ const addCtoApplicationService = async ({
   commutation,
   certificationOfLeaveCredits,
   actionDetails,
+  lateFiling, // ✅ ADDED LATE FILING
 }) => {
   console.log("=========================================");
   console.log("[addCtoApplicationService] STARTING...");
-  console.log("[addCtoApplicationService] Incoming Payload:", {
-    userId,
-    requestedHours,
-    employeeType,
-    commutation,
-    inclusiveDatesCount: inclusiveDates?.length,
-    memosCount: memos?.length,
-  });
 
   assertObjectId(userId, "User ID");
 
@@ -441,9 +431,6 @@ const addCtoApplicationService = async ({
   const safeReason = sanitizeText(reason, 1000);
 
   if (strictReqHours <= 0 || !safeReason || !inclusiveDates?.length) {
-    console.error(
-      "[addCtoApplicationService] Validation Error: Missing basic requirements",
-    );
     throw createServiceError(
       "Requested hours (>0), reason, and inclusive dates are required.",
       400,
@@ -451,11 +438,68 @@ const addCtoApplicationService = async ({
   }
 
   if (!employeeType) {
-    console.error(
-      "[addCtoApplicationService] Validation Error: Missing employeeType",
-    );
     throw createServiceError("Employee type is required.", 400);
   }
+
+  // ==========================================
+  // ✅ DYNAMIC LATE FILING VALIDATION RULE
+  // ==========================================
+  const settings = (await GeneralSetting.findOne()) || {
+    workingDaysEnable: true,
+    workingDaysValue: 5,
+    activeWorkingDays: [1, 2, 3, 4, 5], // Default Mon-Fri
+  };
+
+  let validatedLateFiling = { isLateFiling: false };
+
+  if (settings.workingDaysEnable) {
+    const earliestDate = new Date(
+      Math.min(...inclusiveDates.map((d) => new Date(d))),
+    );
+    const today = new Date();
+
+    const leadTime = getWorkingDaysLeadTime(
+      today,
+      earliestDate,
+      settings.activeWorkingDays,
+    );
+
+    console.log(
+      `[addCtoApplicationService] Earliest date: ${earliestDate.toDateString()}, Working Days Lead Time: ${leadTime}`,
+    );
+
+    if (leadTime < settings.workingDaysValue) {
+      if (
+        !lateFiling ||
+        lateFiling.isLateFiling !== true ||
+        !lateFiling.justification?.trim()
+      ) {
+        throw createServiceError(
+          `Applications filed with less than ${settings.workingDaysValue} working days of lead time require a late filing justification. (Your lead time: ${leadTime} working days)`,
+          400,
+        );
+      }
+
+      validatedLateFiling = {
+        isLateFiling: true,
+        justification: sanitizeText(lateFiling.justification, 1000),
+        attachment: lateFiling.attachment || null,
+      };
+    } else if (lateFiling && lateFiling.isLateFiling) {
+      validatedLateFiling = {
+        isLateFiling: true,
+        justification: sanitizeText(lateFiling.justification, 1000),
+        attachment: lateFiling.attachment || null,
+      };
+    }
+  } else if (lateFiling && lateFiling.isLateFiling) {
+    validatedLateFiling = {
+      isLateFiling: true,
+      justification: sanitizeText(lateFiling.justification, 1000),
+      attachment: lateFiling.attachment || null,
+    };
+  }
+  // ==========================================
 
   console.log(
     `[addCtoApplicationService] Fetching employee profile for ID: ${userId}`,
@@ -463,7 +507,6 @@ const addCtoApplicationService = async ({
 
   const employee = await Employee.findById(userId).populate("salary").lean();
   if (!employee) {
-    console.error("[addCtoApplicationService] Employee not found in DB.");
     throw createServiceError("Employee not found.", 404);
   }
 
@@ -472,12 +515,6 @@ const addCtoApplicationService = async ({
     employee.contractType === "Organic" ||
     employeeType === "Organic";
 
-  console.log(
-    `[addCtoApplicationService] Employee fetched. Name: ${employee.firstName} ${employee.lastName}, Type: ${employee.employeeType}, isOrganic: ${isOrganic}`,
-  );
-
-  console.log(`[addCtoApplicationService] Checking for overlapping dates...`);
-
   const existingApplications = await CtoApplication.find({
     employee: userId,
     overallStatus: { $in: ["PENDING", "APPROVED"] },
@@ -485,9 +522,6 @@ const addCtoApplicationService = async ({
   });
 
   if (existingApplications.length > 0) {
-    console.error(
-      "[addCtoApplicationService] Validation Error: Overlapping dates found.",
-    );
     throw createServiceError(
       "You already have a Pending or Approved CTO application for one or more of the selected dates.",
       400,
@@ -495,11 +529,7 @@ const addCtoApplicationService = async ({
   }
 
   if (isOrganic) {
-    console.log("[addCtoApplicationService] Running Organic strict checks...");
     if (!commutation || !["Requested", "Not Requested"].includes(commutation)) {
-      console.error(
-        "[addCtoApplicationService] Validation Error: Invalid Commutation for Organic",
-      );
       throw createServiceError(
         "Commutation is required and must be either 'Requested' or 'Not Requested' for Organic employees.",
         400,
@@ -507,9 +537,6 @@ const addCtoApplicationService = async ({
     }
 
     if (!employee.signature) {
-      console.error(
-        "[addCtoApplicationService] Validation Error: Missing signature for Organic Form 6",
-      );
       throw createServiceError(
         "A digital signature is required to process CSC Form 6. Please upload your signature in your profile before applying.",
         403,
@@ -517,27 +544,17 @@ const addCtoApplicationService = async ({
     }
 
     if (!employee.salary || typeof employee.salary.amount !== "number") {
-      console.error(
-        "[addCtoApplicationService] Validation Error: Missing Salary Amount for Organic employee",
-      );
       throw createServiceError(
         "Salary Amount information is missing from your profile. This is required for CSC Form 6. Please contact HR.",
         400,
       );
     }
-    console.log(
-      `[addCtoApplicationService] Organic checks passed. Salary Amount: ${employee.salary.amount}`,
-    );
   }
 
   let finalApprovers = [];
-  console.log("[addCtoApplicationService] Resolving approvers...");
   if (routeId) {
     assertObjectId(routeId, "Route ID");
     finalApprovers = await resolveApproversFromRoute(routeId);
-    console.log(
-      `[addCtoApplicationService] Approvers resolved from Route ID ${routeId}: found ${finalApprovers.length}`,
-    );
   } else if (approvers && Array.isArray(approvers)) {
     finalApprovers = approvers
       .map((a) => {
@@ -547,15 +564,9 @@ const addCtoApplicationService = async ({
         return { approver: a, role: undefined };
       })
       .filter((a) => mongoose.isValidObjectId(a.approver));
-    console.log(
-      `[addCtoApplicationService] Approvers resolved from custom array: found ${finalApprovers.length}`,
-    );
   }
 
   if (!finalApprovers || finalApprovers.length === 0) {
-    console.error(
-      "[addCtoApplicationService] Validation Error: No valid approvers found.",
-    );
     throw createServiceError(
       "At least one valid approver is required (via route template or custom selection).",
       400,
@@ -564,9 +575,6 @@ const addCtoApplicationService = async ({
 
   for (const fa of finalApprovers) {
     if (!fa.role || !APPROVAL_ROLE_VALUES.includes(fa.role)) {
-      console.error(
-        `[addCtoApplicationService] Validation Error: Invalid role for approver ${fa.approver}`,
-      );
       throw createServiceError(
         `Invalid or missing approval role for approver ID ${fa.approver}. Role must be one of: ${APPROVAL_ROLE_VALUES.join(", ")}`,
         400,
@@ -575,9 +583,6 @@ const addCtoApplicationService = async ({
   }
 
   if (!memos || !Array.isArray(memos) || !memos.length) {
-    console.error(
-      "[addCtoApplicationService] Validation Error: No memos attached",
-    );
     throw createServiceError(
       "At least one memo with applied hours must be provided.",
       400,
@@ -594,9 +599,6 @@ const addCtoApplicationService = async ({
   });
 
   const memoIds = sanitizedMemos.map((m) => m.memoId);
-  console.log(
-    `[addCtoApplicationService] Fetching ${memoIds.length} CTO credit memos to validate...`,
-  );
 
   const credits = await CtoCredit.find({
     _id: { $in: memoIds },
@@ -605,9 +607,6 @@ const addCtoApplicationService = async ({
   });
 
   if (credits.length !== memoIds.length) {
-    console.error(
-      `[addCtoApplicationService] Validation Error: Memo mismatch. Found ${credits.length}, Expected ${memoIds.length}`,
-    );
     throw createServiceError("Some memos are invalid or not credited.", 400);
   }
 
@@ -616,10 +615,6 @@ const addCtoApplicationService = async ({
   const rollbackActions = [];
 
   try {
-    console.log(
-      "[addCtoApplicationService] Beginning Memo Hours Deduction Loop...",
-    );
-
     for (const input of sanitizedMemos) {
       const credit = credits.find(
         (c) => String(c._id) === String(input.memoId),
@@ -641,9 +636,6 @@ const addCtoApplicationService = async ({
         );
 
       const availableHours = strictNumber(empCredit.remainingHours);
-      console.log(
-        `[addCtoApplicationService] Checking Memo ${credit.memoNo}: Attempting to apply ${input.appliedHours}h (Available: ${availableHours}h)`,
-      );
 
       if (input.appliedHours <= 0 || input.appliedHours > availableHours) {
         throw createServiceError(
@@ -692,14 +684,7 @@ const addCtoApplicationService = async ({
       });
 
       totalAppliedHours += input.appliedHours;
-      console.log(
-        `[addCtoApplicationService] Successfully reserved ${input.appliedHours}h from memo ${credit.memoNo}`,
-      );
     }
-
-    console.log(
-      `[addCtoApplicationService] Total hours applied from memos: ${totalAppliedHours}, Requested: ${strictReqHours}`,
-    );
 
     if (totalAppliedHours !== strictReqHours) {
       throw createServiceError(
@@ -707,10 +692,6 @@ const addCtoApplicationService = async ({
         400,
       );
     }
-
-    console.log(
-      "[addCtoApplicationService] Constructing Application Payload and Applicant Snapshot...",
-    );
 
     const applicationPayload = {
       employee: employee._id,
@@ -731,6 +712,7 @@ const addCtoApplicationService = async ({
       memo: memoUsage,
       overallStatus: "PENDING",
       commutation: commutation || "Not Requested",
+      lateFiling: validatedLateFiling, // ✅ ATTACHED DYNAMIC LATE FILING TO PAYLOAD
     };
 
     if (isOrganic) {
@@ -756,10 +738,6 @@ const addCtoApplicationService = async ({
           balance: currentSlDays,
         },
       };
-
-      console.log(
-        `[addCtoApplicationService] Attached Organic fields: Signature, SG ${employee.salary?.grade}, Amount: ${employee.salary?.amount}, Leave Credits (VL: ${currentVlDays}, SL: ${currentSlDays})`,
-      );
     }
 
     if (actionDetails) applicationPayload.actionDetails = actionDetails;
@@ -804,21 +782,12 @@ const addCtoApplicationService = async ({
 
     newApplication.approvals = approvalSteps.map((step) => step._id);
 
-    console.log(
-      "[addCtoApplicationService] Saving Application and ApprovalSteps to Database...",
-    );
     await newApplication.save();
     await ApprovalStep.insertMany(approvalSteps);
-    console.log(
-      `[addCtoApplicationService] SAVE SUCCESS. Generated Application ID: ${newApplication._id}`,
-    );
 
     const populatedApp = await populateApplicationById(newApplication._id);
     const justApproverIds = finalApprovers.map((a) => a.approver);
 
-    console.log(
-      "[addCtoApplicationService] Dispatching In-App Notifications...",
-    );
     try {
       await NotificationService.notifyApproversOnCtoSubmission({
         approverIds: justApproverIds,
@@ -829,19 +798,13 @@ const addCtoApplicationService = async ({
         employee,
         ctoApplication: newApplication,
       });
-      console.log(
-        "[addCtoApplicationService] Notifications dispatched successfully.",
-      );
     } catch (err) {
       console.error(
-        "[addCtoApplicationService] Failed to create CTO submission notifications:",
+        "Failed to create CTO submission notifications:",
         err?.message,
       );
     }
 
-    console.log(
-      "[addCtoApplicationService] Dispatching Email to Level 1 Approver...",
-    );
     try {
       const firstApproval = approvalSteps.find((a) => a.level === 1);
       const approverUser = await Employee.findById(firstApproval.approver)
@@ -861,32 +824,13 @@ const addCtoApplicationService = async ({
         });
 
         await safeSendEmail(approverUser.email, tpl.subject, tpl.html);
-        console.log(
-          `[addCtoApplicationService] Email sent to Level 1 Approver: ${approverUser.email}`,
-        );
-      } else {
-        console.log(
-          `[addCtoApplicationService] Email skipped. Enabled: ${enabled}, Approver Email exists: ${!!approverUser?.email}`,
-        );
       }
     } catch (err) {
-      console.error(
-        "[addCtoApplicationService] Failed to send CTO approval email:",
-        err?.message,
-      );
+      console.error("Failed to send CTO approval email:", err?.message);
     }
 
-    console.log(
-      "=========================================\n[addCtoApplicationService] Application Processed Successfully.\n=========================================",
-    );
     return populatedApp;
   } catch (error) {
-    console.error(
-      "\n=========================================\n[addCtoApplicationService] 🚨 FATAL ERROR ENCOUNTERED! 🚨\nError Message:",
-      error.message,
-      "\nRolling back memo hours...",
-    );
-
     for (const action of rollbackActions) {
       try {
         await CtoCredit.updateOne(
@@ -901,9 +845,6 @@ const addCtoApplicationService = async ({
             },
           },
         );
-        console.log(
-          `[ROLLBACK SUCCESS] Restored ${action.appliedHours}h to memo ${action.memoId}`,
-        );
       } catch (rollbackErr) {
         console.error(
           `[ROLLBACK FAILED] Could not restore ${action.appliedHours}h to memo ${action.memoId}. Manual intervention may be required! Error:`,
@@ -911,7 +852,6 @@ const addCtoApplicationService = async ({
         );
       }
     }
-    console.log("=========================================\n");
 
     throw error;
   }
@@ -1060,7 +1000,6 @@ const followUpCtoApplicationService = async ({ userId, applicationId }) => {
   return { message: "Follow-up notification sent successfully." };
 };
 
-// ✅ STEP 1: EMPLOYEE REQUESTS REVOCATION
 const requestRevocationCtoApplicationService = async ({
   userId,
   applicationId,
@@ -1072,7 +1011,6 @@ const requestRevocationCtoApplicationService = async ({
 
   const setting = await RevocationSetting.findOne();
 
-  // Check if global revocation is enabled (accounting for schema updates)
   const isEnabled = setting
     ? setting.isEnabled !== false && setting.isRevocationEnabled !== false
     : true;
@@ -1083,7 +1021,6 @@ const requestRevocationCtoApplicationService = async ({
     );
   }
 
-  // ✅ Check for attachment.url (from multer) OR attachment.fileUrl (fallback)
   const fileUrl = attachment?.url || attachment?.fileUrl;
 
   const isAttachmentRequired = setting ? setting.isAttachmentRequired : false;
@@ -1124,7 +1061,6 @@ const requestRevocationCtoApplicationService = async ({
     requestedAt: new Date(),
   };
 
-  // ✅ Process and store using the multer keys (url, filename, mimetype)
   if (fileUrl) {
     app.revocationRequest.attachment = {
       fileName:
@@ -1138,7 +1074,6 @@ const requestRevocationCtoApplicationService = async ({
 
   await app.save();
 
-  // ✅ Send Notifications to HR
   try {
     const employee =
       await Employee.findById(userId).select("firstName lastName");
@@ -1146,7 +1081,6 @@ const requestRevocationCtoApplicationService = async ({
     let hrIds = [];
 
     if (hrEmails && hrEmails.length > 0) {
-      // 1. Send in-app notifications
       const hrEmployees = await Employee.find({
         email: { $in: hrEmails },
       }).select("_id");
@@ -1158,7 +1092,6 @@ const requestRevocationCtoApplicationService = async ({
         ctoApplication: app,
       });
 
-      // 2. Send emails (Match updated frontend routing)
       const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REQUEST);
       if (emailEnabled) {
         const tpl = ctoRevocationRequestEmail({
@@ -1186,7 +1119,6 @@ const requestRevocationCtoApplicationService = async ({
   return populateApplicationById(app._id);
 };
 
-// ✅ NEW: EMPLOYEE CANCELS THEIR REVOCATION REQUEST
 const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
   assertObjectId(userId, "User ID");
   assertObjectId(applicationId, "Application ID");
@@ -1217,23 +1149,20 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
       );
     }
 
-    // 1. Initialize history array if it doesn't exist
     if (!application.revocationHistory) {
       application.revocationHistory = [];
     }
 
-    // 2. Push the cancelled attempt into history for the audit trail
     application.revocationHistory.push({
       reason: application.revocationRequest.reason,
       attachment: application.revocationRequest.attachment,
       requestedAt: application.revocationRequest.requestedAt,
       status: "CANCELLED",
-      processedBy: userId, // Employee processed their own cancellation
+      processedBy: userId,
       remarks: "Revocation request was withdrawn by the employee.",
       processedAt: new Date(),
     });
 
-    // 3. Revert to APPROVED and clear the active revocation fields
     application.overallStatus = "APPROVED";
     application.revocationRequest = undefined;
     application.revokedBy = undefined;
@@ -1250,7 +1179,6 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
     throw err;
   }
 
-  // ✅ Send Notifications to HR indicating the employee withdrew the request
   try {
     const employee =
       await Employee.findById(userId).select("firstName lastName");
@@ -1258,7 +1186,6 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
     let hrIds = [];
 
     if (hrEmails && hrEmails.length > 0) {
-      // 1. Send in-app notifications
       const hrEmployees = await Employee.find({
         email: { $in: hrEmails },
       }).select("_id");
@@ -1270,7 +1197,6 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
         ctoApplication: application,
       });
 
-      // 2. Send Emails
       const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_CANCELLED);
       if (emailEnabled) {
         const tpl = ctoRevocationCancelledEmail({
@@ -1296,7 +1222,6 @@ const cancelRevocationCtoRequestService = async ({ userId, applicationId }) => {
   return populateApplicationById(application._id);
 };
 
-// ✅ STEP 2: HR APPROVES OR REJECTS THE REVOCATION REQUEST
 const processRevocationRequestService = async ({
   adminId,
   applicationId,
@@ -1355,7 +1280,6 @@ const processRevocationRequestService = async ({
       const employeeId = application.employee._id;
       const requestedHours = strictNumber(application.requestedHours);
 
-      // Refund Memo Hours Safely Using $elemMatch
       for (const memoItem of application.memo || []) {
         const memoId = memoItem.memoId?._id || memoItem.memoId;
         const appliedHours = strictNumber(memoItem.appliedHours);
@@ -1368,7 +1292,7 @@ const processRevocationRequestService = async ({
             employees: {
               $elemMatch: {
                 employee: employeeId,
-                usedHours: { $gte: appliedHours }, // Concurrency protection
+                usedHours: { $gte: appliedHours },
               },
             },
           },
@@ -1392,7 +1316,6 @@ const processRevocationRequestService = async ({
         }
       }
 
-      // Restore Employee Balance
       const updatedEmployee = await Employee.findOneAndUpdate(
         { _id: employeeId },
         { $inc: { "balances.ctoHours": requestedHours } },
@@ -1408,10 +1331,9 @@ const processRevocationRequestService = async ({
 
       application.overallStatus = "REVOKED";
       application.revokedBy = adminId;
-      application.revokeReason = safeRemarks; // Note: Updated to match schema revokeReason
+      application.revokeReason = safeRemarks;
       application.revokedAt = new Date();
     } else if (safeAction === "REJECT") {
-      // ✅ ADDED: History tracking for rejections so employees can re-apply
       if (!application.revocationHistory) {
         application.revocationHistory = [];
       }
@@ -1426,7 +1348,6 @@ const processRevocationRequestService = async ({
         processedAt: new Date(),
       });
 
-      // Revert status to APPROVED and clear active request so they can request again
       application.overallStatus = "APPROVED";
       application.revocationRequest = undefined;
       application.revokedBy = undefined;
@@ -1444,7 +1365,6 @@ const processRevocationRequestService = async ({
     throw err;
   }
 
-  // ✅ Send Notifications to Employee
   try {
     const emp = application.employee;
     if (emp && emp.email) {
@@ -1452,7 +1372,6 @@ const processRevocationRequestService = async ({
       const requestedHours = strictNumber(application.requestedHours);
 
       if (safeAction === "APPROVE") {
-        // 1. Send in-app notification
         await NotificationService.notifyEmployeeOnCtoRevocationApproved({
           employeeId: emp._id,
           hrEmployee: hrAdmin,
@@ -1460,7 +1379,6 @@ const processRevocationRequestService = async ({
           restoredHours: requestedHours,
         });
 
-        // 2. Send email
         const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_APPROVED);
         if (emailEnabled) {
           const tpl = ctoRevocationApprovedEmail({
@@ -1471,7 +1389,6 @@ const processRevocationRequestService = async ({
           await safeSendEmail(emp.email, tpl.subject, tpl.html);
         }
       } else if (safeAction === "REJECT") {
-        // 1. Send in-app notification
         await NotificationService.notifyEmployeeOnCtoRevocationRejected({
           employeeId: emp._id,
           hrEmployee: hrAdmin,
@@ -1479,7 +1396,6 @@ const processRevocationRequestService = async ({
           remarks: safeRemarks,
         });
 
-        // 2. Send email
         const emailEnabled = await canSend(EMAIL_KEYS.CTO_REVOCATION_REJECTED);
         if (emailEnabled) {
           const tpl = ctoRevocationRejectedEmail({
@@ -1500,7 +1416,6 @@ const processRevocationRequestService = async ({
   return application;
 };
 
-// ✅ NEW: SEPARATE API FOR REVOCATION DASHBOARD
 const getRevocationRequestsService = async (
   filters = {},
   page = 1,
@@ -1512,7 +1427,6 @@ const getRevocationRequestsService = async (
 
   const baseQuery = {};
 
-  // Default to showing both pending and processed revocations
   if (filters.status) {
     baseQuery.overallStatus = String(filters.status).toUpperCase();
   } else {
@@ -1562,7 +1476,6 @@ const getRevocationRequestsService = async (
         "prefixTitle firstName middleName lastName nameExtension postfixTitle division position _id signature",
       )
       .populate("memo.memoId", "memoNo uploadedMemo totalHours appliedHours")
-      // Sort primarily by when the revocation was requested
       .sort({ "revocationRequest.requestedAt": -1, createdAt: -1 })
       .skip(skip)
       .limit(limit)

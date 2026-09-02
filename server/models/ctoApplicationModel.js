@@ -114,6 +114,30 @@ const CtoApplicationSchema = new mongoose.Schema(
       },
       uploadedAt: { type: Date, default: Date.now },
     },
+    lateFiling: {
+      isLateFiling: {
+        type: Boolean,
+        default: false,
+      },
+      justification: {
+        type: String,
+        trim: true,
+        maxlength: [1000, "Justification cannot exceed 1000 characters"],
+        required: function () {
+          return this.lateFiling && this.lateFiling.isLateFiling === true;
+        },
+      },
+      attachment: {
+        fileName: { type: String, trim: true, maxlength: 255 },
+        fileUrl: { type: String, trim: true, maxlength: 500 },
+        fileType: {
+          type: String,
+          trim: true,
+          enum: ["application/pdf", "image/jpeg", "image/png"],
+        },
+        uploadedAt: { type: Date },
+      },
+    },
 
     // =========================================
     // ORGANIC-SPECIFIC FIELDS
@@ -181,10 +205,10 @@ const CtoApplicationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
     },
-    revokeReason: { type: String, trim: true }, // Renamed from revokeRemarks to match your service layer
+    revokeReason: { type: String, trim: true },
     revokedAt: { type: Date },
 
-    // 3. 🆕 History of past revocation attempts (rejections or cancellations)
+    // 3. History of past revocation attempts (rejections or cancellations)
     revocationHistory: [
       {
         // Employee's Request
@@ -200,7 +224,7 @@ const CtoApplicationSchema = new mongoose.Schema(
         // Outcome / Response
         status: {
           type: String,
-          enum: ["APPROVED", "REJECTED", "CANCELLED"], // ✅ Added "CANCELLED" here
+          enum: ["APPROVED", "REJECTED", "CANCELLED"],
           required: true,
         },
         processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },

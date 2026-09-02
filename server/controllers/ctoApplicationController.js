@@ -14,20 +14,55 @@ const {
 
 const addCtoApplicationRequest = async (req, res) => {
   try {
-    const {
-      requestedHours,
-      reason,
-      routeId,
-      approvers,
-      inclusiveDates,
-      memos,
-      employeeType,
-      commutation,
-      certificationOfLeaveCredits,
-      actionDetails,
-    } = req.body;
+    const { requestedHours, reason, routeId, employeeType, commutation } =
+      req.body;
+
+    // ⚠️ CRITICAL: When using multer (multipart/form-data), complex objects
+    // and arrays come in as JSON strings. We must parse them.
+    const approvers =
+      typeof req.body.approvers === "string"
+        ? JSON.parse(req.body.approvers)
+        : req.body.approvers;
+
+    const inclusiveDates =
+      typeof req.body.inclusiveDates === "string"
+        ? JSON.parse(req.body.inclusiveDates)
+        : req.body.inclusiveDates;
+
+    const memos =
+      typeof req.body.memos === "string"
+        ? JSON.parse(req.body.memos)
+        : req.body.memos;
+
+    const certificationOfLeaveCredits =
+      typeof req.body.certificationOfLeaveCredits === "string"
+        ? JSON.parse(req.body.certificationOfLeaveCredits)
+        : req.body.certificationOfLeaveCredits;
+
+    const actionDetails =
+      typeof req.body.actionDetails === "string"
+        ? JSON.parse(req.body.actionDetails)
+        : req.body.actionDetails;
+
+    let lateFiling =
+      typeof req.body.lateFiling === "string"
+        ? JSON.parse(req.body.lateFiling)
+        : req.body.lateFiling;
+
+    // ✅ Map the Multer file into the lateFiling attachment object if it exists
+    if (req.file) {
+      if (!lateFiling) lateFiling = { isLateFiling: true };
+
+      lateFiling.attachment = {
+        fileName: req.file.originalname,
+        fileUrl: req.file.path, // Use req.file.location if using S3/Cloudinary
+        fileType: req.file.mimetype,
+        uploadedAt: new Date(),
+      };
+    }
 
     const userId = req.user.id || req.user._id;
+
     const application = await addCtoApplicationService({
       userId,
       requestedHours,
@@ -40,6 +75,7 @@ const addCtoApplicationRequest = async (req, res) => {
       commutation,
       certificationOfLeaveCredits,
       actionDetails,
+      lateFiling, // ✅ Pass the dynamically parsed and updated lateFiling object
     });
 
     res.status(201).json({
