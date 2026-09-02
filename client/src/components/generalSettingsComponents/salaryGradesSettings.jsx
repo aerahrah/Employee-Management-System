@@ -340,6 +340,25 @@ export default function SalaryGradesSettings() {
     );
   }, [rawGrades, search]);
 
+  // Restructure the flat filtered data into a 2D matrix (Grades x Steps)
+  const matrixData = useMemo(() => {
+    const stepsSet = new Set();
+    const gradesSet = new Set();
+    const map = {};
+
+    filteredGrades.forEach((sg) => {
+      if (sg.step != null) stepsSet.add(sg.step);
+      if (sg.grade != null) gradesSet.add(sg.grade);
+      if (!map[sg.grade]) map[sg.grade] = {};
+      map[sg.grade][sg.step] = sg;
+    });
+
+    const steps = Array.from(stepsSet).sort((a, b) => a - b);
+    const grades = Array.from(gradesSet).sort((a, b) => a - b);
+
+    return { steps, grades, map };
+  }, [filteredGrades]);
+
   const refetch = useCallback(async () => {
     setInlineError("");
     await settingsQuery.refetch();
@@ -486,48 +505,51 @@ export default function SalaryGradesSettings() {
                 </div>
               ) : (
                 <div className="overflow-x-auto max-h-[600px] no-scrollbar">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
                     <thead
-                      className="sticky top-0 z-10 backdrop-blur-md"
+                      className="sticky top-0 z-20 backdrop-blur-md"
                       style={{
                         backgroundColor:
                           resolvedTheme === "dark"
-                            ? "rgba(15,23,42,0.85)"
-                            : "rgba(248,250,252,0.85)",
+                            ? "rgba(15,23,42,0.95)"
+                            : "rgba(248,250,252,0.95)",
                         borderBottom: `1px solid ${borderColor}`,
                       }}
                     >
                       <tr>
                         <th
-                          className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
-                          style={{ color: "var(--app-muted)" }}
+                          className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider sticky left-0 z-30"
+                          style={{
+                            backgroundColor:
+                              resolvedTheme === "dark" ? "#0f172a" : "#f8fafc",
+                            color: "var(--app-muted)",
+                            borderRight: `1px solid ${borderColor}`,
+                            borderBottom: `1px solid ${borderColor}`,
+                          }}
                         >
-                          Grade
+                          Grade \ Step
                         </th>
-                        <th
-                          className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          Step
-                        </th>
-                        <th
-                          className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          Monthly Amount
-                        </th>
-                        <th
-                          className="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          Action
-                        </th>
+                        {matrixData.steps.map((step) => (
+                          <th
+                            key={step}
+                            className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-center transition-colors duration-300 ease-out"
+                            style={{
+                              color: "var(--app-muted)",
+                              borderBottom: `1px solid ${borderColor}`,
+                            }}
+                          >
+                            Step {step}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredGrades.length === 0 ? (
+                      {matrixData.grades.length === 0 ? (
                         <tr>
-                          <td colSpan="4" className="p-8 text-center">
+                          <td
+                            colSpan={matrixData.steps.length + 1}
+                            className="p-8 text-center"
+                          >
                             <span
                               className="text-sm font-medium transition-colors"
                               style={{ color: "var(--app-muted)" }}
@@ -537,9 +559,9 @@ export default function SalaryGradesSettings() {
                           </td>
                         </tr>
                       ) : (
-                        filteredGrades.map((sg) => (
+                        matrixData.grades.map((grade) => (
                           <tr
-                            key={sg._id}
+                            key={`grade-${grade}`}
                             className="transition-colors hover:bg-opacity-50"
                             style={{
                               borderBottom: `1px solid ${borderColor}`,
@@ -553,48 +575,59 @@ export default function SalaryGradesSettings() {
                             }}
                           >
                             <td
-                              className="px-6 py-3 text-sm font-semibold transition-colors duration-300 ease-out"
-                              style={{ color: "var(--app-text)" }}
+                              className="px-3 py-1.5 text-xs font-bold sticky left-0 z-10 transition-colors duration-300 ease-out"
+                              style={{
+                                backgroundColor: "var(--app-surface)",
+                                color: "var(--app-text)",
+                                borderRight: `1px solid ${borderColor}`,
+                              }}
                             >
-                              SG {sg.grade}
+                              SG {grade}
                             </td>
-                            <td
-                              className="px-6 py-3 text-sm font-medium transition-colors duration-300 ease-out"
-                              style={{ color: "var(--app-muted)" }}
-                            >
-                              Step {sg.step}
-                            </td>
-                            <td
-                              className="px-6 py-3 text-sm font-bold transition-colors duration-300 ease-out"
-                              style={{ color: "var(--app-text)" }}
-                            >
-                              {formatPHP(sg.amount)}
-                            </td>
-                            <td className="px-6 py-3 text-right">
-                              <button
-                                onClick={() => handleEditClick(sg)}
-                                disabled={isSaving}
-                                className="p-1.5 rounded-lg transition-colors duration-200"
-                                style={{
-                                  backgroundColor: "var(--app-surface)",
-                                  border: `1px solid ${borderColor}`,
-                                  color: "var(--app-muted)",
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = "var(--accent)";
-                                  e.currentTarget.style.borderColor =
-                                    "var(--accent)";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.color =
-                                    "var(--app-muted)";
-                                  e.currentTarget.style.borderColor =
-                                    borderColor;
-                                }}
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                            </td>
+                            {matrixData.steps.map((step) => {
+                              const sg = matrixData.map[grade][step];
+                              return (
+                                <td
+                                  key={`cell-${grade}-${step}`}
+                                  className="px-1 py-1 text-center"
+                                >
+                                  {sg ? (
+                                    <button
+                                      onClick={() => handleEditClick(sg)}
+                                      disabled={isSaving}
+                                      className="w-full group flex items-center justify-center gap-1 px-1.5 py-1 rounded transition-colors cursor-pointer"
+                                      style={{ backgroundColor: "transparent" }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor =
+                                          subtleBg;
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor =
+                                          "transparent";
+                                      }}
+                                    >
+                                      <span
+                                        className="text-xs font-medium transition-colors"
+                                        style={{ color: "var(--app-text)" }}
+                                      >
+                                        {formatPHP(sg.amount)}
+                                      </span>
+                                      <Edit2
+                                        className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        style={{ color: "var(--accent)" }}
+                                      />
+                                    </button>
+                                  ) : (
+                                    <span
+                                      className="text-xs"
+                                      style={{ color: "var(--app-muted)" }}
+                                    >
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))
                       )}
@@ -721,7 +754,7 @@ export default function SalaryGradesSettings() {
                       title="How this works"
                       theme={resolvedTheme}
                     >
-                      Select an edit icon from the table to modify a specific
+                      Select an amount cell from the table to modify a specific
                       Salary Grade amount.
                     </SoftNotice>
 

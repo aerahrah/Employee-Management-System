@@ -1,13 +1,11 @@
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+const path = require("path");
 
-const envFile =
-  process.env.NODE_ENV === "production"
-    ? ".env.production"
-    : ".env.development";
-dotenv.config({ path: `../${envFile}` });
-
-const SalaryGrade = require("../models/SalaryGrade");
+// Resolve the absolute path to the .env file in the parent directory
+require("./config/loadEnv");
+// Adjust this path if your model is named differently
+const SalaryGrade = require("../models/salaryGradeModel");
 
 // ---------------------------------------------------------------------
 // EXACT SALARY MATRIX (Based on Official Document)
