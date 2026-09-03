@@ -95,9 +95,11 @@ export const fetchEmployeeCredits = async (employeeId, params = {}) => {
    CTO APPLICATIONS
 ========================= */
 
-export const addApplicationRequest = async (payload) => {
+// ✅ UPDATED: Now supports FormData and multipart headers for late filing uploads
+export const addApplicationRequest = async (formData) => {
   try {
-    const res = await API.post("/cto/applications/apply", payload, {
+    const res = await API.post("/cto/applications/apply", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
       withCredentials: true,
     });
     console.log(res);

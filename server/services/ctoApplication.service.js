@@ -5,7 +5,7 @@ const ApprovalStep = require("../models/approvalStepModel");
 const Employee = require("../models/employeeModel");
 const CtoCredit = require("../models/ctoCreditModel");
 const RevocationSetting = require("../models/revocationSettingModel");
-const GeneralSetting = require("../models/GeneralSetting"); // ✅ Imported General Setting
+const GeneralSetting = require("../models/generalSettingsModel"); // ✅ Imported General Setting
 
 const { resolveApproversFromRoute } = require("./approvalRoute.service");
 const sendEmail = require("../utils/sendEmail");

@@ -214,7 +214,7 @@ const Sidebar = ({
             name: "Apply CTO Leave",
             path: "/app/cto-apply",
             icon: <PenLine size={14} />,
-            requiredPermission: "cto.create",
+            requiredPermission: "cto.view_self",
           },
           {
             name: "All CTO Applications",

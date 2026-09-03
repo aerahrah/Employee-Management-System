@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Briefcase,
   Hourglass,
+  Paperclip, // ✅ Imported Paperclip icon for the new setting
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "../../store/authStore";
@@ -384,6 +385,8 @@ export default function WorkingDaysSettings() {
   const [workingDaysValue, setWorkingDaysValue] = useState(5);
   const [hoursPerDay, setHoursPerDay] = useState(8);
   const [activeWorkingDays, setActiveWorkingDays] = useState([1, 2, 3, 4, 5]);
+  const [lateFilingAttachmentRequired, setLateFilingAttachmentRequired] =
+    useState(false); // ✅ Added state
 
   // initial snapshot for dirty detection
   const [initial, setInitial] = useState(null);
@@ -405,17 +408,20 @@ export default function WorkingDaysSettings() {
     const awd = Array.isArray(doc.activeWorkingDays)
       ? doc.activeWorkingDays
       : [1, 2, 3, 4, 5];
+    const lateAttachReq = Boolean(doc.lateFilingAttachmentRequired); // ✅ Fetch late filing setting
 
     setWorkingDaysEnable(enabled);
     setWorkingDaysValue(days);
     setHoursPerDay(hpd);
     setActiveWorkingDays(awd);
+    setLateFilingAttachmentRequired(lateAttachReq); // ✅ Set late filing setting
 
     setInitial({
       workingDaysEnable: enabled,
       workingDaysValue: days,
       hoursPerDay: hpd,
       activeWorkingDays: awd,
+      lateFilingAttachmentRequired: lateAttachReq, // ✅ Add to initial
     });
   }, [doc]);
 
@@ -424,8 +430,8 @@ export default function WorkingDaysSettings() {
     if (initial.workingDaysEnable !== workingDaysEnable) return true;
     if (initial.workingDaysValue !== workingDaysValue) return true;
     if (initial.hoursPerDay !== hoursPerDay) return true;
-    if (initial.activeWorkingDays.length !== activeWorkingDays.length)
-      return true;
+    if (initial.lateFilingAttachmentRequired !== lateFilingAttachmentRequired)
+      return true; // ✅ Dirty check
 
     const sortedInitial = [...initial.activeWorkingDays].sort();
     const sortedCurrent = [...activeWorkingDays].sort();
@@ -436,6 +442,7 @@ export default function WorkingDaysSettings() {
     workingDaysValue,
     hoursPerDay,
     activeWorkingDays,
+    lateFilingAttachmentRequired, // ✅ Dependency added
   ]);
 
   const refetch = useCallback(async () => {
@@ -450,11 +457,17 @@ export default function WorkingDaysSettings() {
       setInlineError("");
       toast.success("Settings saved");
       await queryClient.invalidateQueries({ queryKey: QK });
+      // Invalidating the public cache too so CTO forms see the change immediately
+      await queryClient.invalidateQueries({
+        queryKey: ["workingDaysSettings"],
+      });
+
       setInitial({
         workingDaysEnable,
         workingDaysValue,
         hoursPerDay,
         activeWorkingDays,
+        lateFilingAttachmentRequired, // ✅ Save new initial
       });
     },
     onError: (err) => {
@@ -495,6 +508,7 @@ export default function WorkingDaysSettings() {
       workingDaysValue: days,
       hoursPerDay: hpd,
       activeWorkingDays: activeWorkingDays,
+      lateFilingAttachmentRequired: Boolean(lateFilingAttachmentRequired), // ✅ Add to payload
     });
   };
 
@@ -504,6 +518,7 @@ export default function WorkingDaysSettings() {
     setWorkingDaysValue(5);
     setHoursPerDay(8);
     setActiveWorkingDays([1, 2, 3, 4, 5]);
+    setLateFilingAttachmentRequired(false); // ✅ Reset late filing to default (false)
     toast.info("Default values applied (not saved yet)");
   };
 
@@ -803,6 +818,28 @@ export default function WorkingDaysSettings() {
                     </div>
                   </div>
 
+                  {/* ✅ NEW: LATE FILING ATTACHMENT SECTION */}
+                  <hr style={{ borderColor: borderColor }} />
+
+                  <div className="space-y-4">
+                    <h3
+                      className="text-sm font-bold flex items-center gap-2"
+                      style={{ color: "var(--app-text)" }}
+                    >
+                      <Paperclip className="w-4 h-4" /> Late Filing Settings
+                    </h3>
+
+                    <Toggle
+                      checked={lateFilingAttachmentRequired}
+                      disabled={isSaving}
+                      onChange={(v) => setLateFilingAttachmentRequired(v)}
+                      label="Require Attachment for Late Filing"
+                      hint="If enabled, employees must upload a supporting document (like a medical cert or explanation memo) when filing leaves on short notice."
+                      borderColor={borderColor}
+                      theme={resolvedTheme}
+                    />
+                  </div>
+
                   <SoftNotice
                     icon={workingDaysEnable ? CheckCircle2 : ShieldAlert}
                     tone={workingDaysEnable ? "green" : "amber"}
@@ -827,9 +864,12 @@ export default function WorkingDaysSettings() {
 
                   <InlineError message={inlineError} theme={resolvedTheme} />
 
-                  <div className="pt-1 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between border-t mt-4 border-[color:var(--app-border)]">
+                  <div
+                    className="pt-1 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between border-t mt-4 pt-4"
+                    style={{ borderColor: borderColor }}
+                  >
                     <div
-                      className="text-xs transition-colors duration-300 ease-out pt-3"
+                      className="text-xs transition-colors duration-300 ease-out"
                       style={{ color: "var(--app-muted)" }}
                     >
                       {isDirty ? (
@@ -844,7 +884,7 @@ export default function WorkingDaysSettings() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 pt-3">
+                    <div className="flex items-center gap-2">
                       <GhostButton
                         onClick={onResetToDefault}
                         disabled={isSaving}
@@ -950,6 +990,30 @@ export default function WorkingDaysSettings() {
                     {workingDaysEnable
                       ? `${workingDaysValue} working days prior to leave.`
                       : "No advance notice required."}
+                  </div>
+                </div>
+
+                {/* ✅ NEW: Late Filing Summary */}
+                <div
+                  className="rounded-xl p-4 transition-colors duration-300 ease-out mt-3"
+                  style={{
+                    backgroundColor: subtleBg,
+                    border: `1px solid ${borderColor}`,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out flex items-center gap-1"
+                    style={{ color: "var(--app-muted)" }}
+                  >
+                    <Paperclip className="w-3 h-3" /> Late Filing
+                  </div>
+                  <div
+                    className="mt-2 text-sm font-semibold transition-colors duration-300 ease-out"
+                    style={{ color: "var(--app-text)" }}
+                  >
+                    {lateFilingAttachmentRequired
+                      ? "Attachment Required"
+                      : "Attachment Optional"}
                   </div>
                 </div>
 

@@ -246,7 +246,9 @@ function App() {
             <Route path="cto-my-credits" element={<MyCtoCreditHistory />} />
           </Route>
 
-          <Route element={<ProtectedRoute requiredPermission="cto.create" />}>
+          <Route
+            element={<ProtectedRoute requiredPermission="cto.view_self" />}
+          >
             <Route path="cto-apply" element={<MyCtoApplications />} />
             <Route path="cto-apply/add" element={<AddCtoApplicationForm />} />
             <Route

@@ -1,5 +1,5 @@
 // services/generalSettings.service.js
-const GeneralSetting = require("../models/generalSettingsModel");
+const GeneralSetting = require("../models/generalSettingsModel"); // Assuming you renamed the file
 
 function toInt(v, fallback = NaN) {
   const n = Number(v);
@@ -105,6 +105,10 @@ async function updateSessionSettings(payload = {}, userId = null) {
   return { before, after };
 }
 
+/* =========================
+   WORKING DAYS & LATE FILING SETTINGS
+   ========================= */
+
 async function getWorkingDaysSettings() {
   let settings = await GeneralSetting.findOne();
   if (!settings) {
@@ -115,6 +119,7 @@ async function getWorkingDaysSettings() {
     workingDaysValue: settings.workingDaysValue,
     hoursPerDay: settings.hoursPerDay,
     activeWorkingDays: settings.activeWorkingDays,
+    lateFilingAttachmentRequired: settings.lateFilingAttachmentRequired, // ✅ Added to GET
   };
 }
 
@@ -129,22 +134,32 @@ async function updateWorkingDaysSettings(payload, userId) {
     workingDaysValue: settings.workingDaysValue,
     hoursPerDay: settings.hoursPerDay,
     activeWorkingDays: settings.activeWorkingDays,
+    lateFilingAttachmentRequired: settings.lateFilingAttachmentRequired, // ✅ Added to audit before
   };
 
   // Update fields if they exist in the payload
   if (typeof payload.workingDaysEnable === "boolean") {
     settings.workingDaysEnable = payload.workingDaysEnable;
   }
-  if (payload.workingDaysValue) {
+  if (payload.workingDaysValue !== undefined) {
     settings.workingDaysValue = payload.workingDaysValue;
   }
-  if (payload.hoursPerDay) {
+  if (payload.hoursPerDay !== undefined) {
     settings.hoursPerDay = payload.hoursPerDay;
   }
-  if (payload.activeWorkingDays) {
+  if (payload.activeWorkingDays !== undefined) {
     settings.activeWorkingDays = payload.activeWorkingDays;
   }
 
+  // ✅ ADDED LATE FILING ATTACHMENT UPDATE LOGIC
+  if (payload.lateFilingAttachmentRequired !== undefined) {
+    const isRequired = toBool(payload.lateFilingAttachmentRequired);
+    if (isRequired !== undefined) {
+      settings.lateFilingAttachmentRequired = isRequired;
+    }
+  }
+
+  setUpdatedBy(settings, userId);
   await settings.save();
 
   const after = {
@@ -152,6 +167,7 @@ async function updateWorkingDaysSettings(payload, userId) {
     workingDaysValue: settings.workingDaysValue,
     hoursPerDay: settings.hoursPerDay,
     activeWorkingDays: settings.activeWorkingDays,
+    lateFilingAttachmentRequired: settings.lateFilingAttachmentRequired, // ✅ Added to audit after
   };
 
   return { before, after };

@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   addApplicationRequest,
   fetchMyCtoMemos,
@@ -16,6 +16,7 @@ import {
   UserCheck,
   AlertCircle,
   X,
+  UploadCloud,
 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import Breadcrumbs from "../../../breadCrumbs";
@@ -74,6 +75,7 @@ const getMinSelectableDateISO = (
 
   date.setDate(date.getDate() + 1);
 
+  // Skip ahead if we landed on a non-working day
   while (!activeWorkingDays.includes(date.getDay())) {
     date.setDate(date.getDate() + 1);
   }
@@ -135,6 +137,8 @@ const validateDate = ({
   inclusiveDates,
   blockedDates,
   minDate,
+  isLateMode,
+  todayISO,
   leadTimeMsg,
   activeWorkingDays,
   hoursPerDay,
@@ -144,7 +148,10 @@ const validateDate = ({
 
   const rh = Number(requestedHours || 0);
   if (!rh || rh <= 0) return "Please enter requested hours first.";
-  if (value < minDate) return leadTimeMsg;
+
+  // Late Filing rules vs Normal rules
+  if (isLateMode && value < todayISO) return "Cannot select past dates.";
+  if (!isLateMode && value < minDate) return leadTimeMsg;
 
   if (isNonWorkingDay(value, activeWorkingDays))
     return "Please select a valid scheduled working day.";
@@ -181,12 +188,19 @@ const Banner = ({ tone = "error", message, borderColor }) => {
             fg: "var(--app-text)",
             icon: "#16a34a",
           }
-        : {
-            bg: "rgba(239,68,68,0.10)",
-            br: "rgba(239,68,68,0.18)",
-            fg: "var(--app-text)",
-            icon: "#ef4444",
-          };
+        : tone === "amber"
+          ? {
+              bg: "rgba(245,158,11,0.10)",
+              br: "rgba(245,158,11,0.25)",
+              fg: "var(--app-text)",
+              icon: "#f59e0b",
+            }
+          : {
+              bg: "rgba(239,68,68,0.10)",
+              br: "rgba(239,68,68,0.18)",
+              fg: "var(--app-text)",
+              icon: "#ef4444",
+            };
 
   return (
     <div
@@ -211,6 +225,9 @@ const AddCtoApplicationForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { admin } = useAuth();
+
+  const [searchParams] = useSearchParams();
+  const isLateMode = searchParams.get("late") === "true";
 
   const prefTheme = useAuth((s) => s.preferences?.theme || "system");
   const resolvedTheme = useResolvedTheme(prefTheme);
@@ -239,6 +256,10 @@ const AddCtoApplicationForm = () => {
   const [isMemoModalOpen, setIsMemoModalOpen] = useState(false);
   const [selectedMemos, setSelectedMemos] = useState([]);
   const [maxRequestedHours, setMaxRequestedHours] = useState(0);
+
+  // Late Filing States
+  const [lateJustification, setLateJustification] = useState("");
+  const [lateAttachment, setLateAttachment] = useState(null);
 
   const dateInputRef = useRef(null);
 
@@ -270,6 +291,8 @@ const AddCtoApplicationForm = () => {
     setFormData(initialState);
     setSelectedMemos([]);
     setIsMemoModalOpen(false);
+    setLateJustification("");
+    setLateAttachment(null);
 
     setDateValue("");
     setDateError("");
@@ -302,6 +325,11 @@ const AddCtoApplicationForm = () => {
   const hoursPerDay = workingDoc?.hoursPerDay || 8;
   const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
 
+  // ✅ Check if the backend requires an attachment for late filings
+  const isAttachmentRequired = Boolean(
+    workingDoc?.lateFilingAttachmentRequired,
+  );
+
   const leadTimeDays = useMemo(() => {
     const enabled =
       typeof workingDoc?.workingDaysEnable === "boolean"
@@ -316,6 +344,11 @@ const AddCtoApplicationForm = () => {
     () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
     [leadTimeDays, activeWorkingDays],
   );
+
+  const todayISO = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  // Date Picker minimum changes depending on explicit mode
+  const pickerMinDate = isLateMode ? todayISO : minDate;
 
   useEffect(() => {
     if (workingDaysIsError) {
@@ -342,7 +375,6 @@ const AddCtoApplicationForm = () => {
     queryFn: fetchMyCtoApplications,
   });
 
-  // ✅ FIX: Normalize all incoming ISO dates to strictly match the YYYY-MM-DD input string
   const blockedDates = useMemo(() => {
     const apps =
       appsResponse?.data?.data || appsResponse?.data || appsResponse || [];
@@ -354,8 +386,6 @@ const AddCtoApplicationForm = () => {
         if (Array.isArray(app.inclusiveDates)) {
           app.inclusiveDates.forEach((d) => {
             if (!d) return;
-            // Whether it arrives as "2026-07-16T00:00:00.000Z" or an actual Date object,
-            // convert to standard string and split at the "T"
             const dateString =
               typeof d === "string" ? d : new Date(d).toISOString();
             const shortDate = dateString.split("T")[0];
@@ -427,13 +457,20 @@ const AddCtoApplicationForm = () => {
 
   useEffect(() => {
     if (!formData.inclusiveDates?.length) return;
-    const filtered = formData.inclusiveDates.filter((d) => d >= minDate);
-    if (filtered.length !== formData.inclusiveDates.length) {
-      setFormData((prev) => ({ ...prev, inclusiveDates: filtered }));
-      showBanner("info", "Some selected dates were removed (lead-time rule).");
+
+    // Only prune dates dynamically if they are NOT explicitly doing a late filing
+    if (!isLateMode) {
+      const filtered = formData.inclusiveDates.filter((d) => d >= minDate);
+      if (filtered.length !== formData.inclusiveDates.length) {
+        setFormData((prev) => ({ ...prev, inclusiveDates: filtered }));
+        showBanner(
+          "info",
+          "Some selected dates were removed (lead-time rule). Use 'Late Filing' to bypass.",
+        );
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minDate]);
+  }, [minDate, isLateMode]);
 
   useEffect(() => {
     if (!requiredDays) return;
@@ -456,6 +493,8 @@ const AddCtoApplicationForm = () => {
       inclusiveDates: formData.inclusiveDates,
       blockedDates,
       minDate,
+      isLateMode,
+      todayISO,
       leadTimeMsg,
       activeWorkingDays,
       hoursPerDay,
@@ -468,6 +507,8 @@ const AddCtoApplicationForm = () => {
     formData.inclusiveDates,
     blockedDates,
     minDate,
+    isLateMode,
+    todayISO,
     leadTimeMsg,
     activeWorkingDays,
     hoursPerDay,
@@ -563,6 +604,8 @@ const AddCtoApplicationForm = () => {
       inclusiveDates: formData.inclusiveDates,
       blockedDates,
       minDate,
+      isLateMode,
+      todayISO,
       leadTimeMsg,
       activeWorkingDays,
       hoursPerDay,
@@ -582,6 +625,8 @@ const AddCtoApplicationForm = () => {
       inclusiveDates: formData.inclusiveDates,
       blockedDates,
       minDate,
+      isLateMode,
+      todayISO,
       leadTimeMsg,
       activeWorkingDays,
       hoursPerDay,
@@ -683,6 +728,7 @@ const AddCtoApplicationForm = () => {
         })
         .test("lead-time", leadTimeMsg, (dates) => {
           if (!dates) return true;
+          if (isLateMode) return true; // Bypass lead-time validation in explicit late mode
           return !dates.some((d) => d < minDate);
         })
         .test(
@@ -722,6 +768,7 @@ const AddCtoApplicationForm = () => {
     memoLoading,
     workingDaysLoading,
     minDate,
+    isLateMode,
     leadTimeMsg,
     hasValidApprovalRoute,
     hoursPerDay,
@@ -759,9 +806,55 @@ const AddCtoApplicationForm = () => {
         abortEarly: false,
       });
 
-      validatedPayload.clientRequestId = makeClientRequestId();
+      // ✅ Strict Check: If they clicked "Late Filing", they MUST provide justification
+      if (isLateMode && !lateJustification.trim()) {
+        showBanner(
+          "error",
+          "Late filing justification is required to proceed.",
+        );
+        submitInFlightRef.current = false;
+        return;
+      }
 
-      await mutation.mutateAsync(validatedPayload);
+      // ✅ Strict Check: If late attachment is required by admin, block if missing
+      if (isLateMode && isAttachmentRequired && !lateAttachment) {
+        showBanner(
+          "error",
+          "A supporting document is required for late filings. Please attach a file.",
+        );
+        submitInFlightRef.current = false;
+        return;
+      }
+
+      // Switch to FormData for multipart submission
+      const formPayload = new FormData();
+      formPayload.append("requestedHours", validatedPayload.requestedHours);
+      formPayload.append("reason", validatedPayload.reason);
+      formPayload.append("routeId", validatedPayload.routeId);
+      formPayload.append("employeeType", validatedPayload.employeeType);
+
+      formPayload.append("memos", JSON.stringify(validatedPayload.memos));
+      formPayload.append(
+        "inclusiveDates",
+        JSON.stringify(validatedPayload.inclusiveDates),
+      );
+
+      // ✅ Always append lateFiling block if they clicked the Late Mode button
+      if (isLateMode) {
+        formPayload.append(
+          "lateFiling",
+          JSON.stringify({
+            isLateFiling: true,
+            justification: lateJustification.trim(),
+          }),
+        );
+
+        if (lateAttachment) {
+          formPayload.append("file", lateAttachment);
+        }
+      }
+
+      await mutation.mutateAsync(formPayload);
 
       successLatchRef.current = true;
       setSuccessLatchUI(true);
@@ -799,10 +892,11 @@ const AddCtoApplicationForm = () => {
       : 0;
 
   const leadTimeLabel = useMemo(() => {
+    if (isLateMode) return "Late Filing Allowed";
     if (workingDaysLoading) return "Min. Lead Time: Loading…";
     if (leadTimeDays <= 0) return "Min. Lead Time: 1 day";
     return `Min. Lead Time: ${leadTimeDays} Work Day${leadTimeDays === 1 ? "" : "s"}`;
-  }, [leadTimeDays, workingDaysLoading]);
+  }, [leadTimeDays, workingDaysLoading, isLateMode]);
 
   const dateDisabled =
     !formData.requestedHours || isBusy || workingDaysLoading || appsLoading;
@@ -823,6 +917,11 @@ const AddCtoApplicationForm = () => {
             style={{ color: "var(--app-text)" }}
           >
             New CTO Application
+            {isLateMode && (
+              <span className="ml-3 text-sm font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 align-middle">
+                Late Filing Enabled
+              </span>
+            )}
           </h1>
           <p
             className="block text-sm mt-1 max-w-2xl"
@@ -975,7 +1074,7 @@ const AddCtoApplicationForm = () => {
                     <input
                       ref={dateInputRef}
                       type="date"
-                      min={minDate}
+                      min={pickerMinDate}
                       value={dateValue}
                       onInput={handleDateInput}
                       onChange={handleDateCommit}
@@ -1014,7 +1113,7 @@ const AddCtoApplicationForm = () => {
                       <span
                         style={{ color: "var(--app-text)", fontWeight: 700 }}
                       >
-                        {minDate}
+                        {pickerMinDate}
                       </span>
                     </div>
                   )}
@@ -1118,6 +1217,97 @@ const AddCtoApplicationForm = () => {
                 </div>
               )}
 
+              {/* ✅ ENHANCED LATE FILING UI (THEME ADAPTIVE) */}
+              {isLateMode && (
+                <div
+                  className="space-y-4 p-5 rounded-xl border transition-colors duration-300 ease-out animate-in fade-in"
+                  style={{
+                    backgroundColor:
+                      resolvedTheme === "dark"
+                        ? "rgba(245,158,11,0.05)"
+                        : "#fffbeb",
+                    borderColor:
+                      resolvedTheme === "dark"
+                        ? "rgba(245,158,11,0.2)"
+                        : "#fde68a",
+                  }}
+                >
+                  <Banner
+                    tone="amber"
+                    message="You have opted to file this request late. A justification is required to proceed."
+                  />
+
+                  <div className="space-y-2 mt-4">
+                    <label
+                      className="text-sm font-bold flex items-center gap-2"
+                      style={{
+                        color: resolvedTheme === "dark" ? "#fcd34d" : "#b45309",
+                      }}
+                    >
+                      Late Filing Justification{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={lateJustification}
+                      onChange={(e) => setLateJustification(e.target.value)}
+                      disabled={isBusy}
+                      className="w-full p-3 rounded-lg outline-none resize-none text-sm border transition-colors"
+                      style={{
+                        backgroundColor: isBusy
+                          ? "var(--app-surface-2)"
+                          : "var(--app-surface)",
+                        borderColor:
+                          resolvedTheme === "dark"
+                            ? "rgba(245,158,11,0.3)"
+                            : "#fcd34d",
+                        color: "var(--app-text)", // Resolves the black text issue in dark mode
+                      }}
+                      rows={3}
+                      placeholder="Explain why this request is being filed on short notice..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      className="text-sm font-bold flex items-center gap-2"
+                      style={{
+                        color: resolvedTheme === "dark" ? "#fcd34d" : "#b45309",
+                      }}
+                    >
+                      <UploadCloud size={16} />
+                      Supporting Document{" "}
+                      {isAttachmentRequired ? (
+                        <span className="text-red-500">*</span>
+                      ) : (
+                        <span className="text-xs font-normal opacity-70">
+                          (Optional)
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      disabled={isBusy}
+                      onChange={(e) => setLateAttachment(e.target.files[0])}
+                      className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold cursor-pointer transition-colors"
+                      style={{
+                        color: "var(--app-text)",
+                      }}
+                    />
+                    <style>{`
+                      input[type="file"]::file-selector-button {
+                        background-color: ${resolvedTheme === "dark" ? "rgba(245,158,11,0.1)" : "#fef3c7"};
+                        color: ${resolvedTheme === "dark" ? "#fcd34d" : "#b45309"};
+                        transition: background-color 0.2s;
+                      }
+                      input[type="file"]::file-selector-button:hover {
+                        background-color: ${resolvedTheme === "dark" ? "rgba(245,158,11,0.2)" : "#fde68a"};
+                      }
+                    `}</style>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <div
                   className="flex items-center gap-2 text-sm font-medium"
@@ -1133,7 +1323,7 @@ const AddCtoApplicationForm = () => {
                   >
                     <FileText className="w-4 h-4" />
                   </div>
-                  Reason / Justification
+                  Reason / Purpose
                 </div>
 
                 <textarea
@@ -1142,7 +1332,7 @@ const AddCtoApplicationForm = () => {
                   onChange={handleChange}
                   rows="4"
                   maxLength={MAX_REASON_LEN}
-                  placeholder="Type your justification here..."
+                  placeholder="Type your general justification here..."
                   disabled={isBusy}
                   className="w-full p-3 rounded-lg outline-none resize-none text-sm border transition-colors duration-200 ease-out"
                   style={{

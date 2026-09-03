@@ -1,16 +1,23 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   addApplicationRequest,
   fetchMyCtoMemos,
-  fetchMyCtoApplications, // ✅ IMPORT ADDED
+  fetchMyCtoApplications,
 } from "../../../../api/cto";
 import { fetchPublicWorkingDaysGeneralSettings } from "../../../../api/generalSettings";
 import { fetchAllApprovalRoutes } from "../../../../api/approvalRoute";
 import { getMyProfile } from "../../../../api/employee";
 import { useAuth } from "../../../../store/authStore";
-import { AlertCircle, X, UserCheck, PenTool, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  X,
+  UserCheck,
+  PenTool,
+  Loader2,
+  UploadCloud,
+} from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import Breadcrumbs from "../../../breadCrumbs";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -35,7 +42,6 @@ const clampInt = (v, min, max, fallback) => {
   return Math.min(Math.max(t, min), max);
 };
 
-// ✅ UPDATED: Dynamic non-working day checker
 const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
   const d = new Date(`${iso}T00:00:00`);
   const day = d.getDay();
@@ -44,7 +50,6 @@ const isNonWorkingDay = (iso, activeWorkingDays = [1, 2, 3, 4, 5]) => {
 
 const isFullISODate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 
-// ✅ UPDATED: Dynamic lead time calculator skipping non-working days
 const getMinSelectableDateISO = (
   leadTimeDays = 5,
   activeWorkingDays = [1, 2, 3, 4, 5],
@@ -135,12 +140,19 @@ const Banner = ({ tone = "error", message, borderColor }) => {
             fg: "var(--app-text)",
             icon: "#16a34a",
           }
-        : {
-            bg: "rgba(239,68,68,0.10)",
-            br: "rgba(239,68,68,0.18)",
-            fg: "var(--app-text)",
-            icon: "#ef4444",
-          };
+        : tone === "amber"
+          ? {
+              bg: "rgba(245,158,11,0.10)",
+              br: "rgba(245,158,11,0.25)",
+              fg: "var(--app-text)",
+              icon: "#f59e0b",
+            }
+          : {
+              bg: "rgba(239,68,68,0.10)",
+              br: "rgba(239,68,68,0.18)",
+              fg: "var(--app-text)",
+              icon: "#ef4444",
+            };
 
   return (
     <div
@@ -165,7 +177,11 @@ const AddOrganicCtoApplicationForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // ✅ LOCAL SESSION DATA: Used for immediate UI rendering (Name, Dept)
+  // URL State Detection for Late Filing
+  const [searchParams] = useSearchParams();
+  const isLateMode = searchParams.get("late") === "true";
+
+  // LOCAL SESSION DATA
   const { admin } = useAuth();
   const sessionAdmin = admin || {};
 
@@ -211,6 +227,10 @@ const AddOrganicCtoApplicationForm = () => {
   const [selectedMemos, setSelectedMemos] = useState([]);
   const [maxRequestedHours, setMaxRequestedHours] = useState(0);
 
+  // Late Filing States
+  const [lateJustification, setLateJustification] = useState("");
+  const [lateAttachment, setLateAttachment] = useState(null);
+
   const initialState = useMemo(
     () => ({
       leaveType: "Compensatory Time-Off (CTO)",
@@ -233,7 +253,23 @@ const AddOrganicCtoApplicationForm = () => {
     };
   }, []);
 
-  // ✅ LIVE DATABASE DATA: Strictly used for signature, salary, and access controls
+  const resetForm = useCallback(() => {
+    setFormData(initialState);
+    setSelectedMemos([]);
+    setIsMemoModalOpen(false);
+    setLateJustification("");
+    setLateAttachment(null);
+
+    setDateValue("");
+    setDateError("");
+    clearBanner();
+
+    successLatchRef.current = false;
+    setSuccessLatchUI(false);
+    submitInFlightRef.current = false;
+  }, [initialState]);
+
+  // LIVE DATABASE DATA
   const {
     data: profileDataResponse,
     isLoading: isProfileLoading,
@@ -245,15 +281,10 @@ const AddOrganicCtoApplicationForm = () => {
   });
 
   const liveProfile = profileDataResponse || {};
-
-  // Strictly evaluate signature against live profile data
   const hasSignature = Boolean(liveProfile.signature);
-
-  // Block the UI from assuming no signature if we are still loading
   const checkingProfile =
     isProfileLoading || (isProfileFetching && !hasSignature);
 
-  // Pre-format Salary for Display using live profile data
   const salaryText = useMemo(() => {
     if (isProfileLoading) return "Loading...";
     const amt = liveProfile.salary?.amount;
@@ -279,10 +310,13 @@ const AddOrganicCtoApplicationForm = () => {
   });
 
   const workingDoc = workingDaysRes?.data;
-
-  // ✅ EXTRACT NEW SETTINGS WITH DEFAULTS
   const hoursPerDay = workingDoc?.hoursPerDay || 8;
   const activeWorkingDays = workingDoc?.activeWorkingDays || [1, 2, 3, 4, 5];
+
+  // ✅ Check if the backend requires an attachment for late filings
+  const isAttachmentRequired = Boolean(
+    workingDoc?.lateFilingAttachmentRequired,
+  );
 
   const leadTimeDays = useMemo(() => {
     const enabled =
@@ -293,11 +327,13 @@ const AddOrganicCtoApplicationForm = () => {
     return clampInt(workingDoc?.workingDaysValue, 1, 7, 5);
   }, [workingDoc]);
 
-  // ✅ Pass activeWorkingDays
   const minDate = useMemo(
     () => getMinSelectableDateISO(leadTimeDays, activeWorkingDays),
     [leadTimeDays, activeWorkingDays],
   );
+
+  const todayISO = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const pickerMinDate = isLateMode ? todayISO : minDate;
 
   useEffect(() => {
     if (workingDaysIsError) {
@@ -318,13 +354,11 @@ const AddOrganicCtoApplicationForm = () => {
     queryFn: fetchMyCtoMemos,
   });
 
-  // ✅ NEW: Fetch the user's CTO applications to determine overlapping dates
   const { data: appsResponse, isLoading: appsLoading } = useQuery({
     queryKey: ["ctoApplications"],
     queryFn: fetchMyCtoApplications,
   });
 
-  // ✅ NEW: Extract all dates from PENDING or APPROVED applications
   const blockedDates = useMemo(() => {
     const apps =
       appsResponse?.data?.data || appsResponse?.data || appsResponse || [];
@@ -372,7 +406,6 @@ const AddOrganicCtoApplicationForm = () => {
   const isBusy = mutation.isPending || successLatchUI || appsLoading;
   const isFormDisabled = !hasSignature || checkingProfile || isBusy;
 
-  // Find approval route based on live profile ID, falling back to session ID
   const userId =
     liveProfile._id || liveProfile.id || sessionAdmin._id || sessionAdmin.id;
 
@@ -404,19 +437,25 @@ const AddOrganicCtoApplicationForm = () => {
     return `Applications must be filed at least ${leadTimeDays} working day(s) in advance.`;
   }, [leadTimeDays]);
 
-  // ✅ Pass dynamic hours
   const requiredDays = useMemo(() => {
     return Math.ceil(Number(formData.requestedHours || 0) / hoursPerDay);
   }, [formData.requestedHours, hoursPerDay]);
 
   useEffect(() => {
     if (!formData.inclusiveDates?.length) return;
-    const filtered = formData.inclusiveDates.filter((d) => d >= minDate);
-    if (filtered.length !== formData.inclusiveDates.length) {
-      setFormData((prev) => ({ ...prev, inclusiveDates: filtered }));
-      showBanner("info", "Some selected dates were removed (lead-time rule).");
+
+    // Only prune dates dynamically if they are NOT explicitly doing a late filing
+    if (!isLateMode) {
+      const filtered = formData.inclusiveDates.filter((d) => d >= minDate);
+      if (filtered.length !== formData.inclusiveDates.length) {
+        setFormData((prev) => ({ ...prev, inclusiveDates: filtered }));
+        showBanner(
+          "info",
+          "Some selected dates were removed (lead-time rule). Use 'Late Filing' to bypass.",
+        );
+      }
     }
-  }, [minDate]);
+  }, [minDate, isLateMode]);
 
   useEffect(() => {
     if (!requiredDays) return;
@@ -431,7 +470,6 @@ const AddOrganicCtoApplicationForm = () => {
     );
   }, [requiredDays]);
 
-  // ✅ Update Validation Logic Context to include blockedDates
   const validateDateLogic = useCallback(
     (value) => {
       if (!value) return "";
@@ -440,13 +478,14 @@ const AddOrganicCtoApplicationForm = () => {
       const rh = Number(formData.requestedHours || 0);
       if (!rh || rh <= 0) return "Please enter requested hours first.";
 
-      if (value < minDate) return leadTimeMsg;
+      if (isLateMode && value < todayISO) return "Cannot select past dates.";
+      if (!isLateMode && value < minDate) return leadTimeMsg;
+
       if (isNonWorkingDay(value, activeWorkingDays))
         return "Please select a valid scheduled working day.";
       if (formData.inclusiveDates.includes(value))
         return "That date is already selected.";
 
-      // ✅ PREVENT OVERLAPPING WITH EXISTING PENDING/APPROVED DATES
       if (blockedDates.includes(value)) {
         return "You already have a Pending/Approved application for this date.";
       }
@@ -460,6 +499,8 @@ const AddOrganicCtoApplicationForm = () => {
       formData.requestedHours,
       formData.inclusiveDates,
       minDate,
+      isLateMode,
+      todayISO,
       leadTimeMsg,
       requiredDays,
       activeWorkingDays,
@@ -587,7 +628,6 @@ const AddOrganicCtoApplicationForm = () => {
     }));
   };
 
-  // ✅ Updated Schema constraints with overlap block
   const validationSchema = useMemo(() => {
     return yup.object().shape({
       requestedHours: yup
@@ -610,7 +650,7 @@ const AddOrganicCtoApplicationForm = () => {
       reason: yup
         .string()
         .trim()
-        .required("Reason / Additional Justification is required.")
+        .required("Reason / Purpose  is required.")
         .max(
           MAX_REASON_LEN,
           `Remarks cannot exceed ${MAX_REASON_LEN} characters.`,
@@ -641,9 +681,11 @@ const AddOrganicCtoApplicationForm = () => {
           }
           return true;
         })
-        .test("lead-time", leadTimeMsg, (dates) =>
-          !dates ? true : !dates.some((d) => d < minDate),
-        )
+        .test("lead-time", leadTimeMsg, (dates) => {
+          if (!dates) return true;
+          if (isLateMode) return true; // Bypass lead-time validation in explicit late mode
+          return !dates.some((d) => d < minDate);
+        })
         .test(
           "no-weekends",
           "One or more selected dates fall on a non-working day.",
@@ -678,6 +720,7 @@ const AddOrganicCtoApplicationForm = () => {
     });
   }, [
     minDate,
+    isLateMode,
     leadTimeMsg,
     hasValidApprovalRoute,
     maxRequestedHours,
@@ -701,7 +744,6 @@ const AddOrganicCtoApplicationForm = () => {
 
     try {
       const rawPayload = {
-        // Employee type evaluated from live profile, fallback to session
         employeeType:
           liveProfile.employeeType || sessionAdmin.employeeType || "Organic",
         commutation: formData.commutation,
@@ -720,9 +762,58 @@ const AddOrganicCtoApplicationForm = () => {
       };
 
       await validationSchema.validate(rawPayload, { abortEarly: false });
-      rawPayload.clientRequestId = makeClientRequestId();
 
-      await mutation.mutateAsync(rawPayload);
+      // ✅ Strict Check: If they clicked "Late Filing", they MUST provide justification
+      if (isLateMode && !lateJustification.trim()) {
+        showBanner(
+          "error",
+          "Late filing justification is required to proceed.",
+        );
+        submitInFlightRef.current = false;
+        return;
+      }
+
+      // ✅ Strict Check: If late attachment is required by admin, block if missing
+      if (isLateMode && isAttachmentRequired && !lateAttachment) {
+        showBanner(
+          "error",
+          "A supporting document is required for late filings. Please attach a file.",
+        );
+        submitInFlightRef.current = false;
+        return;
+      }
+
+      // Switch to FormData for multipart submission
+      const formPayload = new FormData();
+      formPayload.append("requestedHours", rawPayload.requestedHours);
+      formPayload.append("reason", rawPayload.reason);
+      formPayload.append("routeId", rawPayload.routeId);
+      formPayload.append("employeeType", rawPayload.employeeType);
+      formPayload.append("commutation", rawPayload.commutation);
+
+      formPayload.append("memos", JSON.stringify(rawPayload.memos));
+      formPayload.append(
+        "inclusiveDates",
+        JSON.stringify(rawPayload.inclusiveDates),
+      );
+
+      // Append lateFiling block if explicitly in late mode
+      if (isLateMode) {
+        formPayload.append(
+          "lateFiling",
+          JSON.stringify({
+            isLateFiling: true,
+            justification: lateJustification.trim(),
+          }),
+        );
+
+        if (lateAttachment) {
+          formPayload.append("file", lateAttachment);
+        }
+      }
+
+      await mutation.mutateAsync(formPayload);
+
       successLatchRef.current = true;
       setSuccessLatchUI(true);
 
@@ -752,10 +843,6 @@ const AddOrganicCtoApplicationForm = () => {
 
   const dateDisabled = !formData.requestedHours || isFormDisabled;
 
-  // ------------------------------------------------------------------
-  // 403 Forbidden Access Guard
-  // Wait until profile is finished loading before evaluating type
-  // ------------------------------------------------------------------
   const currentEmployeeType =
     liveProfile.employeeType || sessionAdmin.employeeType;
   if (
@@ -780,8 +867,13 @@ const AddOrganicCtoApplicationForm = () => {
         baseColor={skeletonColors.baseColor}
         highlightColor={skeletonColors.highlightColor}
       >
-        <div className="pt-2 pb-6 px-4 md:px-0">
+        <div className="pt-2 pb-6 px-4 md:px-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <Breadcrumbs rootLabel="home" rootTo="/app" />
+          {isLateMode && (
+            <span className="text-sm font-semibold px-4 py-1.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+              Late Filing Mode Enabled
+            </span>
+          )}
         </div>
 
         <div
@@ -1038,15 +1130,18 @@ const AddOrganicCtoApplicationForm = () => {
                       className="mt-6 border-t pt-4 transition-colors duration-300"
                       style={{ borderColor: borderColor }}
                     >
-                      <h3 className="text-xs font-bold uppercase mb-2">
-                        Inclusive Dates
+                      <h3 className="text-xs font-bold uppercase mb-2 flex justify-between items-center">
+                        <span>Inclusive Dates</span>
+                        <span className="text-[10px] normal-case font-normal italic text-gray-500">
+                          {isLateMode ? "Late Mode Active" : `Min: ${minDate}`}
+                        </span>
                       </h3>
 
                       <div className="flex items-center gap-2 mb-3">
                         <input
                           ref={dateInputRef}
                           type="date"
-                          min={minDate}
+                          min={pickerMinDate}
                           value={dateValue}
                           onInput={handleDateInput}
                           onChange={handleDateCommit}
@@ -1208,12 +1303,77 @@ const AddOrganicCtoApplicationForm = () => {
                   </div>
                 </div>
 
+                {/* ✅ LATE FILING SECTION FOR ORGANIC */}
+                {isLateMode && (
+                  <div
+                    className="p-4 border-b transition-colors duration-300 ease-out"
+                    style={{
+                      backgroundColor: "rgba(245,158,11,0.05)",
+                      borderColor: borderColor,
+                    }}
+                  >
+                    <Banner
+                      tone="amber"
+                      message="You have opted to file this request late. A justification is required to proceed."
+                    />
+                    <div className="space-y-4 mt-4">
+                      <div>
+                        <h3
+                          className="text-xs font-bold uppercase mb-2"
+                          style={{ color: "#d97706" }}
+                        >
+                          Late Filing Justification{" "}
+                          <span className="text-red-500">*</span>
+                        </h3>
+                        <textarea
+                          value={lateJustification}
+                          onChange={(e) => setLateJustification(e.target.value)}
+                          disabled={isFormDisabled}
+                          className="w-full border p-2 text-xs outline-none resize-none bg-transparent disabled:opacity-50 transition-colors duration-300 rounded"
+                          style={{
+                            borderColor: borderColor,
+                            color: "var(--app-text)",
+                            backgroundColor: isFormDisabled
+                              ? "var(--app-surface-2)"
+                              : "var(--app-surface)",
+                          }}
+                          rows="3"
+                          placeholder="Explain why this request is being filed on short notice..."
+                        />
+                      </div>
+                      <div>
+                        <h3
+                          className="text-xs font-bold uppercase mb-2 flex items-center gap-2"
+                          style={{ color: "#d97706" }}
+                        >
+                          <UploadCloud size={14} /> Supporting Document{" "}
+                          {isAttachmentRequired ? (
+                            <span className="text-red-500">*</span>
+                          ) : (
+                            <span className="normal-case opacity-70">
+                              (Optional)
+                            </span>
+                          )}
+                        </h3>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          disabled={isFormDisabled}
+                          onChange={(e) => setLateAttachment(e.target.files[0])}
+                          className="w-full text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer"
+                          style={{ color: "var(--app-text)" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   className="p-4 border-b transition-colors duration-300 ease-out"
                   style={{ borderColor: borderColor }}
                 >
                   <h3 className="text-xs font-bold uppercase mb-2">
-                    Reason / Additional Justification
+                    Reason / Purpose
                   </h3>
                   <textarea
                     name="reason"

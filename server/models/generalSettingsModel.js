@@ -17,7 +17,7 @@ const generalSettingSchema = new mongoose.Schema(
       max: 60 * 24 * 30, // up to 30 days
     },
 
-    // --- LEAD TIME SETTINGS (Unchanged) ---
+    // --- LEAD TIME & LATE FILING SETTINGS ---
     workingDaysEnable: {
       type: Boolean,
       required: true,
@@ -30,8 +30,13 @@ const generalSettingSchema = new mongoose.Schema(
       min: 1,
       max: 7,
     },
+    lateFilingAttachmentRequired: {
+      type: Boolean,
+      required: true,
+      default: false, // Default is false (optional)
+    },
 
-    // --- WORK SCHEDULE SETTINGS (New) ---
+    // --- WORK SCHEDULE SETTINGS ---
     hoursPerDay: {
       type: Number,
       required: true,

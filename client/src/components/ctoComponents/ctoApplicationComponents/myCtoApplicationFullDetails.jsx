@@ -14,6 +14,7 @@ import {
   Undo,
   Paperclip,
   Clock,
+  Clock4, // ✅ Imported for Late Filing indicator
   RotateCcw,
   Download,
 } from "lucide-react";
@@ -21,7 +22,7 @@ import { StatusBadge } from "../../statusUtils";
 import Modal from "../../modal";
 import MemoList from "../ctoMemoModal";
 import { useAuth } from "../../../store/authStore";
-import { buildApiUrl } from "../../../config/env"; // ✅ Ensure this is imported for the download links
+import { buildApiUrl } from "../../../config/env";
 
 function resolveTheme(prefTheme) {
   if (prefTheme === "system") {
@@ -146,7 +147,6 @@ const TimelineCard = ({ approval, index, isLast, borderColor }) => {
   const isPending = status === "PENDING";
   const isCancelled = status === "CANCELLED";
 
-  // ✅ Extract Signed At Timestamp (same as wellness)
   const signedAt =
     approval.approverSnapshot?.signedAt ||
     approval.approverSignature?.signedAt ||
@@ -211,7 +211,7 @@ const TimelineCard = ({ approval, index, isLast, borderColor }) => {
           </div>
         </div>
 
-        {/* CANCELLED contextual note (if no remarks) */}
+        {/* CANCELLED contextual note */}
         {isCancelled && !approval?.remarks ? (
           <div
             className="mt-4 rounded-xl text-xs flex items-start gap-2 min-w-0 border p-3"
@@ -261,7 +261,7 @@ const TimelineCard = ({ approval, index, isLast, borderColor }) => {
           </div>
         )}
 
-        {/* ✅ Timestamp Output (same as wellness) */}
+        {/* Timestamp */}
         {signedAt && (
           <div
             className="mt-4 pt-3 border-t border-dashed"
@@ -312,6 +312,11 @@ const CtoApplicationDetails = ({ app }) => {
     status === "REVOKED";
   const isRevoked = status === "REVOKED";
 
+  // Late Filing Data
+  const isLateFiling = app.lateFiling?.isLateFiling === true;
+  const lateJustification = app.lateFiling?.justification;
+  const lateAttachment = app.lateFiling?.attachment;
+
   // Revocation specific data
   const revocationReq = app.revocationRequest || {};
   const hasActiveRevocationReq =
@@ -329,7 +334,7 @@ const CtoApplicationDetails = ({ app }) => {
   const handleDownloadAttachment = (attachmentObj) => {
     if (!attachmentObj?.fileUrl) return;
     const url = attachmentObj.fileUrl.replace(/\\/g, "/");
-    const fullUrl = url.startsWith("http") ? url : buildApiUrl(url); // ✅ Adjusted to use buildApiUrl correctly
+    const fullUrl = url.startsWith("http") ? url : buildApiUrl(url);
     window.open(fullUrl, "_blank");
   };
 
@@ -351,12 +356,19 @@ const CtoApplicationDetails = ({ app }) => {
           }}
         >
           <div>
-            <p
-              className="text-xs font-bold uppercase tracking-wider mb-1"
-              style={{ color: "var(--app-muted)" }}
-            >
-              Current Status
-            </p>
+            <div className="flex items-center gap-3 mb-1">
+              <p
+                className="text-xs font-bold uppercase tracking-wider"
+                style={{ color: "var(--app-muted)" }}
+              >
+                Current Status
+              </p>
+              {isLateFiling && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1">
+                  <Clock4 size={10} /> Late Filed
+                </span>
+              )}
+            </div>
             <StatusBadge
               status={app.overallStatus}
               className="text-lg px-4 py-1.5"
@@ -437,7 +449,7 @@ const CtoApplicationDetails = ({ app }) => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* LEFT COLUMN */}
           <div className="lg:col-span-1 space-y-4">
-            {/* Revocation Reason Card (Highlighted) - Shows only if active revocation exists */}
+            {/* Revocation Reason Card (Highlighted) */}
             {hasActiveRevocationReq && (
               <div
                 className="rounded-xl p-5 shadow-sm border transition-colors duration-300 ease-out"
@@ -465,6 +477,34 @@ const CtoApplicationDetails = ({ app }) => {
               </div>
             )}
 
+            {/* ✅ LATE FILING JUSTIFICATION CARD */}
+            {isLateFiling && (
+              <div
+                className="rounded-xl p-5 shadow-sm border transition-colors duration-300 ease-out"
+                style={{
+                  backgroundColor: "rgba(245,158,11,0.05)",
+                  borderColor: "rgba(245,158,11,0.30)",
+                }}
+              >
+                <h4
+                  className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+                  style={{ color: "#d97706" }}
+                >
+                  <Clock4 size={14} /> Late Filing Justification
+                </h4>
+                <p
+                  className="text-sm leading-relaxed font-medium break-words"
+                  style={{ color: "var(--app-text)" }}
+                >
+                  {lateJustification || (
+                    <span className="italic opacity-70">
+                      No justification provided.
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* Original Reason Card */}
             <div
               className="rounded-xl p-5 shadow-sm border transition-colors duration-300 ease-out"
@@ -475,7 +515,7 @@ const CtoApplicationDetails = ({ app }) => {
             >
               <h4
                 className={`font-bold uppercase tracking-widest mb-3 flex items-center gap-2 ${
-                  hasActiveRevocationReq || hasRevocationHistory
+                  hasActiveRevocationReq || hasRevocationHistory || isLateFiling
                     ? "text-[10px]"
                     : "text-xs"
                 }`}
@@ -483,17 +523,21 @@ const CtoApplicationDetails = ({ app }) => {
               >
                 <FileText
                   size={
-                    hasActiveRevocationReq || hasRevocationHistory ? 12 : 14
+                    hasActiveRevocationReq ||
+                    hasRevocationHistory ||
+                    isLateFiling
+                      ? 12
+                      : 14
                   }
                   style={{ color: "var(--app-muted)" }}
                 />{" "}
-                {hasActiveRevocationReq || hasRevocationHistory
-                  ? "Original Purpose"
+                {hasActiveRevocationReq || hasRevocationHistory || isLateFiling
+                  ? "General Purpose"
                   : "Purpose"}
               </h4>
 
               <p
-                className={`text-sm leading-relaxed break-words ${hasActiveRevocationReq || hasRevocationHistory ? "font-medium opacity-80" : "font-medium"}`}
+                className={`text-sm leading-relaxed break-words ${hasActiveRevocationReq || hasRevocationHistory || isLateFiling ? "font-medium opacity-80" : "font-medium"}`}
                 style={{ color: "var(--app-text)" }}
               >
                 {app.reason || (
@@ -549,9 +593,124 @@ const CtoApplicationDetails = ({ app }) => {
               </div>
             </div>
 
-            {/* Documents Section */}
-            {!hasActiveRevocationReq ? (
-              /* Regular Attachments Button */
+            {/* ✅ UNIFIED DOCUMENTS SECTION */}
+            <div className="space-y-2">
+              <h4
+                className="text-[10px] font-bold uppercase tracking-widest px-1 flex items-center gap-2 mt-4"
+                style={{ color: "var(--app-muted)" }}
+              >
+                <Paperclip size={12} /> Attachments
+              </h4>
+
+              {/* 1. Revocation Attachment */}
+              {hasRevocationAttachment && (
+                <div
+                  className="rounded-xl p-1 shadow-sm border transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                  }}
+                >
+                  <button
+                    onClick={() =>
+                      handleDownloadAttachment(revocationReq.attachment)
+                    }
+                    className="w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ease-out"
+                    type="button"
+                    style={{ backgroundColor: "transparent" }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        "var(--app-surface-2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="p-2 rounded-lg border flex-none"
+                        style={{
+                          backgroundColor: "rgba(147, 51, 234, 0.1)",
+                          borderColor: "rgba(147, 51, 234, 0.2)",
+                          color: "#9333ea",
+                        }}
+                      >
+                        <FileText size={16} />
+                      </div>
+                      <div className="text-left min-w-0 pr-2">
+                        <span
+                          className="block text-xs font-bold truncate"
+                          style={{ color: "var(--app-text)" }}
+                        >
+                          {revocationReq.attachment.fileName}
+                        </span>
+                        <span
+                          className="text-[10px] truncate"
+                          style={{ color: "var(--app-muted)" }}
+                        >
+                          Revocation Support File
+                        </span>
+                      </div>
+                    </div>
+                    <Download size={14} style={{ color: "var(--app-muted)" }} />
+                  </button>
+                </div>
+              )}
+
+              {/* 2. Late Filing Attachment */}
+              {isLateFiling && lateAttachment?.fileUrl && (
+                <div
+                  className="rounded-xl p-1 shadow-sm border transition-colors duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--app-surface)",
+                    borderColor: borderColor,
+                  }}
+                >
+                  <button
+                    onClick={() => handleDownloadAttachment(lateAttachment)}
+                    className="w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ease-out"
+                    type="button"
+                    style={{ backgroundColor: "transparent" }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        "var(--app-surface-2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="p-2 rounded-lg border flex-none"
+                        style={{
+                          backgroundColor: "rgba(245,158,11,0.1)",
+                          borderColor: "rgba(245,158,11,0.2)",
+                          color: "#d97706",
+                        }}
+                      >
+                        <Clock4 size={16} />
+                      </div>
+                      <div className="text-left min-w-0 pr-2">
+                        <span
+                          className="block text-xs font-bold truncate"
+                          style={{ color: "var(--app-text)" }}
+                        >
+                          {lateAttachment.fileName || "Late Filing Doc"}
+                        </span>
+                        <span
+                          className="text-[10px] truncate"
+                          style={{ color: "var(--app-muted)" }}
+                        >
+                          Late Filing Support File
+                        </span>
+                      </div>
+                    </div>
+                    <Download size={14} style={{ color: "var(--app-muted)" }} />
+                  </button>
+                </div>
+              )}
+
+              {/* 3. Original Memos */}
               <div
                 className="rounded-xl p-1 shadow-sm border transition-colors duration-300 ease-out"
                 style={{
@@ -565,7 +724,7 @@ const CtoApplicationDetails = ({ app }) => {
                     setMemoModal({ isOpen: true, memos: app.memo })
                   }
                   disabled={!hasDocuments}
-                  className="w-full flex items-center justify-between p-4 rounded-lg transition-colors duration-200 ease-out"
+                  className="w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ease-out"
                   type="button"
                   style={{
                     backgroundColor: "transparent",
@@ -597,197 +756,37 @@ const CtoApplicationDetails = ({ app }) => {
                       }}
                     >
                       {hasDocuments ? (
-                        <FileStack size={18} />
+                        <FileStack size={16} />
                       ) : (
-                        <FileX size={18} />
+                        <FileX size={16} />
                       )}
                     </div>
-
                     <div className="text-left">
                       <span
-                        className="block text-sm font-bold"
+                        className="block text-xs font-bold"
                         style={{ color: "var(--app-text)" }}
                       >
-                        Attachments
+                        Original Memos
                       </span>
                       <span
-                        className="text-xs"
+                        className="text-[10px]"
                         style={{ color: "var(--app-muted)" }}
                       >
                         {hasDocuments
-                          ? `${app.memo.length} documents available`
-                          : "No files attached"}
+                          ? `${app.memo.length} documents attached`
+                          : "None attached"}
                       </span>
                     </div>
                   </div>
-
                   {hasDocuments && (
                     <ArrowRight
-                      size={16}
+                      size={14}
                       style={{ color: "var(--app-muted)" }}
                     />
                   )}
                 </button>
               </div>
-            ) : (
-              /* Split Attachments for Active Revocation Workflow */
-              <div className="space-y-2">
-                <h4
-                  className="text-[10px] font-bold uppercase tracking-widest px-1 flex items-center gap-2 mt-4"
-                  style={{ color: "var(--app-muted)" }}
-                >
-                  <Paperclip size={12} /> Attachments
-                </h4>
-
-                {/* 1. Active Revocation Attachment */}
-                <div
-                  className="rounded-xl p-1 shadow-sm border transition-colors duration-300 ease-out"
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    borderColor: borderColor,
-                  }}
-                >
-                  <button
-                    onClick={() =>
-                      handleDownloadAttachment(revocationReq.attachment)
-                    }
-                    disabled={!hasRevocationAttachment}
-                    className="w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ease-out"
-                    type="button"
-                    style={{
-                      backgroundColor: "transparent",
-                      opacity: hasRevocationAttachment ? 1 : 0.6,
-                      cursor: hasRevocationAttachment
-                        ? "pointer"
-                        : "not-allowed",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!hasRevocationAttachment) return;
-                      e.currentTarget.style.backgroundColor =
-                        "var(--app-surface-2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="p-2 rounded-lg border flex-none"
-                        style={{
-                          backgroundColor: hasRevocationAttachment
-                            ? "rgba(147, 51, 234, 0.1)"
-                            : "var(--app-surface-2)",
-                          borderColor: hasRevocationAttachment
-                            ? "rgba(147, 51, 234, 0.2)"
-                            : borderColor,
-                          color: hasRevocationAttachment
-                            ? "#9333ea"
-                            : "var(--app-muted)",
-                        }}
-                      >
-                        {hasRevocationAttachment ? (
-                          <FileText size={16} />
-                        ) : (
-                          <FileX size={16} />
-                        )}
-                      </div>
-
-                      <div className="text-left min-w-0 pr-2">
-                        <span
-                          className="block text-xs font-bold truncate"
-                          style={{ color: "var(--app-text)" }}
-                        >
-                          {hasRevocationAttachment
-                            ? revocationReq.attachment.fileName
-                            : "No Revocation Document"}
-                        </span>
-                        <span
-                          className="text-[10px] truncate"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          {hasRevocationAttachment
-                            ? "Revocation Support File"
-                            : "Required by HR"}
-                        </span>
-                      </div>
-                    </div>
-                    {hasRevocationAttachment && (
-                      <Download
-                        size={14}
-                        style={{ color: "var(--app-muted)" }}
-                      />
-                    )}
-                  </button>
-                </div>
-
-                {/* 2. Original Memos */}
-                <div
-                  className="rounded-xl p-1 shadow-sm border transition-colors duration-300 ease-out"
-                  style={{
-                    backgroundColor: "var(--app-surface)",
-                    borderColor: borderColor,
-                  }}
-                >
-                  <button
-                    onClick={() =>
-                      hasDocuments &&
-                      setMemoModal({ isOpen: true, memos: app.memo })
-                    }
-                    disabled={!hasDocuments}
-                    className="w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ease-out"
-                    type="button"
-                    style={{
-                      backgroundColor: "transparent",
-                      opacity: hasDocuments ? 1 : 0.6,
-                      cursor: hasDocuments ? "pointer" : "not-allowed",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!hasDocuments) return;
-                      e.currentTarget.style.backgroundColor =
-                        "var(--app-surface-2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="p-2 rounded-lg border transition-colors duration-300 ease-out"
-                        style={{
-                          backgroundColor: "var(--app-surface-2)",
-                          borderColor: borderColor,
-                          color: "var(--app-muted)",
-                        }}
-                      >
-                        <FileStack size={16} />
-                      </div>
-                      <div className="text-left">
-                        <span
-                          className="block text-xs font-bold"
-                          style={{ color: "var(--app-text)" }}
-                        >
-                          Original Memos
-                        </span>
-                        <span
-                          className="text-[10px]"
-                          style={{ color: "var(--app-muted)" }}
-                        >
-                          {hasDocuments
-                            ? `${app.memo.length} documents attached`
-                            : "None attached"}
-                        </span>
-                      </div>
-                    </div>
-                    {hasDocuments && (
-                      <ArrowRight
-                        size={14}
-                        style={{ color: "var(--app-muted)" }}
-                      />
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* RIGHT COLUMN: Timeline */}
@@ -1279,7 +1278,7 @@ const CtoApplicationDetails = ({ app }) => {
                   className="flex flex-col items-center justify-center p-12 border border-dashed rounded-xl text-center"
                   style={{
                     backgroundColor: "var(--app-surface)",
-                    borderColor: borderColor,
+                    borderColor: "var(--app-border)",
                   }}
                 >
                   <Users

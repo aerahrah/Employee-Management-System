@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusBadge } from "../../statusUtils";
 import FullHeightCardContainer from "../../pageContainer";
 
@@ -45,6 +45,7 @@ import {
   ChevronDown,
   Bell,
   Undo,
+  Clock4, // ✅ Imported Clock4 for Late Filing icon
 } from "lucide-react";
 import FilterSelect from "../../filterSelect";
 import CtoApplicationDetails from "./myCtoApplicationFullDetails";
@@ -480,8 +481,6 @@ const ApplicationCard = ({
     ? app.inclusiveDates.length
     : 0;
 
-  const hasMemos = Array.isArray(app?.memo) && app.memo.length > 0;
-
   return (
     <div
       className={`rounded-xl shadow-sm overflow-hidden border-y border-r transition-colors duration-300 ease-out ${leftStripClassName}`}
@@ -521,7 +520,7 @@ const ApplicationCard = ({
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <div
-            className="rounded-lg border p-2 transition-colors duration-300 ease-out"
+            className="rounded-lg border p-2 transition-colors duration-300 ease-out flex flex-col justify-center"
             style={{
               backgroundColor: "var(--app-surface-2)",
               borderColor: borderColor,
@@ -533,13 +532,30 @@ const ApplicationCard = ({
             >
               <Clock className="w-3.5 h-3.5" /> Hours
             </div>
-            <div
-              className="mt-1 text-sm font-semibold transition-colors duration-300 ease-out"
-              style={{ color: "var(--app-text)" }}
-            >
-              {typeof app?.requestedHours === "number"
-                ? `${app.requestedHours}h`
-                : `${Number(app?.requestedHours || 0)}h`}
+            <div className="flex items-center gap-2 mt-1">
+              <span
+                className="text-sm font-semibold transition-colors duration-300 ease-out"
+                style={{ color: "var(--app-text)" }}
+              >
+                {typeof app?.requestedHours === "number"
+                  ? `${app.requestedHours}h`
+                  : `${Number(app?.requestedHours || 0)}h`}
+              </span>
+              {/* ✅ LATE FILING INDICATOR ON CARD */}
+              {/* {app.lateFiling?.isLateFiling && (
+                <div
+                  className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border"
+                  style={{
+                    backgroundColor: "rgba(245,158,11,0.1)",
+                    borderColor: "rgba(245,158,11,0.25)",
+                    color: "#d97706",
+                  }}
+                  title="Filed with short notice."
+                >
+                  <Clock4 className="h-3 w-3" />
+                  Late
+                </div>
+              )} */}
             </div>
           </div>
 
@@ -687,7 +703,6 @@ const ApplicationCard = ({
             </button>
           )}
 
-          {/* ✅ Inline button for canceling an active revocation */}
           {isRevocationRequested && canRequestRevocation && (
             <button
               onClick={onCancelRevoke}
@@ -1295,7 +1310,7 @@ const MyCtoApplications = () => {
           >
             {/* HEADER */}
             <div className="pt-2 pb-3 md:pb-6 px-1">
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                 <div>
                   <Breadcrumbs rootLabel="home" rootTo="/app" />
                   <h1
@@ -1313,38 +1328,71 @@ const MyCtoApplications = () => {
                   </p>
                 </div>
 
-                <div className="w-full md:w-auto flex flex-row items-stretch md:items-center gap-3 rounded-xl">
+                {/* ✅ LAYOUT FIX: Stack buttons cleanly below balance hours */}
+                <div className="w-full md:w-72 flex flex-col gap-3 shrink-0">
                   <BalanceHoursCard
                     hours={balanceHours}
                     loading={isBalanceLoading}
                     borderColor={borderColor}
                   />
 
-                  <button
-                    onClick={() =>
-                      navigate(
-                        isUserOrganic
-                          ? "/app/cto-apply/organic"
-                          : "/app/cto-apply/add",
-                      )
-                    }
-                    className="group relative inline-flex items-center gap-2 justify-center rounded-lg min-w-42 md:py-3.5 text-sm font-semibold shadow-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full"
-                    type="button"
-                    style={{
-                      backgroundColor: "var(--accent)",
-                      color: "#fff",
-                      border: "1px solid var(--accent)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.filter = "brightness(0.95)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.filter = "none";
-                    }}
-                  >
-                    <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-                    New Application
-                  </button>
+                  <div className="flex flex-row items-center gap-2 w-full">
+                    {/* Late Filing Button */}
+                    <button
+                      onClick={() =>
+                        navigate(
+                          isUserOrganic
+                            ? "/app/cto-apply/organic?late=true"
+                            : "/app/cto-apply/add?late=true",
+                        )
+                      }
+                      className="group relative inline-flex items-center gap-2 justify-center rounded-lg px-3 py-2.5 text-[11px] sm:text-xs font-semibold shadow-sm transition-all w-full flex-1"
+                      type="button"
+                      style={{
+                        backgroundColor: "rgba(245,158,11,0.12)",
+                        color: "#d97706",
+                        border: "1px solid rgba(245,158,11,0.25)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "rgba(245,158,11,0.20)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "rgba(245,158,11,0.12)";
+                      }}
+                    >
+                      <Clock4 className="w-3.5 h-3.5 shrink-0" />
+                      Late Filing
+                    </button>
+
+                    {/* New Application Button */}
+                    <button
+                      onClick={() =>
+                        navigate(
+                          isUserOrganic
+                            ? "/app/cto-apply/organic"
+                            : "/app/cto-apply/add",
+                        )
+                      }
+                      className="group relative inline-flex items-center gap-2 justify-center rounded-lg px-3 py-2.5 text-[11px] sm:text-xs font-semibold shadow-sm transition-all w-full flex-1"
+                      type="button"
+                      style={{
+                        backgroundColor: "var(--accent)",
+                        color: "#fff",
+                        border: "1px solid var(--accent)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.filter = "brightness(0.95)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.filter = "none";
+                      }}
+                    >
+                      <Plus className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:rotate-90" />
+                      New Application
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1869,16 +1917,36 @@ const MyCtoApplications = () => {
                                     </td>
 
                                     <td className="px-6 py-4 text-center">
-                                      <span
-                                        className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
-                                        style={{
-                                          backgroundColor: "var(--app-surface)",
-                                          borderColor: borderColor,
-                                          color: "var(--app-text)",
-                                        }}
-                                      >
-                                        {app.requestedHours}h
-                                      </span>
+                                      <div className="flex flex-col items-center gap-1.5">
+                                        <span
+                                          className="inline-flex items-center px-2.5 py-0.5 rounded-md border text-xs font-bold"
+                                          style={{
+                                            backgroundColor:
+                                              "var(--app-surface)",
+                                            borderColor: borderColor,
+                                            color: "var(--app-text)",
+                                          }}
+                                        >
+                                          {app.requestedHours}h
+                                        </span>
+                                        {/* ✅ LATE FILING INDICATOR ON TABLE
+                                        {app.lateFiling?.isLateFiling && (
+                                          <div
+                                            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border"
+                                            style={{
+                                              backgroundColor:
+                                                "rgba(245,158,11,0.1)",
+                                              borderColor:
+                                                "rgba(245,158,11,0.25)",
+                                              color: "#d97706",
+                                            }}
+                                            title="Filed with short notice."
+                                          >
+                                            <Clock4 className="h-3 w-3" />
+                                            Late
+                                          </div>
+                                        )} */}
+                                      </div>
                                     </td>
 
                                     <td className="px-6 py-4 text-center">

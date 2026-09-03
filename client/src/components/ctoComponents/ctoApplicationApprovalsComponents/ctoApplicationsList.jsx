@@ -13,6 +13,7 @@ import {
   AlertCircle,
   LayoutGrid,
   Ban,
+  Clock4, // ✅ Imported Clock4 for Late Filing icon
 } from "lucide-react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -758,7 +759,7 @@ const CtoApplicationsList = () => {
                         {app.employee?.position || "No position"}
                       </span>
 
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <div
                           className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border"
                           style={{
@@ -778,6 +779,22 @@ const CtoApplicationsList = () => {
                             {app.requestedHours} hrs
                           </span>
                         </div>
+
+                        {/* ✅ NEW: LATE FILING INDICATOR */}
+                        {app.lateFiling?.isLateFiling && (
+                          <div
+                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"
+                            style={{
+                              backgroundColor: "rgba(245,158,11,0.1)",
+                              borderColor: "rgba(245,158,11,0.25)",
+                              color: "#d97706",
+                            }}
+                            title="This application was filed with short notice."
+                          >
+                            <Clock4 className="h-3 w-3" />
+                            Late
+                          </div>
+                        )}
                       </div>
                     </div>
                   </li>

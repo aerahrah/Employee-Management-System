@@ -19,6 +19,7 @@ import {
   RotateCcw,
   FileBadge,
   PenTool,
+  Paperclip, // ✅ Imported Paperclip for attachments
 } from "lucide-react";
 import { StatusIcon, StatusBadge } from "../../statusUtils";
 import { useAuth } from "../../../store/authStore";
@@ -654,7 +655,6 @@ const TimelineCard = ({ approval, index, isLast }) => {
           </div>
         )}
 
-        {/* ✅ Display the signature and signed date from the snapshot */}
         {signatureUrl && (
           <div
             className="mt-4 border-t border-dashed"
@@ -1469,12 +1469,12 @@ const CtoApplicationDetails = () => {
 
               <div className="space-y-4">
                 <div>
-                  <p
+                  {/* <p
                     className="text-[10px] font-bold uppercase mb-1"
                     style={{ color: "var(--app-muted)" }}
                   >
                     Purpose / Reason
-                  </p>
+                  </p> */}
                   <p
                     className="leading-relaxed italic p-4 rounded-2xl border break-words"
                     style={{
@@ -1508,6 +1508,59 @@ const CtoApplicationDetails = () => {
                 )}
               </div>
             </section>
+
+            {/* ✅ LATE FILING JUSTIFICATION BLOCK */}
+            {application.lateFiling?.isLateFiling && (
+              <section
+                className="border rounded-xl p-3 shadow-sm min-w-0 mt-4"
+                style={{
+                  backgroundColor: "rgba(245,158,11,0.05)",
+                  borderColor: "rgba(245,158,11,0.30)",
+                }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <span
+                    className="h-10 w-10 rounded-xl flex items-center justify-center flex-none border"
+                    style={{
+                      backgroundColor: "rgba(245,158,11,0.15)",
+                      color: "#d97706",
+                      borderColor: "rgba(245,158,11,0.25)",
+                    }}
+                  >
+                    <Clock size={20} />
+                  </span>
+                  <div className="min-w-0">
+                    <h3
+                      className="text-xs font-bold uppercase tracking-widest"
+                      style={{ color: "#d97706" }}
+                    >
+                      Late Filing Justification
+                    </h3>
+                    <p
+                      className="text-[11px] font-medium"
+                      style={{ color: "#b45309" }}
+                    >
+                      Filed with insufficient lead time notice.
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <p
+                    className="leading-relaxed italic p-4 rounded-2xl border break-words"
+                    style={{
+                      color: "var(--app-text)",
+                      backgroundColor: "var(--app-surface)",
+                      borderColor: borderColor,
+                    }}
+                  >
+                    "
+                    {application.lateFiling.justification ||
+                      "No justification provided."}
+                    "
+                  </p>
+                </div>
+              </section>
+            )}
 
             <section
               className="border rounded-xl p-3 shadow-sm min-w-0"
@@ -1714,6 +1767,50 @@ const CtoApplicationDetails = () => {
                   </span>
                 </button>
               )}
+
+              {/* ✅ LATE FILING ATTACHMENT BUTTON */}
+              {application.lateFiling?.isLateFiling &&
+                application.lateFiling?.attachment?.fileUrl && (
+                  <a
+                    href={buildApiUrl(
+                      application.lateFiling.attachment.fileUrl,
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 w-full inline-flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold hover:bg-[color:var(--app-surface-2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] focus:ring-offset-2 transition"
+                    style={{
+                      borderColor: "rgba(245,158,11,0.3)",
+                      backgroundColor: "rgba(245,158,11,0.05)",
+                      color: "var(--app-text)",
+                    }}
+                    title="View Late Filing Attachment"
+                  >
+                    <span className="inline-flex items-center gap-2 min-w-0">
+                      <span
+                        className="h-8 w-8 rounded-lg flex items-center justify-center flex-none border"
+                        style={{
+                          backgroundColor: "rgba(245,158,11,0.15)",
+                          color: "#d97706",
+                          borderColor: "rgba(245,158,11,0.25)",
+                        }}
+                      >
+                        <Paperclip size={16} />
+                      </span>
+                      <span className="truncate">Late Filing Doc</span>
+                    </span>
+
+                    <span
+                      className="text-[9px] font-bold px-2 py-1 rounded-lg flex-none border"
+                      style={{
+                        color: "#d97706",
+                        borderColor: "rgba(245,158,11,0.3)",
+                        backgroundColor: "rgba(245,158,11,0.1)",
+                      }}
+                    >
+                      PDF
+                    </span>
+                  </a>
+                )}
 
               <div className="mt-5 md:mt-7 flex items-center justify-between gap-3">
                 <h4

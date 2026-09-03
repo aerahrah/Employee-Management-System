@@ -2,15 +2,50 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
-// ✅ Set up specific storage for CTO revocation attachments
-const uploadCtoRevocation = multer({
-  dest: "upload/cto/revocation/attachments/",
-});
+// Helper function to ensure the upload directories exist
+const ensureDir = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+};
 
-const uploadCtoApplication = multer({
-  dest: "upload/cto/applications/attachments/",
+// ✅ Custom Storage for CTO Revocation Attachments (preserves file extensions)
+const revocationStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = "uploads/cto/revocation/attachments/";
+    ensureDir(dir);
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    // Generates a safe, unique filename: file-1683921345.pdf
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(
+      null,
+      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
+    );
+  },
 });
+const uploadCtoRevocation = multer({ storage: revocationStorage });
+
+// ✅ Custom Storage for CTO Application Attachments (Late Filing)
+const applicationStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = "uploads/cto/applications/attachments/";
+    ensureDir(dir);
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(
+      null,
+      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
+    );
+  },
+});
+const uploadCtoApplication = multer({ storage: applicationStorage });
 
 const uploadCtoMemo = require("../middlewares/uploadCtoMemo.middleware.js");
 const {
@@ -48,7 +83,7 @@ const {
   followUpCtoApplicationRequest,
   getRevocationRequestsController,
   requestRevocationController,
-  cancelRevocationController, // ✅ Imported the new controller
+  cancelRevocationController,
   processRevocationController,
 } = require("../controllers/ctoApplicationController.js");
 
@@ -134,7 +169,7 @@ router.get(
 router.post(
   "/applications/apply",
   ...requirePerm("cto.manage_self"),
-  uploadCtoApplication.single("file"), // ✅ Add multer here
+  uploadCtoApplication.single("file"), // ✅ Uses updated storage
   addCtoApplicationRequest,
 );
 // Dynamic Routes Last
@@ -206,11 +241,10 @@ router.get(
 router.post(
   "/revocation/applications/:applicationId/revoke-request",
   ...requirePerm("revocation.manage_self"),
-  uploadCtoRevocation.single("file"),
+  uploadCtoRevocation.single("file"), // ✅ Uses updated storage
   requestRevocationController,
 );
 
-// ✅ NEW: Employee cancels their pending revocation request
 router.patch(
   "/revocation/applications/:applicationId/cancel-request",
   ...requirePerm("revocation.manage_self"),
@@ -222,43 +256,5 @@ router.patch(
   ...requirePerm("revocation.manage_application"),
   processRevocationController,
 );
-
-/* =========================================
-   ORGANIC LEAVES (WELLNESS, ETC.)
-========================================= */
-// // Apply for Organic Leave
-// router.post(
-//   "/organic-applications/apply",
-//   ...requirePerm("organic_leaves.create"),
-//   addOrganicLeaveRequest,
-// );
-
-// // Admin View All Organic Applications
-// router.get(
-//   "/organic-applications/all",
-//   ...requirePerm("organic_leaves.applications_view"),
-//   getAllOrganicLeavesRequest,
-// );
-
-// // Self-service organic application views (MUST come before /employee/:employeeId)
-// router.get(
-//   "/organic-applications/my-application",
-//   ...requirePerm("organic_leaves.view_self"),
-//   getOrganicLeavesByEmployeeRequest,
-// );
-
-// // Admin View Specific Employee Organic Applications
-// router.get(
-//   "/organic-applications/employee/:employeeId",
-//   ...requirePerm("organic_leaves.applications_view"),
-//   getOrganicLeavesByEmployeeRequest,
-// );
-
-// // Updated to :applicationId
-// router.patch(
-//   "/organic-applications/:applicationId/cancel",
-//   ...requirePerm("organic_leaves.view_self"),
-//   cancelOrganicLeaveRequest,
-// );
 
 module.exports = router;
